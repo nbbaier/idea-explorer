@@ -1,0 +1,18 @@
+## Codebase Patterns
+
+- Use `getSandbox` from `@cloudflare/sandbox` to create sandbox instances
+- Export `Sandbox` from index.ts for Cloudflare container runtime
+- Prompts are stored in `/prompts/` directory and copied into container
+- SPEC.md contains the complete API specification and framework templates
+
+---
+
+# Progress Log
+
+## Initial State Assessment
+- Dockerfile exists with sandbox base image, but uses 5-min timeout instead of 15-min
+- Prompts (business.md, exploration.md) already created
+- Basic worker exists with POST endpoint for repo/task, needs refactoring for idea exploration API
+- wrangler.jsonc configured for containers
+
+---
