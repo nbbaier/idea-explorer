@@ -44,8 +44,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created src/middleware/auth.ts with requireAuth function"
     },
     {
       "id": "US-004",
@@ -60,8 +60,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created src/jobs.ts with Job, JobStatus, ExploreRequest types and createJob/getJob/updateJob utilities"
     },
     {
       "id": "US-005",

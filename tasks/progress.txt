@@ -4,6 +4,9 @@
 - Export `Sandbox` from index.ts for Cloudflare container runtime
 - Prompts are stored in `/prompts/` directory and copied into container
 - SPEC.md contains the complete API specification and framework templates
+- Auth middleware: `requireAuth(request, env)` returns `{ success: true }` or `{ success: false, response: Response }`
+- Job state: Use `createJob(request)`, `getJob(id)`, `updateJob(id, updates)` from src/jobs.ts
+- Types: Job, JobStatus, ExploreRequest, ExploreMode, ModelType are all exported from src/jobs.ts
 
 ---
 
@@ -39,4 +42,33 @@ Thread: https://ampcode.com/threads/T-019b9c41-bb15-75da-9340-64944492a1f0
 - **Learnings for future iterations:**
   - Prompts include Input Variables section for IDEA and CONTEXT placeholders
   - Templates use markdown code blocks to show the exact output format expected
+---
+
+## 2026-01-08 - US-003
+Thread: https://ampcode.com/threads/T-019b9c42-9c8c-7208-b38e-675284cab051
+- Implemented Bearer token authentication middleware
+- Created src/middleware/auth.ts with requireAuth function
+- Validates Authorization: Bearer <token> header against API_BEARER_TOKEN env var
+- Returns 401 with JSON error message for missing/invalid/wrong tokens
+- Files changed: src/middleware/auth.ts (new)
+- **Learnings for future iterations:**
+  - Use `type` instead of `interface` for union types in TypeScript
+  - Auth middleware exports AuthEnv interface for type-safe env access
+  - Use requireAuth(request, env) and check result.success before proceeding
+---
+
+## 2026-01-08 - US-004
+Thread: https://ampcode.com/threads/T-019b9c44-0213-77ef-b4ea-46538ef4b954
+- Implemented job types and in-memory state management
+- Created src/jobs.ts with:
+  - JobStatus type: 'pending' | 'running' | 'completed' | 'failed'
+  - ExploreMode and ModelType helper types
+  - ExploreRequest interface matching API spec
+  - Job interface with all required fields
+  - In-memory Map storage for jobs
+  - createJob, getJob, updateJob utility functions
+- Files changed: src/jobs.ts (new)
+- **Learnings for future iterations:**
+  - Use `Partial<Omit<Job, 'id' | 'created_at'>>` pattern for update functions to prevent modifying immutable fields
+  - crypto.randomUUID().slice(0, 8) generates short job IDs
 ---
