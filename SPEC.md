@@ -55,10 +55,10 @@ Start an idea exploration job.
 ```typescript
 {
   idea: string;           // Required: The idea to explore
-  webhook_url: string;    // Required: URL to receive completion callback
+  webhook_url?: string;   // Optional: URL to receive completion callback (falls back to WEBHOOK_URL env var)
   mode?: 'business' | 'exploration';  // Default: 'business'
   model?: 'sonnet' | 'opus';          // Default: 'sonnet'
-  callback_secret?: string;           // Secret for HMAC webhook signature
+  callback_secret?: string;           // Optional: Secret for HMAC-SHA256 webhook signature verification
   context?: string;                   // Optional additional context
 }
 ```
@@ -111,13 +111,13 @@ Check the status of an exploration job.
 
 ## Webhook Specification
 
-When a job completes (success or failure), the service POSTs to the provided `webhook_url`.
+When a job completes (success or failure), the service POSTs to the webhook URL (either from the request `webhook_url` field or the `WEBHOOK_URL` environment variable).
 
 **Headers:**
 
 ```
 Content-Type: application/json
-X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>
+X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>  (only if callback_secret was provided)
 ```
 
 **Success Payload:**
@@ -147,6 +147,69 @@ X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>
 
 -  3 attempts with exponential backoff: 1s, 5s, 30s
 -  Webhook considered delivered if response is 2xx
+
+### Webhook Signature Verification
+
+When you provide a `callback_secret` in your explore request, the service signs the webhook payload using HMAC-SHA256. This allows you to verify that webhooks are authentic and haven't been tampered with.
+
+**How it works:**
+
+1. You provide a `callback_secret` when creating an exploration job
+2. When the job completes, the service computes an HMAC-SHA256 signature of the JSON body using your secret
+3. The signature is sent in the `X-Signature` header with format: `sha256=<hex_encoded_signature>`
+4. Your webhook endpoint verifies the signature by computing the same HMAC and comparing
+
+**Example verification (Node.js):**
+
+```javascript
+const crypto = require("crypto");
+
+function verifyWebhookSignature(body, signature, secret) {
+   const expectedSignature =
+      "sha256=" +
+      crypto.createHmac("sha256", secret).update(body, "utf8").digest("hex");
+
+   return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+   );
+}
+
+// In your webhook handler:
+app.post("/webhook", (req, res) => {
+   const signature = req.headers["x-signature"];
+   const body = JSON.stringify(req.body); // Must match exact JSON sent
+
+   if (!verifyWebhookSignature(body, signature, process.env.CALLBACK_SECRET)) {
+      return res.status(401).send("Invalid signature");
+   }
+
+   // Process the webhook...
+});
+```
+
+**Example verification (Python):**
+
+```python
+import hmac
+import hashlib
+
+def verify_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
+    expected = 'sha256=' + hmac.new(
+        secret.encode('utf-8'),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected)
+```
+
+**Security recommendations:**
+
+-  Use a cryptographically random secret (minimum 32 characters)
+-  Always use constant-time comparison to prevent timing attacks
+-  Verify the signature before processing the webhook payload
+-  Store the secret securely (environment variable or secrets manager)
 
 ---
 

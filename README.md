@@ -35,6 +35,7 @@ wrangler secret put API_BEARER_TOKEN
 | `ANTHROPIC_API_KEY` | API key for Claude (get from console.anthropic.com)                         |
 | `GITHUB_PAT`        | Personal access token with `repo` scope for writing to the ideas repository |
 | `API_BEARER_TOKEN`  | Token used to authenticate API requests (generate a strong random string)   |
+| `WEBHOOK_URL`       | (Optional) Default webhook URL for job completion notifications             |
 
 ### 3. Deploy
 
@@ -48,7 +49,7 @@ wrangler deploy
 
 ```bash
 curl -X POST https://idea-explorer.your-domain.workers.dev/explore \
-  -H "Authorization: Bearer YOUR_API_TOKEN" \
+   -H "Authorization: Bearer YOUR_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "idea": "AI-powered code review assistant",

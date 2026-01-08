@@ -5,7 +5,7 @@ export type ModelType = "sonnet" | "opus";
 
 export interface ExploreRequest {
 	idea: string;
-	webhook_url: string;
+	webhook_url?: string;
 	mode?: ExploreMode;
 	model?: ModelType;
 	callback_secret?: string;
@@ -18,7 +18,7 @@ export interface Job {
 	mode: ExploreMode;
 	model: ModelType;
 	status: JobStatus;
-	webhook_url: string;
+	webhook_url?: string;
 	callback_secret?: string;
 	context?: string;
 	github_url?: string;

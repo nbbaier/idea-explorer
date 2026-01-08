@@ -77,6 +77,10 @@ export async function sendWebhook(
 	githubRepo: string,
 	branch: string,
 ): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
+	if (!job.webhook_url) {
+		return { success: true, attempts: 0 };
+	}
+
 	const payload: WebhookPayload =
 		job.status === "completed"
 			? buildSuccessPayload(job, githubRepo, branch)

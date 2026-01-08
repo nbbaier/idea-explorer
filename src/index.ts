@@ -25,6 +25,7 @@ interface ExploreEnv extends AuthEnv {
 	GITHUB_PAT: string;
 	GITHUB_REPO: string;
 	GITHUB_BRANCH: string;
+	WEBHOOK_URL?: string;
 	Sandbox: DurableObjectNamespace<Sandbox>;
 }
 
@@ -32,7 +33,10 @@ function isValidExploreRequest(body: unknown): body is ExploreRequest {
 	if (typeof body !== "object" || body === null) return false;
 	const obj = body as Record<string, unknown>;
 	if (typeof obj.idea !== "string" || obj.idea.trim() === "") return false;
-	if (typeof obj.webhook_url !== "string" || obj.webhook_url.trim() === "")
+	if (
+		obj.webhook_url !== undefined &&
+		(typeof obj.webhook_url !== "string" || obj.webhook_url.trim() === "")
+	)
 		return false;
 	if (
 		obj.mode !== undefined &&
@@ -218,12 +222,20 @@ export default {
 
 			if (!isValidExploreRequest(body)) {
 				return Response.json(
-					{ error: "Bad Request: idea and webhook_url are required fields" },
+					{ error: "Bad Request: idea is required" },
 					{ status: 400 },
 				);
 			}
 
-			const job = createJob(body);
+			const webhookUrl = body.webhook_url || env.WEBHOOK_URL;
+			if (!webhookUrl) {
+				return Response.json(
+					{ error: "Bad Request: webhook_url must be provided in request or configured via WEBHOOK_URL environment variable" },
+					{ status: 400 },
+				);
+			}
+
+			const job = createJob({ ...body, webhook_url: webhookUrl });
 			logJobCreated(job.id, job.idea, job.mode);
 
 			runExploration(job, env);
