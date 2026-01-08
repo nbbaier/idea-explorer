@@ -138,7 +138,12 @@ Idea: ${job.idea}${contextPart}
 After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
 
 		const model = job.model === "opus" ? "opus" : "sonnet";
-		const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, "\\n");
+		const escapedPrompt = prompt
+			.replace(/\\/g, "\\\\")
+			.replace(/"/g, '\\"')
+			.replace(/`/g, "\\`")
+			.replace(/\$/g, "\\$")
+			.replace(/\n/g, "\\n");
 		const claudeCmd = `claude --model ${model} -p "${escapedPrompt}" --permission-mode acceptEdits`;
 
 		logClaudeStarted(job.id, model);
@@ -165,10 +170,13 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 		await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
 
 		const commitMessage = `idea: ${slug} - research complete`;
-		const escapedMessage = commitMessage.replace(/"/g, '\\"');
+		const escapedMessage = commitMessage
+			.replace(/\\/g, "\\\\")
+			.replace(/"/g, '\\"')
+			.replace(/`/g, "\\`")
+			.replace(/\$/g, "\\$");
 		await sandbox.exec(`git commit -m "${escapedMessage}"`, {
 			cwd: "/workspace",
-		});
 		});
 
 		await pushWithRetry(sandbox, branch, repoUrl, job.id);
@@ -210,7 +218,11 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 }
 
 export default {
-	async fetch(request: Request, env: ExploreEnv): Promise<Response> {
+	async fetch(
+		request: Request,
+		env: ExploreEnv,
+		ctx: ExecutionContext,
+	): Promise<Response> {
 		const url = new URL(request.url);
 
 		if (request.method === "POST" && url.pathname === "/explore") {
@@ -232,15 +244,6 @@ export default {
 			}
 
 			const webhookUrl = body.webhook_url || env.WEBHOOK_URL;
-			if (!webhookUrl) {
-				return Response.json(
-					{
-						error:
-							"Bad Request: webhook_url must be provided in request or configured via WEBHOOK_URL environment variable",
-					},
-					{ status: 400 },
-				);
-			}
 
 			const job = await createJob(env.JOBS, {
 				...body,
@@ -248,7 +251,7 @@ export default {
 			});
 			logJobCreated(job.id, job.idea, job.mode);
 
-			await runExploration(job, env);
+			ctx.waitUntil(runExploration(job, env));
 
 			return Response.json(
 				{ job_id: job.id, status: "pending" },

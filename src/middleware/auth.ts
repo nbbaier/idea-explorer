@@ -33,7 +33,22 @@ export function requireAuth(request: Request, env: AuthEnv): AuthResult {
 
 	const token = authHeader.slice(7);
 
-	if (token !== env.API_BEARER_TOKEN) {
+	// Use constant-time comparison to prevent timing attacks
+	const encoder = new TextEncoder();
+	const tokenBuffer = encoder.encode(token);
+	const secretBuffer = encoder.encode(env.API_BEARER_TOKEN);
+
+	if (tokenBuffer.byteLength !== secretBuffer.byteLength) {
+		return {
+			success: false,
+			response: new Response(
+				JSON.stringify({ error: "Unauthorized: Invalid token" }),
+				{ status: 401, headers: { "Content-Type": "application/json" } },
+			),
+		};
+	}
+
+	if (!crypto.subtle.timingSafeEqual(tokenBuffer, secretBuffer)) {
 		return {
 			success: false,
 			response: new Response(
