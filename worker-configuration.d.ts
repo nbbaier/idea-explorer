@@ -8,6 +8,10 @@ declare namespace Cloudflare {
 	}
 	interface Env {
 		ANTHROPIC_API_KEY: string;
+		GITHUB_PAT: string;
+		API_BEARER_TOKEN: string;
+		GITHUB_REPO: string;
+		GITHUB_BRANCH: string;
 		Sandbox: DurableObjectNamespace<import("./src/index").Sandbox>;
 	}
 }
@@ -16,7 +20,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "ANTHROPIC_API_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "ANTHROPIC_API_KEY" | "GITHUB_PAT" | "API_BEARER_TOKEN" | "GITHUB_REPO" | "GITHUB_BRANCH">> {}
 }
 
 // Begin runtime types
