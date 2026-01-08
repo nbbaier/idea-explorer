@@ -93,8 +93,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented GET /status/:job_id with regex path matching, auth middleware, and conditional github_url/error fields"
     },
     {
       "id": "US-007",

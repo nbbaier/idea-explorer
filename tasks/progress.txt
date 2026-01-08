@@ -90,3 +90,16 @@ Thread: https://ampcode.com/threads/T-019b9e36-ae53-7543-824d-322df5cdad41
   - Use type guard functions for request validation to get proper TypeScript narrowing
   - Fire-and-forget async execution pattern: call async function without await to return immediately
 ---
+
+## 2026-01-08 - US-006
+Thread: https://ampcode.com/threads/T-019b9e38-9034-709e-b315-4839e9b9659b
+- Implemented GET /status/{job_id} endpoint
+- Added regex path matching for /status/:job_id route
+- Returns job status, idea, mode; conditionally includes github_url (completed) or error (failed)
+- Returns 404 for unknown job_id
+- Uses auth middleware
+- Files changed: src/index.ts
+- **Learnings for future iterations:**
+  - Use regex path matching `url.pathname.match(/^\/status\/([^/]+)$/)` for dynamic route segments
+  - Build response object conditionally to only include relevant fields per status
+---
