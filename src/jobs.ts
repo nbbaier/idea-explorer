@@ -25,9 +25,10 @@ export interface Job {
 	created_at: number;
 }
 
-const jobs = new Map<string, Job>();
-
-export function createJob(request: ExploreRequest): Job {
+export async function createJob(
+	kv: KVNamespace,
+	request: ExploreRequest,
+): Promise<Job> {
 	const id = crypto.randomUUID().slice(0, 8);
 	const job: Job = {
 		id,
@@ -40,21 +41,27 @@ export function createJob(request: ExploreRequest): Job {
 		context: request.context,
 		created_at: Date.now(),
 	};
-	jobs.set(id, job);
+	await kv.put(id, JSON.stringify(job));
 	return job;
 }
 
-export function getJob(id: string): Job | undefined {
-	return jobs.get(id);
+export async function getJob(
+	kv: KVNamespace,
+	id: string,
+): Promise<Job | undefined> {
+	const data = await kv.get(id);
+	if (!data) return undefined;
+	return JSON.parse(data) as Job;
 }
 
-export function updateJob(
+export async function updateJob(
+	kv: KVNamespace,
 	id: string,
 	updates: Partial<Omit<Job, "id" | "created_at">>,
-): Job | undefined {
-	const job = jobs.get(id);
+): Promise<Job | undefined> {
+	const job = await getJob(kv, id);
 	if (!job) return undefined;
 	const updated = { ...job, ...updates };
-	jobs.set(id, updated);
+	await kv.put(id, JSON.stringify(updated));
 	return updated;
 }
