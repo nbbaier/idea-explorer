@@ -144,3 +144,18 @@ Thread: https://ampcode.com/threads/T-019b9e3d-9827-716b-8588-18239a0e81cf
   - Webhook X-Signature header format: `sha256=<hex-encoded-hmac>`
   - Parse github_url to extract path for constructing raw.githubusercontent.com URL
 ---
+
+## 2026-01-08 - US-010
+Thread: https://ampcode.com/threads/T-019b9e40-0177-739e-8e8b-b5699d263e60
+- Implemented webhook retry logic with exponential backoff
+- Updated src/utils/webhook.ts to:
+  - Retry up to 3 times on non-2xx responses
+  - Use exponential backoff delays: 1s, 5s, 30s
+  - Log each attempt as structured JSON with job_id, attempt, status_code, success
+  - Return attempts count in sendWebhook result
+- Files changed: src/utils/webhook.ts
+- **Learnings for future iterations:**
+  - Use `Promise<void>` sleep helper for delays between retries
+  - sendWebhook now returns { success, statusCode, attempts } with attempts count
+  - Structured logging via console.log(JSON.stringify({...})) for Cloudflare Workers
+---
