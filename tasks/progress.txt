@@ -7,6 +7,7 @@
 - Auth middleware: `requireAuth(request, env)` returns `{ success: true }` or `{ success: false, response: Response }`
 - Job state: Use `createJob(request)`, `getJob(id)`, `updateJob(id, updates)` from src/jobs.ts
 - Types: Job, JobStatus, ExploreRequest, ExploreMode, ModelType are all exported from src/jobs.ts
+- Type Sandbox namespace as `DurableObjectNamespace<Sandbox>` (import Sandbox from @cloudflare/sandbox)
 
 ---
 
@@ -71,4 +72,21 @@ Thread: https://ampcode.com/threads/T-019b9c44-0213-77ef-b4ea-46538ef4b954
 - **Learnings for future iterations:**
   - Use `Partial<Omit<Job, 'id' | 'created_at'>>` pattern for update functions to prevent modifying immutable fields
   - crypto.randomUUID().slice(0, 8) generates short job IDs
+---
+
+## 2026-01-08 - US-005
+Thread: https://ampcode.com/threads/T-019b9e36-ae53-7543-824d-322df5cdad41
+- Implemented POST /explore endpoint
+- Refactored src/index.ts to:
+  - Add /explore route with POST handler
+  - Validate request body with isValidExploreRequest type guard
+  - Integrate auth middleware (401 for invalid token)
+  - Return 400 for missing/invalid required fields (idea, webhook_url)
+  - Create job via createJob() and return 202 with job_id and status
+  - Spawn async container execution with runExploration()
+- Files changed: src/index.ts
+- **Learnings for future iterations:**
+  - Import Sandbox from @cloudflare/sandbox and use `DurableObjectNamespace<Sandbox>` for proper typing
+  - Use type guard functions for request validation to get proper TypeScript narrowing
+  - Fire-and-forget async execution pattern: call async function without await to return immediately
 ---

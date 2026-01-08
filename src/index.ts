@@ -1,6 +1,6 @@
 import { getSandbox, Sandbox } from '@cloudflare/sandbox';
 import { requireAuth, type AuthEnv } from './middleware/auth';
-import { createJob, updateJob, type ExploreRequest, type Job } from './jobs';
+import { createJob, getJob, updateJob, type ExploreRequest, type Job } from './jobs';
 
 interface ExploreEnv extends AuthEnv {
   ANTHROPIC_API_KEY: string;
@@ -76,6 +76,38 @@ export default {
         { job_id: job.id, status: 'pending' },
         { status: 202 }
       );
+    }
+    
+    const statusMatch = url.pathname.match(/^\/status\/([^/]+)$/);
+    if (request.method === 'GET' && statusMatch) {
+      const auth = requireAuth(request, env);
+      if (!auth.success) return auth.response;
+      
+      const jobId = statusMatch[1];
+      const job = getJob(jobId);
+      
+      if (!job) {
+        return Response.json(
+          { error: 'Job not found' },
+          { status: 404 }
+        );
+      }
+      
+      const response: Record<string, string> = {
+        status: job.status,
+        idea: job.idea,
+        mode: job.mode,
+      };
+      
+      if (job.status === 'completed' && job.github_url) {
+        response.github_url = job.github_url;
+      }
+      
+      if (job.status === 'failed' && job.error) {
+        response.error = job.error;
+      }
+      
+      return Response.json(response);
     }
     
     return Response.json({ error: 'Not found' }, { status: 404 });
