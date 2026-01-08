@@ -173,8 +173,8 @@
         "Typecheck passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added cloneWithRetry, pushWithRetry, logError/logInfo helpers; timeout detection in catch block"
     },
     {
       "id": "US-012",
