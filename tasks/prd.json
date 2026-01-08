@@ -29,8 +29,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Prompts already exist, need to verify they match SPEC.md"
+      "passes": true,
+      "notes": "Verified prompts match SPEC.md structure exactly"
     },
     {
       "id": "US-003",

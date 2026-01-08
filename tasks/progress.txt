@@ -16,3 +16,27 @@
 - wrangler.jsonc configured for containers
 
 ---
+
+## 2026-01-08 - US-001
+Thread: https://ampcode.com/threads/T-019b9c40-8f37-7509-9f6c-a7abd0a62ff3
+- Verified Dockerfile configuration meets all acceptance criteria
+- Dockerfile extends cloudflare/sandbox:0.6.10
+- Claude Code installed via `npm install -g @anthropic-ai/claude-code`
+- 15-minute timeout configured (COMMAND_TIMEOUT_MS=900000)
+- Prompts directory copied to /prompts/
+- Files changed: Dockerfile (already updated in prior session, just committed)
+- **Learnings for future iterations:**
+  - Dockerfile was already updated but uncommitted - always check git status first
+  - typecheck command is `bun run typecheck`
+---
+
+## 2026-01-08 - US-002
+Thread: https://ampcode.com/threads/T-019b9c41-bb15-75da-9340-64944492a1f0
+- Verified prompt templates match SPEC.md structure
+- prompts/business.md: Contains Problem Analysis, Market Assessment, Technical Feasibility, Verdict sections
+- prompts/exploration.md: Contains Core Insight Deconstruction, Directions to Explore, Unexpected Connections, Questions Worth Answering sections
+- Files changed: None (prompts already correct)
+- **Learnings for future iterations:**
+  - Prompts include Input Variables section for IDEA and CONTEXT placeholders
+  - Templates use markdown code blocks to show the exact output format expected
+---
