@@ -165,8 +165,10 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 		await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
 
 		const commitMessage = `idea: ${slug} - research complete`;
-		await sandbox.exec(`git commit -m "${commitMessage}"`, {
+		const escapedMessage = commitMessage.replace(/"/g, '\\"');
+		await sandbox.exec(`git commit -m "${escapedMessage}"`, {
 			cwd: "/workspace",
+		});
 		});
 
 		await pushWithRetry(sandbox, branch, repoUrl, job.id);
