@@ -8,6 +8,9 @@
 - Job state: Use `createJob(request)`, `getJob(id)`, `updateJob(id, updates)` from src/jobs.ts
 - Types: Job, JobStatus, ExploreRequest, ExploreMode, ModelType are all exported from src/jobs.ts
 - Type Sandbox namespace as `DurableObjectNamespace<Sandbox>` (import Sandbox from @cloudflare/sandbox)
+- Git auth in containers: Use `https://x-access-token:$GITHUB_PAT@github.com/<repo>.git` for PAT-based cloning
+- Use `generateSlug` from src/utils/slug.ts for URL-safe slugs (max 50 chars, kebab-case)
+- Container env vars: Pass to sandbox via `sandbox.setEnvVars({ KEY: value })` before running commands
 
 ---
 
@@ -102,4 +105,24 @@ Thread: https://ampcode.com/threads/T-019b9e38-9034-709e-b315-4839e9b9659b
 - **Learnings for future iterations:**
   - Use regex path matching `url.pathname.match(/^\/status\/([^/]+)$/)` for dynamic route segments
   - Build response object conditionally to only include relevant fields per status
+---
+
+## 2026-01-08 - US-008
+Thread: https://ampcode.com/threads/T-019b9e3b-2167-76bf-a36d-48ea7816c5c4
+- Implemented full container execution flow
+- Added GITHUB_PAT, GITHUB_REPO, GITHUB_BRANCH to ExploreEnv interface
+- Refactored runExploration() to:
+  - Clone ideas repo with PAT authentication: `git clone --depth 1 --branch <branch> https://x-access-token:$GITHUB_PAT@github.com/<repo>.git`
+  - Create output directory: `ideas/YYYY-MM-DD-<slug>/`
+  - Run Claude Code with prompt referencing template file and directing output to research.md
+  - Configure git user and commit with message: `idea: <slug> - research complete`
+  - Push to configured branch
+  - Update job with github_url on success
+- Files changed: src/index.ts
+- **Learnings for future iterations:**
+  - Use `x-access-token` as username for PAT-based git auth over HTTPS
+  - Pass env vars to sandbox with setEnvVars() before running commands
+  - Use `--depth 1` for shallow clone to speed up git operations
+  - Escape newlines and quotes in shell prompts: `.replace(/"/g, '\\"').replace(/\n/g, '\\n')`
+  - Import generateSlug from src/utils/slug.ts for consistent slug generation
 ---
