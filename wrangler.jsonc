@@ -35,8 +35,8 @@
 	"kv_namespaces": [
 		{
 			"binding": "JOBS",
-			"preview_id": "JOBS_PREVIEW", // TODO: Replace with actual KV namespace preview ID
-			"id": "JOBS_ID" // TODO: Replace with actual KV namespace ID
+			"preview_id": "placeholder_preview_id",
+			"id": "placeholder_production_id"
 		}
 	]
 }
