@@ -3,6 +3,16 @@ import { requireAuth, type AuthEnv } from './middleware/auth';
 import { createJob, getJob, updateJob, type ExploreRequest, type Job } from './jobs';
 import { generateSlug } from './utils/slug';
 import { sendWebhook } from './utils/webhook';
+import {
+  logJobCreated,
+  logContainerStarted,
+  logCloneComplete,
+  logClaudeStarted,
+  logCommitPushed,
+  logJobComplete,
+  logError,
+  logInfo,
+} from './utils/logger';
 
 interface ExploreEnv extends AuthEnv {
   ANTHROPIC_API_KEY: string;
@@ -30,27 +40,6 @@ function getDatePrefix(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function logError(jobId: string, operation: string, error: unknown): void {
-  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-  console.log(JSON.stringify({ 
-    level: 'error', 
-    job_id: jobId, 
-    operation, 
-    error: errorMessage,
-    timestamp: new Date().toISOString()
-  }));
-}
-
-function logInfo(jobId: string, event: string, data?: Record<string, unknown>): void {
-  console.log(JSON.stringify({ 
-    level: 'info', 
-    job_id: jobId, 
-    event, 
-    ...data,
-    timestamp: new Date().toISOString()
-  }));
 }
 
 async function cloneWithRetry(
@@ -86,8 +75,9 @@ async function pushWithRetry(
 }
 
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
+  const jobStartTime = Date.now();
   updateJob(job.id, { status: 'running' });
-  logInfo(job.id, 'exploration_started', { idea: job.idea, mode: job.mode, model: job.model });
+  logContainerStarted(job.id);
 
   const sandbox = getSandbox(env.Sandbox, job.id);
   const slug = generateSlug(job.idea);
@@ -103,8 +93,9 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
       GITHUB_PAT: env.GITHUB_PAT,
     });
     
+    const cloneStartTime = Date.now();
     await cloneWithRetry(sandbox, repoUrl, branch, job.id);
-    logInfo(job.id, 'clone_complete');
+    logCloneComplete(job.id, Date.now() - cloneStartTime);
     
     await sandbox.exec(`mkdir -p /workspace/ideas/${folderName}`);
     
@@ -120,7 +111,7 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
     const claudeCmd = `claude --model ${model} -p "${escapedPrompt}" --permission-mode acceptEdits`;
     
-    logInfo(job.id, 'claude_started', { model });
+    logClaudeStarted(job.id, model);
     try {
       await sandbox.exec(claudeCmd, { cwd: '/workspace' });
     } catch (claudeError) {
@@ -139,11 +130,11 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     await sandbox.exec(`git commit -m "${commitMessage}"`, { cwd: '/workspace' });
     
     await pushWithRetry(sandbox, branch, repoUrl, job.id);
-    logInfo(job.id, 'push_complete');
+    logCommitPushed(job.id);
     
     const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
     const updatedJob = updateJob(job.id, { status: 'completed', github_url: githubUrl });
-    logInfo(job.id, 'exploration_complete', { status: 'completed', github_url: githubUrl });
+    logJobComplete(job.id, 'completed', Date.now() - jobStartTime);
     
     if (updatedJob) {
       await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
@@ -158,6 +149,7 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     
     logError(job.id, 'exploration_failed', new Error(finalError));
     const updatedJob = updateJob(job.id, { status: 'failed', error: finalError });
+    logJobComplete(job.id, 'failed', Date.now() - jobStartTime);
     
     if (updatedJob) {
       await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
@@ -191,6 +183,7 @@ export default {
       }
       
       const job = createJob(body);
+      logJobCreated(job.id, job.idea, job.mode);
       
       runExploration(job, env);
       

@@ -1,4 +1,5 @@
 import type { Job } from '../jobs';
+import { logWebhookSent, logError } from './logger';
 
 export interface WebhookSuccessPayload {
   status: 'completed';
@@ -91,13 +92,7 @@ export async function sendWebhook(
       });
       
       lastStatusCode = response.status;
-      console.log(JSON.stringify({
-        event: 'webhook_attempt',
-        job_id: job.id,
-        attempt,
-        status_code: response.status,
-        success: response.ok,
-      }));
+      logWebhookSent(job.id, response.status, attempt);
       
       if (response.ok) {
         return {
@@ -107,13 +102,7 @@ export async function sendWebhook(
         };
       }
     } catch (error) {
-      console.log(JSON.stringify({
-        event: 'webhook_attempt',
-        job_id: job.id,
-        attempt,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        success: false,
-      }));
+      logError(job.id, `webhook_attempt_${attempt}`, error);
     }
     
     // Wait before next retry (if not last attempt)
