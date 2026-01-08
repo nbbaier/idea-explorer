@@ -31,5 +31,12 @@
 			"new_sqlite_classes": ["Sandbox"],
 			"tag": "v1"
 		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "JOBS",
+			"preview_id": "JOBS_PREVIEW",
+			"id": "JOBS_ID"
+		}
 	]
 }
