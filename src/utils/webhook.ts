@@ -54,11 +54,18 @@ function buildFailurePayload(job: Job): WebhookFailurePayload {
   };
 }
 
+const RETRY_DELAYS_MS = [1000, 5000, 30000]; // 1s, 5s, 30s
+const MAX_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function sendWebhook(
   job: Job,
   githubRepo: string,
   branch: string
-): Promise<{ success: boolean; statusCode?: number }> {
+): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
   const payload: WebhookPayload = job.status === 'completed'
     ? buildSuccessPayload(job, githubRepo, branch)
     : buildFailurePayload(job);
@@ -73,18 +80,51 @@ export async function sendWebhook(
     headers['X-Signature'] = await generateSignature(job.callback_secret, body);
   }
   
-  try {
-    const response = await fetch(job.webhook_url, {
-      method: 'POST',
-      headers,
-      body,
-    });
+  let lastStatusCode: number | undefined;
+  
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(job.webhook_url, {
+        method: 'POST',
+        headers,
+        body,
+      });
+      
+      lastStatusCode = response.status;
+      console.log(JSON.stringify({
+        event: 'webhook_attempt',
+        job_id: job.id,
+        attempt,
+        status_code: response.status,
+        success: response.ok,
+      }));
+      
+      if (response.ok) {
+        return {
+          success: true,
+          statusCode: response.status,
+          attempts: attempt,
+        };
+      }
+    } catch (error) {
+      console.log(JSON.stringify({
+        event: 'webhook_attempt',
+        job_id: job.id,
+        attempt,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+      }));
+    }
     
-    return {
-      success: response.ok,
-      statusCode: response.status,
-    };
-  } catch {
-    return { success: false };
+    // Wait before next retry (if not last attempt)
+    if (attempt < MAX_ATTEMPTS) {
+      await sleep(RETRY_DELAYS_MS[attempt - 1]);
+    }
   }
+  
+  return {
+    success: false,
+    statusCode: lastStatusCode,
+    attempts: MAX_ATTEMPTS,
+  };
 }
