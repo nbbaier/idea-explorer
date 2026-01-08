@@ -192,8 +192,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Logger utility at src/utils/logger.ts with all required log events. Called logJobCreated in /explore endpoint, integrated logWebhookSent in webhook.ts"
     },
     {
       "id": "US-013",
@@ -210,8 +210,8 @@
         "Typecheck passes"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "README updated with secret setup, wrangler.jsonc has GITHUB_REPO/GITHUB_BRANCH, worker-configuration.d.ts has all env types"
     }
   ]
 }
