@@ -1,217 +1,217 @@
 {
-  "project": "Idea Explorer",
-  "branchName": "ralph/idea-explorer",
-  "description": "Cloudflare Container-based service that runs autonomous Claude Code sessions to explore and analyze ideas",
-  "userStories": [
-    {
-      "id": "US-001",
-      "title": "Project Setup and Container Configuration",
-      "description": "As a developer, I need the base infrastructure configured so the service can run Claude Code in containers.",
-      "acceptanceCriteria": [
-        "Dockerfile extends cloudflare/sandbox:0.6.10",
-        "Claude Code installed via npm",
-        "15-minute timeout configured via COMMAND_TIMEOUT_MS (900000)",
-        "Prompts directory copied into container at /prompts/",
-        "Typecheck passes"
-      ],
-      "priority": 1,
-      "passes": true,
-      "notes": "Dockerfile configured with 15-min timeout and COPY prompts/"
-    },
-    {
-      "id": "US-002",
-      "title": "Create Analysis Prompt Templates",
-      "description": "As a user, I want structured analysis frameworks so my ideas are explored consistently.",
-      "acceptanceCriteria": [
-        "prompts/business.md contains business analysis framework (Problem, Market, Technical, Verdict)",
-        "prompts/exploration.md contains exploration framework (Deconstruction, Directions, Connections, Questions)",
-        "Both prompts match the structure defined in SPEC.md",
-        "Typecheck passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Verified prompts match SPEC.md structure exactly"
-    },
-    {
-      "id": "US-003",
-      "title": "Implement Bearer Token Authentication Middleware",
-      "description": "As a user, I want API endpoints protected so only I can submit ideas.",
-      "acceptanceCriteria": [
-        "Create auth middleware that validates Authorization: Bearer <token> header",
-        "Token validated against API_BEARER_TOKEN from env",
-        "Returns 401 Unauthorized with error message on missing/invalid token",
-        "Middleware is reusable for all endpoints",
-        "Typecheck passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Created src/middleware/auth.ts with requireAuth function"
-    },
-    {
-      "id": "US-004",
-      "title": "Add Job Types and State Management",
-      "description": "As a developer, I need types and in-memory state to track exploration jobs.",
-      "acceptanceCriteria": [
-        "Define Job interface with: id, idea, mode, model, status, webhook_url, callback_secret, context, github_url, error, created_at",
-        "Define JobStatus type: pending | running | completed | failed",
-        "Define ExploreRequest type matching API spec",
-        "Create jobs Map for in-memory storage",
-        "Export utility functions: createJob, getJob, updateJob",
-        "Typecheck passes"
-      ],
-      "priority": 4,
-      "passes": true,
-      "notes": "Created src/jobs.ts with Job, JobStatus, ExploreRequest types and createJob/getJob/updateJob utilities"
-    },
-    {
-      "id": "US-005",
-      "title": "Implement POST /explore Endpoint",
-      "description": "As a user, I want to submit an idea for exploration via API so Claude can analyze it autonomously.",
-      "acceptanceCriteria": [
-        "Accepts JSON body with: idea (required), webhook_url (required), mode (optional default 'business'), model (optional default 'sonnet'), callback_secret (optional), context (optional)",
-        "Returns 202 Accepted with {job_id, status: 'pending'}",
-        "Returns 400 Bad Request for missing required fields",
-        "Uses auth middleware (returns 401 for invalid token)",
-        "Creates job in state and spawns container execution",
-        "Typecheck passes"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Implemented in src/index.ts with validation, auth middleware, job creation, and async container execution"
-    },
-    {
-      "id": "US-006",
-      "title": "Implement GET /status/{job_id} Endpoint",
-      "description": "As a user, I want to check job status so I can poll for completion.",
-      "acceptanceCriteria": [
-        "Returns job status: pending | running | completed | failed",
-        "Includes idea and mode in response",
-        "Includes github_url when status is completed",
-        "Includes error message when status is failed",
-        "Returns 404 for unknown job_id",
-        "Uses auth middleware",
-        "Typecheck passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Implemented GET /status/:job_id with regex path matching, auth middleware, and conditional github_url/error fields"
-    },
-    {
-      "id": "US-007",
-      "title": "Implement Slug Generation Utility",
-      "description": "As a developer, I need a utility to convert idea titles to URL-safe slugs.",
-      "acceptanceCriteria": [
-        "Converts idea text to kebab-case slug",
-        "Removes special characters",
-        "Limits length to reasonable size (50 chars)",
-        "Handles edge cases (empty string, all special chars)",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Created src/utils/slug.ts with generateSlug function"
-    },
-    {
-      "id": "US-008",
-      "title": "Implement Container Execution Flow",
-      "description": "As a user, I want the container to run the full exploration workflow so my idea gets analyzed and committed.",
-      "acceptanceCriteria": [
-        "Container clones ideas repo fresh on each run",
-        "Runs Claude Code with appropriate prompt (business.md or exploration.md)",
-        "Passes idea and optional context to Claude",
-        "Uses specified model (sonnet or opus)",
-        "Writes output to ideas/YYYY-MM-DD-<slug>/research.md",
-        "Commits with message: idea: <slug> - research complete",
-        "Pushes to configured branch",
-        "Updates job status throughout execution",
-        "Typecheck passes"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Implemented full workflow: git clone with PAT auth, Claude execution with prompt, git commit/push, github_url in job"
-    },
-    {
-      "id": "US-009",
-      "title": "Implement Webhook Delivery",
-      "description": "As a user, I want to receive a webhook when exploration completes so I'm notified of results.",
-      "acceptanceCriteria": [
-        "POSTs to provided webhook_url on completion or failure",
-        "Includes X-Signature: sha256=<HMAC-SHA256> header when callback_secret provided",
-        "Success payload includes: status, job_id, idea, github_url, github_raw_url",
-        "Failure payload includes: status, job_id, idea, error",
-        "Typecheck passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Created src/utils/webhook.ts with sendWebhook function and HMAC-SHA256 signature generation"
-    },
-    {
-      "id": "US-010",
-      "title": "Implement Webhook Retry Logic",
-      "description": "As a user, I want webhook delivery to retry on failure so I don't miss notifications.",
-      "acceptanceCriteria": [
-        "Retries up to 3 times on non-2xx response",
-        "Uses exponential backoff: 1s, 5s, 30s delays",
-        "Logs each attempt with status code",
-        "Considers delivered on any 2xx response",
-        "Typecheck passes"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Added retry loop with exponential backoff and structured JSON logging for each attempt"
-    },
-    {
-      "id": "US-011",
-      "title": "Implement Error Handling",
-      "description": "As a user, I want robust error handling so failures are reported correctly.",
-      "acceptanceCriteria": [
-        "Container timeout (15 min) marks job as failed",
-        "Clone failure retries once before failing",
-        "Push failure retries once with fresh pull before failing",
-        "Claude errors captured and included in failure webhook",
-        "All errors logged with job_id context",
-        "Typecheck passes"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Added cloneWithRetry, pushWithRetry, logError/logInfo helpers; timeout detection in catch block"
-    },
-    {
-      "id": "US-012",
-      "title": "Implement Structured Logging",
-      "description": "As a developer, I want structured logging so I can debug issues.",
-      "acceptanceCriteria": [
-        "Create logger utility with structured JSON output",
-        "Log job created: {job_id, idea, mode, timestamp}",
-        "Log container started: {job_id}",
-        "Log clone complete: {job_id, duration_ms}",
-        "Log Claude started: {job_id, model}",
-        "Log commit pushed: {job_id}",
-        "Log webhook sent: {job_id, status_code, attempt}",
-        "Log job complete: {job_id, status, total_duration_ms}",
-        "Typecheck passes"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Logger utility at src/utils/logger.ts with all required log events. Called logJobCreated in /explore endpoint, integrated logWebhookSent in webhook.ts"
-    },
-    {
-      "id": "US-013",
-      "title": "Configure Secrets and Environment Documentation",
-      "description": "As a developer, I need secrets and environment variables documented for the service to function.",
-      "acceptanceCriteria": [
-        "ANTHROPIC_API_KEY documented as Cloudflare secret",
-        "GITHUB_PAT documented as Cloudflare secret",
-        "API_BEARER_TOKEN documented as Cloudflare secret",
-        "GITHUB_REPO configured in wrangler.jsonc",
-        "GITHUB_BRANCH configured with default 'main'",
-        "README updated with secret setup instructions",
-        "worker-configuration.d.ts updated with all env types",
-        "Typecheck passes"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "README updated with secret setup, wrangler.jsonc has GITHUB_REPO/GITHUB_BRANCH, worker-configuration.d.ts has all env types"
-    }
-  ]
+	"project": "Idea Explorer",
+	"branchName": "ralph/idea-explorer",
+	"description": "Cloudflare Container-based service that runs autonomous Claude Code sessions to explore and analyze ideas",
+	"userStories": [
+		{
+			"id": "US-001",
+			"title": "Project Setup and Container Configuration",
+			"description": "As a developer, I need the base infrastructure configured so the service can run Claude Code in containers.",
+			"acceptanceCriteria": [
+				"Dockerfile extends cloudflare/sandbox:0.6.10",
+				"Claude Code installed via npm",
+				"15-minute timeout configured via COMMAND_TIMEOUT_MS (900000)",
+				"Prompts directory copied into container at /prompts/",
+				"Typecheck passes"
+			],
+			"priority": 1,
+			"passes": true,
+			"notes": "Dockerfile configured with 15-min timeout and COPY prompts/"
+		},
+		{
+			"id": "US-002",
+			"title": "Create Analysis Prompt Templates",
+			"description": "As a user, I want structured analysis frameworks so my ideas are explored consistently.",
+			"acceptanceCriteria": [
+				"prompts/business.md contains business analysis framework (Problem, Market, Technical, Verdict)",
+				"prompts/exploration.md contains exploration framework (Deconstruction, Directions, Connections, Questions)",
+				"Both prompts match the structure defined in SPEC.md",
+				"Typecheck passes"
+			],
+			"priority": 2,
+			"passes": true,
+			"notes": "Verified prompts match SPEC.md structure exactly"
+		},
+		{
+			"id": "US-003",
+			"title": "Implement Bearer Token Authentication Middleware",
+			"description": "As a user, I want API endpoints protected so only I can submit ideas.",
+			"acceptanceCriteria": [
+				"Create auth middleware that validates Authorization: Bearer <token> header",
+				"Token validated against API_BEARER_TOKEN from env",
+				"Returns 401 Unauthorized with error message on missing/invalid token",
+				"Middleware is reusable for all endpoints",
+				"Typecheck passes"
+			],
+			"priority": 3,
+			"passes": true,
+			"notes": "Created src/middleware/auth.ts with requireAuth function"
+		},
+		{
+			"id": "US-004",
+			"title": "Add Job Types and State Management",
+			"description": "As a developer, I need types and in-memory state to track exploration jobs.",
+			"acceptanceCriteria": [
+				"Define Job interface with: id, idea, mode, model, status, webhook_url, callback_secret, context, github_url, error, created_at",
+				"Define JobStatus type: pending | running | completed | failed",
+				"Define ExploreRequest type matching API spec",
+				"Create jobs Map for in-memory storage",
+				"Export utility functions: createJob, getJob, updateJob",
+				"Typecheck passes"
+			],
+			"priority": 4,
+			"passes": true,
+			"notes": "Created src/jobs.ts with Job, JobStatus, ExploreRequest types and createJob/getJob/updateJob utilities"
+		},
+		{
+			"id": "US-005",
+			"title": "Implement POST /explore Endpoint",
+			"description": "As a user, I want to submit an idea for exploration via API so Claude can analyze it autonomously.",
+			"acceptanceCriteria": [
+				"Accepts JSON body with: idea (required), webhook_url (required), mode (optional default 'business'), model (optional default 'sonnet'), callback_secret (optional), context (optional)",
+				"Returns 202 Accepted with {job_id, status: 'pending'}",
+				"Returns 400 Bad Request for missing required fields",
+				"Uses auth middleware (returns 401 for invalid token)",
+				"Creates job in state and spawns container execution",
+				"Typecheck passes"
+			],
+			"priority": 5,
+			"passes": true,
+			"notes": "Implemented in src/index.ts with validation, auth middleware, job creation, and async container execution"
+		},
+		{
+			"id": "US-006",
+			"title": "Implement GET /status/{job_id} Endpoint",
+			"description": "As a user, I want to check job status so I can poll for completion.",
+			"acceptanceCriteria": [
+				"Returns job status: pending | running | completed | failed",
+				"Includes idea and mode in response",
+				"Includes github_url when status is completed",
+				"Includes error message when status is failed",
+				"Returns 404 for unknown job_id",
+				"Uses auth middleware",
+				"Typecheck passes"
+			],
+			"priority": 6,
+			"passes": true,
+			"notes": "Implemented GET /status/:job_id with regex path matching, auth middleware, and conditional github_url/error fields"
+		},
+		{
+			"id": "US-007",
+			"title": "Implement Slug Generation Utility",
+			"description": "As a developer, I need a utility to convert idea titles to URL-safe slugs.",
+			"acceptanceCriteria": [
+				"Converts idea text to kebab-case slug",
+				"Removes special characters",
+				"Limits length to reasonable size (50 chars)",
+				"Handles edge cases (empty string, all special chars)",
+				"Typecheck passes"
+			],
+			"priority": 7,
+			"passes": true,
+			"notes": "Created src/utils/slug.ts with generateSlug function"
+		},
+		{
+			"id": "US-008",
+			"title": "Implement Container Execution Flow",
+			"description": "As a user, I want the container to run the full exploration workflow so my idea gets analyzed and committed.",
+			"acceptanceCriteria": [
+				"Container clones ideas repo fresh on each run",
+				"Runs Claude Code with appropriate prompt (business.md or exploration.md)",
+				"Passes idea and optional context to Claude",
+				"Uses specified model (sonnet or opus)",
+				"Writes output to ideas/YYYY-MM-DD-<slug>/research.md",
+				"Commits with message: idea: <slug> - research complete",
+				"Pushes to configured branch",
+				"Updates job status throughout execution",
+				"Typecheck passes"
+			],
+			"priority": 8,
+			"passes": true,
+			"notes": "Implemented full workflow: git clone with PAT auth, Claude execution with prompt, git commit/push, github_url in job"
+		},
+		{
+			"id": "US-009",
+			"title": "Implement Webhook Delivery",
+			"description": "As a user, I want to receive a webhook when exploration completes so I'm notified of results.",
+			"acceptanceCriteria": [
+				"POSTs to provided webhook_url on completion or failure",
+				"Includes X-Signature: sha256=<HMAC-SHA256> header when callback_secret provided",
+				"Success payload includes: status, job_id, idea, github_url, github_raw_url",
+				"Failure payload includes: status, job_id, idea, error",
+				"Typecheck passes"
+			],
+			"priority": 9,
+			"passes": true,
+			"notes": "Created src/utils/webhook.ts with sendWebhook function and HMAC-SHA256 signature generation"
+		},
+		{
+			"id": "US-010",
+			"title": "Implement Webhook Retry Logic",
+			"description": "As a user, I want webhook delivery to retry on failure so I don't miss notifications.",
+			"acceptanceCriteria": [
+				"Retries up to 3 times on non-2xx response",
+				"Uses exponential backoff: 1s, 5s, 30s delays",
+				"Logs each attempt with status code",
+				"Considers delivered on any 2xx response",
+				"Typecheck passes"
+			],
+			"priority": 10,
+			"passes": true,
+			"notes": "Added retry loop with exponential backoff and structured JSON logging for each attempt"
+		},
+		{
+			"id": "US-011",
+			"title": "Implement Error Handling",
+			"description": "As a user, I want robust error handling so failures are reported correctly.",
+			"acceptanceCriteria": [
+				"Container timeout (15 min) marks job as failed",
+				"Clone failure retries once before failing",
+				"Push failure retries once with fresh pull before failing",
+				"Claude errors captured and included in failure webhook",
+				"All errors logged with job_id context",
+				"Typecheck passes"
+			],
+			"priority": 11,
+			"passes": true,
+			"notes": "Added cloneWithRetry, pushWithRetry, logError/logInfo helpers; timeout detection in catch block"
+		},
+		{
+			"id": "US-012",
+			"title": "Implement Structured Logging",
+			"description": "As a developer, I want structured logging so I can debug issues.",
+			"acceptanceCriteria": [
+				"Create logger utility with structured JSON output",
+				"Log job created: {job_id, idea, mode, timestamp}",
+				"Log container started: {job_id}",
+				"Log clone complete: {job_id, duration_ms}",
+				"Log Claude started: {job_id, model}",
+				"Log commit pushed: {job_id}",
+				"Log webhook sent: {job_id, status_code, attempt}",
+				"Log job complete: {job_id, status, total_duration_ms}",
+				"Typecheck passes"
+			],
+			"priority": 12,
+			"passes": true,
+			"notes": "Logger utility at src/utils/logger.ts with all required log events. Called logJobCreated in /explore endpoint, integrated logWebhookSent in webhook.ts"
+		},
+		{
+			"id": "US-013",
+			"title": "Configure Secrets and Environment Documentation",
+			"description": "As a developer, I need secrets and environment variables documented for the service to function.",
+			"acceptanceCriteria": [
+				"ANTHROPIC_API_KEY documented as Cloudflare secret",
+				"GITHUB_PAT documented as Cloudflare secret",
+				"API_BEARER_TOKEN documented as Cloudflare secret",
+				"GITHUB_REPO configured in wrangler.jsonc",
+				"GITHUB_BRANCH configured with default 'main'",
+				"README updated with secret setup instructions",
+				"worker-configuration.d.ts updated with all env types",
+				"Typecheck passes"
+			],
+			"priority": 13,
+			"passes": true,
+			"notes": "README updated with secret setup, wrangler.jsonc has GITHUB_REPO/GITHUB_BRANCH, worker-configuration.d.ts has all env types"
+		}
+	]
 }
