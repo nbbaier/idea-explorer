@@ -230,7 +230,10 @@ export default {
 			const webhookUrl = body.webhook_url || env.WEBHOOK_URL;
 			if (!webhookUrl) {
 				return Response.json(
-					{ error: "Bad Request: webhook_url must be provided in request or configured via WEBHOOK_URL environment variable" },
+					{
+						error:
+							"Bad Request: webhook_url must be provided in request or configured via WEBHOOK_URL environment variable",
+					},
 					{ status: 400 },
 				);
 			}

@@ -1,7 +1,7 @@
 import type { Job } from "../jobs";
 import { logError, logWebhookSent } from "./logger";
 
-export interface WebhookSuccessPayload {
+interface WebhookSuccessPayload {
 	status: "completed";
 	job_id: string;
 	idea: string;
@@ -9,7 +9,7 @@ export interface WebhookSuccessPayload {
 	github_raw_url: string;
 }
 
-export interface WebhookFailurePayload {
+interface WebhookFailurePayload {
 	status: "failed";
 	job_id: string;
 	idea: string;

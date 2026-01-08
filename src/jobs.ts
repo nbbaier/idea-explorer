@@ -1,5 +1,4 @@
 export type JobStatus = "pending" | "running" | "completed" | "failed";
-
 export type ExploreMode = "business" | "exploration";
 export type ModelType = "sonnet" | "opus";
 
@@ -58,8 +57,4 @@ export function updateJob(
 	const updated = { ...job, ...updates };
 	jobs.set(id, updated);
 	return updated;
-}
-
-export function getAllJobs(): Job[] {
-	return Array.from(jobs.values());
 }

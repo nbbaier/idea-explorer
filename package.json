@@ -9,7 +9,11 @@
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"types": "wrangler types",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"check": "biome check .",
+		"check:fix": "biome check . --write",
+		"format": "biome format --write .",
+		"format:check": "biome format ."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
@@ -19,5 +23,6 @@
 		"wrangler": "^4.57.0"
 	},
 	"author": "",
-	"license": "MIT"
+	"license": "MIT",
+	"dependencies": {}
 }
