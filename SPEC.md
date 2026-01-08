@@ -162,12 +162,19 @@ When you provide a `callback_secret` in your explore request, the service signs 
 **Example verification (Node.js):**
 
 ```javascript
+// Example verification (Node.js/Express):
+// To verify the signature, you MUST use the raw request body.
+// If using express.json(), you can capture the raw body like this:
+// app.use(express.json({
+//   verify: (req, res, buf) => { req.rawBody = buf }
+// }));
+
 const crypto = require("crypto");
 
-function verifyWebhookSignature(body, signature, secret) {
+function verifyWebhookSignature(rawBody, signature, secret) {
    const expectedSignature =
       "sha256=" +
-      crypto.createHmac("sha256", secret).update(body, "utf8").digest("hex");
+      crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 
    return crypto.timingSafeEqual(
       Buffer.from(signature),
@@ -178,21 +185,26 @@ function verifyWebhookSignature(body, signature, secret) {
 // In your webhook handler:
 app.post("/webhook", (req, res) => {
    const signature = req.headers["x-signature"];
-   const body = JSON.stringify(req.body); // Must match exact JSON sent
+   const rawBody = req.rawBody; // Use the captured raw Buffer
 
-   if (!verifyWebhookSignature(body, signature, process.env.CALLBACK_SECRET)) {
+   if (
+      !rawBody ||
+      !verifyWebhookSignature(rawBody, signature, process.env.CALLBACK_SECRET)
+   ) {
       return res.status(401).send("Invalid signature");
    }
 
+   const payload = req.body; // The already parsed body
    // Process the webhook...
 });
 ```
 
-**Example verification (Python):**
+**Example verification (Python/Flask):**
 
 ```python
 import hmac
 import hashlib
+from flask import Flask, request
 
 def verify_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
     expected = 'sha256=' + hmac.new(
@@ -202,6 +214,19 @@ def verify_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
     ).hexdigest()
 
     return hmac.compare_digest(signature, expected)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    signature = request.headers.get('X-Signature')
+    # Use request.get_data() to get the raw request body as bytes
+    body = request.get_data()
+
+    if not verify_webhook_signature(body, signature, 'your-secret'):
+        return 'Invalid signature', 401
+
+    payload = request.get_json()
+    # Process the webhook...
+    return 'OK', 200
 ```
 
 **Security recommendations:**
