@@ -32,8 +32,62 @@ function getDatePrefix(): string {
   return `${year}-${month}-${day}`;
 }
 
+function logError(jobId: string, operation: string, error: unknown): void {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  console.log(JSON.stringify({ 
+    level: 'error', 
+    job_id: jobId, 
+    operation, 
+    error: errorMessage,
+    timestamp: new Date().toISOString()
+  }));
+}
+
+function logInfo(jobId: string, event: string, data?: Record<string, unknown>): void {
+  console.log(JSON.stringify({ 
+    level: 'info', 
+    job_id: jobId, 
+    event, 
+    ...data,
+    timestamp: new Date().toISOString()
+  }));
+}
+
+async function cloneWithRetry(
+  sandbox: ReturnType<typeof getSandbox>,
+  repoUrl: string,
+  branch: string,
+  jobId: string
+): Promise<void> {
+  const cloneCmd = `git clone --depth 1 --branch ${branch} ${repoUrl} /workspace`;
+  try {
+    await sandbox.exec(cloneCmd);
+  } catch (error) {
+    logError(jobId, 'clone_first_attempt', error);
+    logInfo(jobId, 'clone_retry');
+    await sandbox.exec(cloneCmd);
+  }
+}
+
+async function pushWithRetry(
+  sandbox: ReturnType<typeof getSandbox>,
+  branch: string,
+  repoUrl: string,
+  jobId: string
+): Promise<void> {
+  try {
+    await sandbox.exec(`git push origin ${branch}`, { cwd: '/workspace' });
+  } catch (error) {
+    logError(jobId, 'push_first_attempt', error);
+    logInfo(jobId, 'push_retry_with_pull');
+    await sandbox.exec(`git pull --rebase ${repoUrl} ${branch}`, { cwd: '/workspace' });
+    await sandbox.exec(`git push origin ${branch}`, { cwd: '/workspace' });
+  }
+}
+
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
   updateJob(job.id, { status: 'running' });
+  logInfo(job.id, 'exploration_started', { idea: job.idea, mode: job.mode, model: job.model });
 
   const sandbox = getSandbox(env.Sandbox, job.id);
   const slug = generateSlug(job.idea);
@@ -41,6 +95,7 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
   const folderName = `${datePrefix}-${slug}`;
   const outputPath = `ideas/${folderName}/research.md`;
   const branch = env.GITHUB_BRANCH || 'main';
+  const repoUrl = `https://x-access-token:$GITHUB_PAT@github.com/${env.GITHUB_REPO}.git`;
   
   try {
     await sandbox.setEnvVars({ 
@@ -48,8 +103,8 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
       GITHUB_PAT: env.GITHUB_PAT,
     });
     
-    const repoUrl = `https://x-access-token:$GITHUB_PAT@github.com/${env.GITHUB_REPO}.git`;
-    await sandbox.exec(`git clone --depth 1 --branch ${branch} ${repoUrl} /workspace`);
+    await cloneWithRetry(sandbox, repoUrl, branch, job.id);
+    logInfo(job.id, 'clone_complete');
     
     await sandbox.exec(`mkdir -p /workspace/ideas/${folderName}`);
     
@@ -65,7 +120,15 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
     const claudeCmd = `claude --model ${model} -p "${escapedPrompt}" --permission-mode acceptEdits`;
     
-    await sandbox.exec(claudeCmd, { cwd: '/workspace' });
+    logInfo(job.id, 'claude_started', { model });
+    try {
+      await sandbox.exec(claudeCmd, { cwd: '/workspace' });
+    } catch (claudeError) {
+      logError(job.id, 'claude_execution', claudeError);
+      const claudeErrorMsg = claudeError instanceof Error ? claudeError.message : 'Claude execution failed';
+      throw new Error(`Claude Code error: ${claudeErrorMsg}`);
+    }
+    logInfo(job.id, 'claude_complete');
     
     await sandbox.exec('git config user.email "idea-explorer@workers.dev"', { cwd: '/workspace' });
     await sandbox.exec('git config user.name "Idea Explorer"', { cwd: '/workspace' });
@@ -75,17 +138,26 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     const commitMessage = `idea: ${slug} - research complete`;
     await sandbox.exec(`git commit -m "${commitMessage}"`, { cwd: '/workspace' });
     
-    await sandbox.exec(`git push origin ${branch}`, { cwd: '/workspace' });
+    await pushWithRetry(sandbox, branch, repoUrl, job.id);
+    logInfo(job.id, 'push_complete');
     
     const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
     const updatedJob = updateJob(job.id, { status: 'completed', github_url: githubUrl });
+    logInfo(job.id, 'exploration_complete', { status: 'completed', github_url: githubUrl });
     
     if (updatedJob) {
       await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const updatedJob = updateJob(job.id, { status: 'failed', error: errorMessage });
+    const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT') || errorMessage.includes('timed out');
+    
+    const finalError = isTimeout 
+      ? 'Container execution timed out (15 minute limit exceeded)' 
+      : errorMessage;
+    
+    logError(job.id, 'exploration_failed', new Error(finalError));
+    const updatedJob = updateJob(job.id, { status: 'failed', error: finalError });
     
     if (updatedJob) {
       await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
