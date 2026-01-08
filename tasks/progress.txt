@@ -11,6 +11,7 @@
 - Git auth in containers: Use `https://x-access-token:$GITHUB_PAT@github.com/<repo>.git` for PAT-based cloning
 - Use `generateSlug` from src/utils/slug.ts for URL-safe slugs (max 50 chars, kebab-case)
 - Container env vars: Pass to sandbox via `sandbox.setEnvVars({ KEY: value })` before running commands
+- Webhook: Use `sendWebhook(job, githubRepo, branch)` from src/utils/webhook.ts for webhook delivery with HMAC-SHA256 signatures
 
 ---
 
@@ -125,4 +126,21 @@ Thread: https://ampcode.com/threads/T-019b9e3b-2167-76bf-a36d-48ea7816c5c4
   - Use `--depth 1` for shallow clone to speed up git operations
   - Escape newlines and quotes in shell prompts: `.replace(/"/g, '\\"').replace(/\n/g, '\\n')`
   - Import generateSlug from src/utils/slug.ts for consistent slug generation
+---
+
+## 2026-01-08 - US-009
+Thread: https://ampcode.com/threads/T-019b9e3d-9827-716b-8588-18239a0e81cf
+- Implemented webhook delivery system
+- Created src/utils/webhook.ts with:
+  - HMAC-SHA256 signature generation using Web Crypto API
+  - Success payload builder with github_url and github_raw_url
+  - Failure payload builder with error message
+  - sendWebhook function that returns success status and statusCode
+- Integrated webhook into runExploration flow in src/index.ts
+- Webhooks sent on both completion and failure paths
+- Files changed: src/utils/webhook.ts (new), src/index.ts
+- **Learnings for future iterations:**
+  - Use crypto.subtle.importKey + crypto.subtle.sign for HMAC in Workers environment
+  - Webhook X-Signature header format: `sha256=<hex-encoded-hmac>`
+  - Parse github_url to extract path for constructing raw.githubusercontent.com URL
 ---
