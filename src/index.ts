@@ -27,6 +27,7 @@ interface ExploreEnv extends AuthEnv {
 	GITHUB_BRANCH: string;
 	WEBHOOK_URL?: string;
 	Sandbox: DurableObjectNamespace<Sandbox>;
+	JOBS: KVNamespace;
 }
 
 function isValidExploreRequest(body: unknown): body is ExploreRequest {
@@ -70,7 +71,7 @@ async function cloneWithRetry(
 	branch: string,
 	jobId: string,
 ): Promise<void> {
-	const cloneCmd = `git clone --depth 1 --branch ${branch} ${repoUrl} /workspace`;
+	const cloneCmd = `git clone --depth 1 --branch "${branch}" "${repoUrl}" /workspace`;
 	try {
 		await sandbox.exec(cloneCmd);
 	} catch (error) {
@@ -87,20 +88,20 @@ async function pushWithRetry(
 	jobId: string,
 ): Promise<void> {
 	try {
-		await sandbox.exec(`git push origin ${branch}`, { cwd: "/workspace" });
+		await sandbox.exec(`git push origin "${branch}"`, { cwd: "/workspace" });
 	} catch (error) {
 		logError(jobId, "push_first_attempt", error);
 		logInfo(jobId, "push_retry_with_pull");
-		await sandbox.exec(`git pull --rebase ${repoUrl} ${branch}`, {
+		await sandbox.exec(`git pull --rebase "${repoUrl}" "${branch}"`, {
 			cwd: "/workspace",
 		});
-		await sandbox.exec(`git push origin ${branch}`, { cwd: "/workspace" });
+		await sandbox.exec(`git push origin "${branch}"`, { cwd: "/workspace" });
 	}
 }
 
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	const jobStartTime = Date.now();
-	updateJob(job.id, { status: "running" });
+	await updateJob(env.JOBS, job.id, { status: "running" });
 	logContainerStarted(job.id);
 
 	const sandbox = getSandbox(env.Sandbox, job.id);
@@ -109,7 +110,7 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	const folderName = `${datePrefix}-${slug}`;
 	const outputPath = `ideas/${folderName}/research.md`;
 	const branch = env.GITHUB_BRANCH || "main";
-	const repoUrl = `https://x-access-token:$GITHUB_PAT@github.com/${env.GITHUB_REPO}.git`;
+	const repoUrl = `https://x-access-token:${env.GITHUB_PAT}@github.com/${env.GITHUB_REPO}.git`;
 
 	try {
 		await sandbox.setEnvVars({
@@ -121,7 +122,7 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		await cloneWithRetry(sandbox, repoUrl, branch, job.id);
 		logCloneComplete(job.id, Date.now() - cloneStartTime);
 
-		await sandbox.exec(`mkdir -p /workspace/ideas/${folderName}`);
+		await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
 
 		const promptFile =
 			job.mode === "business"
@@ -156,11 +157,12 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 		await sandbox.exec('git config user.email "idea-explorer@workers.dev"', {
 			cwd: "/workspace",
 		});
+
 		await sandbox.exec('git config user.name "Idea Explorer"', {
 			cwd: "/workspace",
 		});
 
-		await sandbox.exec(`git add ${outputPath}`, { cwd: "/workspace" });
+		await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
 
 		const commitMessage = `idea: ${slug} - research complete`;
 		await sandbox.exec(`git commit -m "${commitMessage}"`, {
@@ -171,7 +173,7 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 		logCommitPushed(job.id);
 
 		const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-		const updatedJob = updateJob(job.id, {
+		const updatedJob = await updateJob(env.JOBS, job.id, {
 			status: "completed",
 			github_url: githubUrl,
 		});
@@ -193,7 +195,7 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 			: errorMessage;
 
 		logError(job.id, "exploration_failed", new Error(finalError));
-		const updatedJob = updateJob(job.id, {
+		const updatedJob = await updateJob(env.JOBS, job.id, {
 			status: "failed",
 			error: finalError,
 		});
@@ -238,10 +240,13 @@ export default {
 				);
 			}
 
-			const job = createJob({ ...body, webhook_url: webhookUrl });
+			const job = await createJob(env.JOBS, {
+				...body,
+				webhook_url: webhookUrl,
+			});
 			logJobCreated(job.id, job.idea, job.mode);
 
-			runExploration(job, env);
+			await runExploration(job, env);
 
 			return Response.json(
 				{ job_id: job.id, status: "pending" },
@@ -255,7 +260,7 @@ export default {
 			if (!auth.success) return auth.response;
 
 			const jobId = statusMatch[1];
-			const job = getJob(jobId);
+			const job = await getJob(env.JOBS, jobId);
 
 			if (!job) {
 				return Response.json({ error: "Job not found" }, { status: 404 });
