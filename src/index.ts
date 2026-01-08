@@ -2,6 +2,7 @@ import { getSandbox, Sandbox } from '@cloudflare/sandbox';
 import { requireAuth, type AuthEnv } from './middleware/auth';
 import { createJob, getJob, updateJob, type ExploreRequest, type Job } from './jobs';
 import { generateSlug } from './utils/slug';
+import { sendWebhook } from './utils/webhook';
 
 interface ExploreEnv extends AuthEnv {
   ANTHROPIC_API_KEY: string;
@@ -77,10 +78,18 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
     await sandbox.exec(`git push origin ${branch}`, { cwd: '/workspace' });
     
     const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-    updateJob(job.id, { status: 'completed', github_url: githubUrl });
+    const updatedJob = updateJob(job.id, { status: 'completed', github_url: githubUrl });
+    
+    if (updatedJob) {
+      await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    updateJob(job.id, { status: 'failed', error: errorMessage });
+    const updatedJob = updateJob(job.id, { status: 'failed', error: errorMessage });
+    
+    if (updatedJob) {
+      await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
+    }
   }
 }
 
