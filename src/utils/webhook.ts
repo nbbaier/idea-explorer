@@ -43,14 +43,15 @@ function buildSuccessPayload(
 	githubRepo: string,
 	branch: string,
 ): WebhookSuccessPayload {
-	const outputPath = job.github_url?.split(`/blob/${branch}/`)[1] ?? "";
+	const githubUrl = job.github_url ?? "";
+	const outputPath = githubUrl.split(`/blob/${branch}/`)[1] ?? "";
 	const githubRawUrl = `https://raw.githubusercontent.com/${githubRepo}/${branch}/${outputPath}`;
 
 	return {
 		status: "completed",
 		job_id: job.id,
 		idea: job.idea,
-		github_url: job.github_url!,
+		github_url: githubUrl,
 		github_raw_url: githubRawUrl,
 	};
 }

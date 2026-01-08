@@ -30,11 +30,11 @@ wrangler secret put GITHUB_PAT
 wrangler secret put API_BEARER_TOKEN
 ```
 
-| Secret | Description |
-|--------|-------------|
-| `ANTHROPIC_API_KEY` | API key for Claude (get from console.anthropic.com) |
-| `GITHUB_PAT` | Personal access token with `repo` scope for writing to the ideas repository |
-| `API_BEARER_TOKEN` | Token used to authenticate API requests (generate a strong random string) |
+| Secret              | Description                                                                 |
+| ------------------- | --------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | API key for Claude (get from console.anthropic.com)                         |
+| `GITHUB_PAT`        | Personal access token with `repo` scope for writing to the ideas repository |
+| `API_BEARER_TOKEN`  | Token used to authenticate API requests (generate a strong random string)   |
 
 ### 3. Deploy
 

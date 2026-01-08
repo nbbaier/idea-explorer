@@ -30,5 +30,13 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["worker-configuration.d.ts"],
+			"linter": {
+				"enabled": false
+			}
+		}
+	]
 }
