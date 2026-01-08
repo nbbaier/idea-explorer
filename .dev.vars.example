@@ -1,1 +1,2 @@
 ANTHROPIC_API_KEY=<YOUR-KEY-HERE>
+# WEBHOOK_URL=https://your-server.com/webhook  # Optional: default webhook URL for job notifications
