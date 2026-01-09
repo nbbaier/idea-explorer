@@ -19,7 +19,7 @@ Edit `wrangler.jsonc` to set your GitHub repository and branch:
 
 ```jsonc
 "vars": {
-  "GITHUB_REPO": "your-username/ideas",
+  "GITHUB_REPO": "your-username/repo-name",
   "GITHUB_BRANCH": "main"
 }
 ```
