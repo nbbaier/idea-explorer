@@ -80,6 +80,7 @@ export async function sendWebhook(
 	job: Job,
 	githubRepo: string,
 	branch: string,
+	extraHeaders?: Record<string, string>,
 ): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
 	if (!job.webhook_url) {
 		return { success: true, attempts: 0 };
@@ -96,6 +97,7 @@ export async function sendWebhook(
 
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
+		...extraHeaders,
 	};
 
 	if (job.callback_secret) {

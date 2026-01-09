@@ -343,6 +343,49 @@ app.get("/status/:id", async (c) => {
 	return c.json(response);
 });
 
+app.get("/test-webhook", async (c) => {
+	const webhookUrl = c.req.query("webhook_url") || c.env.WEBHOOK_URL;
+	const status = c.req.query("status") === "failed" ? "failed" : "completed";
+	const callbackSecret = c.req.query("callback_secret");
+
+	if (!webhookUrl) {
+		return c.json(
+			{ error: "webhook_url query parameter or WEBHOOK_URL env var required" },
+			400,
+		);
+	}
+
+	const mockJob: Job = {
+		id: `test-${crypto.randomUUID().slice(0, 8)}`,
+		idea: "Test idea for webhook verification",
+		mode: "business",
+		model: "sonnet",
+		status,
+		webhook_url: webhookUrl,
+		callback_secret: callbackSecret,
+		created_at: Date.now(),
+		...(status === "completed"
+			? {
+					github_url: `https://github.com/${c.env.GITHUB_REPO}/blob/main/ideas/2025-01-01-test-idea/research.md`,
+				}
+			: { error: "Test error message" }),
+	};
+
+	const result = await sendWebhook(
+		mockJob,
+		c.env.GITHUB_REPO,
+		c.env.GITHUB_BRANCH || "main",
+		{ "X-Test-Webhook": "true" },
+	);
+
+	return c.json({
+		message: "Mock webhook sent",
+		webhook_url: webhookUrl,
+		status,
+		result,
+	});
+});
+
 app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
 export default app;

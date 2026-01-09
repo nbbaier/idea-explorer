@@ -4,12 +4,12 @@ A Cloudflare Container-based service that runs autonomous Claude Code sessions t
 
 ## Features
 
-- **Two analysis modes**: Business viability analysis or creative exploration
-- **Model selection**: Choose between Claude Sonnet or Opus
-- **Duplicate detection**: Automatically finds existing research for the same idea
-- **Update mode**: Append new analysis to existing research
-- **Webhook notifications**: Get notified when exploration completes (with optional HMAC signing)
-- **Job status tracking**: Query job status via API
+-  **Two analysis modes**: Business viability analysis or creative exploration
+-  **Model selection**: Choose between Claude Sonnet or Opus
+-  **Duplicate detection**: Automatically finds existing research for the same idea
+-  **Update mode**: Append new analysis to existing research
+-  **Webhook notifications**: Get notified when exploration completes (with optional HMAC signing)
+-  **Job status tracking**: Query job status via API
 
 ## Setup
 
@@ -29,8 +29,8 @@ Edit `wrangler.jsonc` to set your GitHub repository and branch:
 Create a KV namespace for job storage and update `wrangler.jsonc` with the IDs:
 
 ```bash
-wrangler kv namespace create JOBS
-wrangler kv namespace create JOBS --preview
+wrangler kv namespace create IDEA_EXPLORER_JOBS
+wrangler kv namespace create IDEA_EXPLORER_JOBS --preview
 ```
 
 ### 3. Set Up Cloudflare Secrets
@@ -72,15 +72,15 @@ curl -X POST https://idea-explorer.your-domain.workers.dev/explore \
 
 ### Request Body
 
-| Field             | Type                          | Required | Description                                      |
-| ----------------- | ----------------------------- | -------- | ------------------------------------------------ |
-| `idea`            | string                        | Yes      | The idea to explore                              |
-| `webhook_url`     | string                        | No       | URL to receive completion callback               |
-| `mode`            | `"business"` \| `"exploration"` | No       | Analysis framework (default: `"business"`)       |
-| `model`           | `"sonnet"` \| `"opus"`        | No       | Claude model to use (default: `"sonnet"`)        |
-| `callback_secret` | string                        | No       | Secret for HMAC-SHA256 webhook signature         |
-| `context`         | string                        | No       | Additional context for the analysis              |
-| `update`          | boolean                       | No       | Append to existing research instead of skipping  |
+| Field             | Type                            | Required | Description                                     |
+| ----------------- | ------------------------------- | -------- | ----------------------------------------------- |
+| `idea`            | string                          | Yes      | The idea to explore                             |
+| `webhook_url`     | string                          | No       | URL to receive completion callback              |
+| `mode`            | `"business"` \| `"exploration"` | No       | Analysis framework (default: `"business"`)      |
+| `model`           | `"sonnet"` \| `"opus"`          | No       | Claude model to use (default: `"sonnet"`)       |
+| `callback_secret` | string                          | No       | Secret for HMAC-SHA256 webhook signature        |
+| `context`         | string                          | No       | Additional context for the analysis             |
+| `update`          | boolean                         | No       | Append to existing research instead of skipping |
 
 ### Check Status
 
@@ -93,10 +93,10 @@ curl https://idea-explorer.your-domain.workers.dev/status/{job_id} \
 
 ```json
 {
-  "status": "completed",
-  "idea": "AI-powered code review assistant",
-  "mode": "business",
-  "github_url": "https://github.com/user/ideas/blob/main/ideas/2025-01-07-ai-code-review/research.md"
+   "status": "completed",
+   "idea": "AI-powered code review assistant",
+   "mode": "business",
+   "github_url": "https://github.com/user/ideas/blob/main/ideas/2025-01-07-ai-code-review/research.md"
 }
 ```
 
@@ -133,9 +133,9 @@ bun run dev
 
 ## Scripts
 
-| Command           | Description                    |
-| ----------------- | ------------------------------ |
-| `bun run dev`     | Start local development server |
-| `bun run deploy`  | Deploy to Cloudflare           |
-| `bun run check`   | Run Biome linter               |
-| `bun run typecheck` | Run TypeScript type checking |
+| Command             | Description                    |
+| ------------------- | ------------------------------ |
+| `bun run dev`       | Start local development server |
+| `bun run deploy`    | Deploy to Cloudflare           |
+| `bun run check`     | Run Biome linter               |
+| `bun run typecheck` | Run TypeScript type checking   |

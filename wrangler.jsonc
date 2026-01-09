@@ -34,9 +34,9 @@
 	],
 	"kv_namespaces": [
 		{
-			"binding": "JOBS",
-			"preview_id": "placeholder_preview_id",
-			"id": "placeholder_production_id"
+			"binding": "IDEA_EXPLORER_JOBS",
+			"id": "dbcbf4512f9f4fd18a20d5fc7e23d3ef",
+			"preview_id": "28ee7c8f6b504387b6eab6d2ffde4ed9"
 		}
 	]
 }
