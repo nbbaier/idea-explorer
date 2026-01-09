@@ -1,5 +1,6 @@
 import type { Job } from "../jobs";
 import { logError, logWebhookSent } from "./logger";
+import { retryWithBackoff } from "./retry";
 
 interface WebhookSuccessPayload {
 	status: "completed";
@@ -70,8 +71,9 @@ function buildFailurePayload(job: Job): WebhookFailurePayload {
 const RETRY_DELAYS_MS = [1000, 5000, 30000]; // 1s, 5s, 30s
 const MAX_ATTEMPTS = 3;
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+interface WebhookResponse {
+	ok: boolean;
+	status: number;
 }
 
 export async function sendWebhook(
@@ -82,6 +84,8 @@ export async function sendWebhook(
 	if (!job.webhook_url) {
 		return { success: true, attempts: 0 };
 	}
+
+	const webhookUrl = job.webhook_url;
 
 	const payload: WebhookPayload =
 		job.status === "completed"
@@ -98,39 +102,33 @@ export async function sendWebhook(
 		headers["X-Signature"] = await generateSignature(job.callback_secret, body);
 	}
 
-	let lastStatusCode: number | undefined;
-
-	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		try {
-			const response = await fetch(job.webhook_url, {
-				method: "POST",
-				headers,
-				body,
-			});
-
-			lastStatusCode = response.status;
-			logWebhookSent(job.id, response.status, attempt);
-
-			if (response.ok) {
-				return {
-					success: true,
-					statusCode: response.status,
-					attempts: attempt,
-				};
+	const result = await retryWithBackoff<WebhookResponse>(
+		async (attempt) => {
+			try {
+				const response = await fetch(webhookUrl, {
+					method: "POST",
+					headers,
+					body,
+				});
+				return { ok: response.ok, status: response.status };
+			} catch (error) {
+				logError(job.id, `webhook_attempt_${attempt}`, error);
+				return { ok: false, status: 0 };
 			}
-		} catch (error) {
-			logError(job.id, `webhook_attempt_${attempt}`, error);
-		}
-
-		// Wait before next retry (if not last attempt)
-		if (attempt < MAX_ATTEMPTS) {
-			await sleep(RETRY_DELAYS_MS[attempt - 1]);
-		}
-	}
+		},
+		(response) => !response.ok,
+		{
+			maxAttempts: MAX_ATTEMPTS,
+			delaysMs: RETRY_DELAYS_MS,
+		},
+		(attempt, response) => {
+			logWebhookSent(job.id, response.status, attempt);
+		},
+	);
 
 	return {
-		success: false,
-		statusCode: lastStatusCode,
-		attempts: MAX_ATTEMPTS,
+		success: result.success,
+		statusCode: result.result?.status,
+		attempts: result.attempts,
 	};
 }

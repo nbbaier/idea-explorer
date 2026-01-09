@@ -12,76 +12,100 @@ PROGRESS_FILE="$REPO_ROOT/tasks/progress.txt"
 ARCHIVE_DIR="$REPO_ROOT/tasks/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 
+# Get branch name from PRD file
+get_current_branch() {
+	jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo ""
+}
+
+# Check if a branch is already archived
+is_branch_archived() {
+	local branch=$1
+	[ ! -d "$ARCHIVE_DIR" ] && return 1
+
+	for f in "$ARCHIVE_DIR"/*/prd.json; do
+		if [ -f "$f" ] && [ "$(jq -r '.branchName' "$f" 2>/dev/null)" == "$branch" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Initialize or reset progress file
+init_progress_file() {
+	local preserve_patterns=${1:-true}
+
+	if [ "$preserve_patterns" = "true" ] && [ -f "$PROGRESS_FILE" ]; then
+		local patterns=$(sed -n '/## Codebase Patterns/,/---/p' "$PROGRESS_FILE" 2>/dev/null || echo "")
+		if [ -n "$patterns" ]; then
+			{
+				echo "$patterns"
+				echo ""
+				echo "# Ralph Progress Log"
+				echo "Started: $(date)"
+				echo "---"
+			} >"$PROGRESS_FILE"
+			return
+		fi
+	fi
+
+	{
+		echo "# Ralph Progress Log"
+		echo "Started: $(date)"
+		echo "---"
+	} >"$PROGRESS_FILE"
+}
+
+# Archive a previous run
+archive_run() {
+	local branch=$1
+	local date=$(date +%Y-%m-%d)
+	local folder_name=$(echo "$branch" | sed 's|^ralph/||')
+	local archive_folder="$ARCHIVE_DIR/$date-$folder_name"
+
+	echo "Archiving previous run: $branch"
+	mkdir -p "$archive_folder"
+	[ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$archive_folder/"
+	[ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$archive_folder/"
+	echo "   Archived to: $archive_folder"
+}
+
+# Display current status from PRD
+show_status() {
+	[ ! -f "$PRD_FILE" ] && return
+
+	local total=$(jq '.userStories | length' "$PRD_FILE" 2>/dev/null || echo "?")
+	local done=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo "?")
+	local next_story=$(jq -r '[.userStories[] | select(.passes == false)] | sort_by(.priority) | .[0] | "\(.id): \(.title)"' "$PRD_FILE" 2>/dev/null || echo "unknown")
+
+	echo ""
+	echo "  Progress: $done/$total stories complete"
+	echo "  Next up:  $next_story"
+	echo ""
+}
+
 # Archive previous run if branch changed
 if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
-	CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
+	CURRENT_BRANCH=$(get_current_branch)
 	LAST_BRANCH=$(cat "$LAST_BRANCH_FILE" 2>/dev/null || echo "")
 
 	if [ -n "$CURRENT_BRANCH" ] && [ -n "$LAST_BRANCH" ] && [ "$CURRENT_BRANCH" != "$LAST_BRANCH" ]; then
-		# Check if already archived
-		ALREADY_ARCHIVED=false
-		if [ -d "$ARCHIVE_DIR" ]; then
-			for f in "$ARCHIVE_DIR"/*/prd.json; do
-				if [ -f "$f" ] && [ "$(jq -r '.branchName' "$f" 2>/dev/null)" == "$LAST_BRANCH" ]; then
-					ALREADY_ARCHIVED=true
-					break
-				fi
-			done
-		fi
-
-		if [ "$ALREADY_ARCHIVED" = "true" ]; then
+		if is_branch_archived "$LAST_BRANCH"; then
 			echo "Branch changed to $CURRENT_BRANCH, but $LAST_BRANCH is already archived. Skipping archive."
 		else
-			# Archive the previous run
-			DATE=$(date +%Y-%m-%d)
-			# Strip "ralph/" prefix from branch name for folder
-			FOLDER_NAME=$(echo "$LAST_BRANCH" | sed 's|^ralph/||')
-			ARCHIVE_FOLDER="$ARCHIVE_DIR/$DATE-$FOLDER_NAME"
-
-			echo "Archiving previous run: $LAST_BRANCH"
-			mkdir -p "$ARCHIVE_FOLDER"
-			[ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
-			[ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
-			echo "   Archived to: $ARCHIVE_FOLDER"
+			archive_run "$LAST_BRANCH"
 		fi
-
-		# Reset progress file for new run, keeping Codebase Patterns if they exist
-		if [ -f "$PROGRESS_FILE" ]; then
-			PATTERNS=$(sed -n '/## Codebase Patterns/,/---/p' "$PROGRESS_FILE" 2>/dev/null || echo "")
-			if [ -n "$PATTERNS" ]; then
-				echo "$PATTERNS" >"$PROGRESS_FILE.tmp"
-				echo "" >>"$PROGRESS_FILE.tmp"
-				echo "# Ralph Progress Log" >>"$PROGRESS_FILE.tmp"
-				echo "Started: $(date)" >>"$PROGRESS_FILE.tmp"
-				echo "---" >>"$PROGRESS_FILE.tmp"
-				mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
-			else
-				echo "# Ralph Progress Log" >"$PROGRESS_FILE"
-				echo "Started: $(date)" >>"$PROGRESS_FILE"
-				echo "---" >>"$PROGRESS_FILE"
-			fi
-		else
-			echo "# Ralph Progress Log" >"$PROGRESS_FILE"
-			echo "Started: $(date)" >>"$PROGRESS_FILE"
-			echo "---" >>"$PROGRESS_FILE"
-		fi
+		init_progress_file true
 	fi
 fi
 
 # Track current branch
 if [ -f "$PRD_FILE" ]; then
-	CURRENT_BRANCH=$(jq -r '.branchName // empty' "$PRD_FILE" 2>/dev/null || echo "")
-	if [ -n "$CURRENT_BRANCH" ]; then
-		echo "$CURRENT_BRANCH" >"$LAST_BRANCH_FILE"
-	fi
+	CURRENT_BRANCH=$(get_current_branch)
+	[ -n "$CURRENT_BRANCH" ] && echo "$CURRENT_BRANCH" >"$LAST_BRANCH_FILE"
 fi
 
 # Initialize progress file if it doesn't exist
-if [ ! -f "$PROGRESS_FILE" ]; then
-	echo "# Ralph Progress Log" >"$PROGRESS_FILE"
-	echo "Started: $(date)" >>"$PROGRESS_FILE"
-	echo "---" >>"$PROGRESS_FILE"
-fi
+[ ! -f "$PROGRESS_FILE" ] && init_progress_file false
 
 echo "Starting Ralph - Max iterations: $MAX_ITERATIONS"
 
@@ -91,17 +115,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 	echo "  Ralph Iteration $i of $MAX_ITERATIONS"
 	echo "═══════════════════════════════════════════════════════"
 
-	# Show current status from PRD
-	if [ -f "$PRD_FILE" ]; then
-		TOTAL=$(jq '.userStories | length' "$PRD_FILE" 2>/dev/null || echo "?")
-		DONE=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE" 2>/dev/null || echo "?")
-		NEXT_STORY=$(jq -r '[.userStories[] | select(.passes == false)] | sort_by(.priority) | .[0] | "\(.id): \(.title)"' "$PRD_FILE" 2>/dev/null || echo "unknown")
-
-		echo ""
-		echo "  Progress: $DONE/$TOTAL stories complete"
-		echo "  Next up:  $NEXT_STORY"
-		echo ""
-	fi
+	show_status
 
 	# Run amp with the ralph prompt
 	OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | amp --dangerously-allow-all 2>&1 | tee /dev/stderr) || true

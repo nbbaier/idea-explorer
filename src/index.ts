@@ -7,16 +7,17 @@ import {
 	updateJob,
 } from "./jobs";
 import { type AuthEnv, requireAuth } from "./middleware/auth";
+import { cloneWithRetry, commitAndPush } from "./utils/git";
 import {
 	logClaudeStarted,
 	logCloneComplete,
-	logCommitPushed,
 	logContainerStarted,
 	logError,
 	logInfo,
 	logJobComplete,
 	logJobCreated,
 } from "./utils/logger";
+import { escapeShell } from "./utils/shell";
 import { generateSlug } from "./utils/slug";
 import { sendWebhook } from "./utils/webhook";
 
@@ -54,8 +55,7 @@ function isValidExploreRequest(body: unknown): body is ExploreRequest {
 		return false;
 	if (obj.context !== undefined && typeof obj.context !== "string")
 		return false;
-	if (obj.update !== undefined && typeof obj.update !== "boolean")
-		return false;
+	if (obj.update !== undefined && typeof obj.update !== "boolean") return false;
 	return true;
 }
 
@@ -67,50 +67,21 @@ function getDatePrefix(): string {
 	return `${year}-${month}-${day}`;
 }
 
-async function cloneWithRetry(
-	sandbox: ReturnType<typeof getSandbox>,
-	repoUrl: string,
-	branch: string,
-	jobId: string,
-): Promise<void> {
-	const cloneCmd = `git clone --filter=blob:none --sparse --branch "${branch}" "${repoUrl}" /workspace`;
-	try {
-		await sandbox.exec(cloneCmd);
-	} catch (error) {
-		logError(jobId, "clone_first_attempt", error);
-		logInfo(jobId, "clone_retry");
-		await sandbox.exec(cloneCmd);
-	}
-	await sandbox.exec("git sparse-checkout set ideas/", { cwd: "/workspace" });
-}
-
-async function pushWithRetry(
-	sandbox: ReturnType<typeof getSandbox>,
-	branch: string,
-	repoUrl: string,
-	jobId: string,
-): Promise<void> {
-	try {
-		await sandbox.exec(`git push origin "${branch}"`, { cwd: "/workspace" });
-	} catch (error) {
-		logError(jobId, "push_first_attempt", error);
-		logInfo(jobId, "push_retry_with_pull");
-		await sandbox.exec(`git pull --rebase "${repoUrl}" "${branch}"`, {
-			cwd: "/workspace",
-		});
-		await sandbox.exec(`git push origin "${branch}"`, { cwd: "/workspace" });
-	}
-}
-
 async function findExistingIdeaFolder(
 	sandbox: ReturnType<typeof getSandbox>,
 	slug: string,
 ): Promise<string | null> {
 	try {
-		const result = await sandbox.exec("ls /workspace/ideas/ 2>/dev/null || true", {
-			cwd: "/workspace",
-		});
-		const stdout = typeof result === "string" ? result : (result as { stdout?: string }).stdout ?? "";
+		const result = await sandbox.exec(
+			"ls /workspace/ideas/ 2>/dev/null || true",
+			{
+				cwd: "/workspace",
+			},
+		);
+		const stdout =
+			typeof result === "string"
+				? result
+				: ((result as { stdout?: string }).stdout ?? "");
 		const folders = stdout.trim().split("\n").filter(Boolean);
 		for (const folder of folders) {
 			if (folder.endsWith(`-${slug}`)) {
@@ -121,6 +92,114 @@ async function findExistingIdeaFolder(
 		// No ideas directory yet, that's fine
 	}
 	return null;
+}
+
+/**
+ * Builds the Claude prompt based on mode and context
+ */
+function buildPrompt({
+	idea,
+	context,
+	isUpdate,
+	datePrefix,
+	promptFile,
+	outputPath,
+}: {
+	idea: string;
+	context?: string;
+	isUpdate: boolean;
+	datePrefix: string;
+	promptFile: string;
+	outputPath: string;
+}): string {
+	const contextPart = context ? `\n\nAdditional context: ${context}` : "";
+
+	if (isUpdate) {
+		return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
+
+Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
+
+## Update - ${datePrefix}
+
+Include new insights, updated analysis, or changed recommendations based on current thinking.
+
+Idea: ${idea}${contextPart}
+
+Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
+	}
+
+	return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
+
+Idea: ${idea}${contextPart}
+
+After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
+}
+
+/**
+ * Handles the case when an idea already exists and update is not requested
+ */
+async function handleExistingIdea({
+	job,
+	env,
+	existingFolder,
+	branch,
+	jobStartTime,
+}: {
+	job: Job;
+	env: ExploreEnv;
+	existingFolder: string;
+	branch: string;
+	jobStartTime: number;
+}): Promise<void> {
+	const outputPath = `ideas/${existingFolder}/research.md`;
+	const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
+	logInfo(job.id, "existing_idea_found");
+	const updatedJob = await updateJob(env.JOBS, job.id, {
+		status: "completed",
+		github_url: githubUrl,
+	});
+	logJobComplete(job.id, "completed", Date.now() - jobStartTime);
+	if (updatedJob) {
+		await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
+	}
+}
+
+/**
+ * Handles errors from exploration and updates job status
+ */
+async function handleExplorationError({
+	error,
+	job,
+	env,
+	branch,
+	jobStartTime,
+}: {
+	error: unknown;
+	job: Job;
+	env: ExploreEnv;
+	branch: string;
+	jobStartTime: number;
+}): Promise<void> {
+	const errorMessage = error instanceof Error ? error.message : "Unknown error";
+	const isTimeout =
+		errorMessage.includes("timeout") ||
+		errorMessage.includes("TIMEOUT") ||
+		errorMessage.includes("timed out");
+
+	const finalError = isTimeout
+		? "Container execution timed out (15 minute limit exceeded)"
+		: errorMessage;
+
+	logError(job.id, "exploration_failed", new Error(finalError));
+	const updatedJob = await updateJob(env.JOBS, job.id, {
+		status: "failed",
+		error: finalError,
+	});
+	logJobComplete(job.id, "failed", Date.now() - jobStartTime);
+
+	if (updatedJob) {
+		await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
+	}
 }
 
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
@@ -148,25 +227,20 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		const existingFolder = await findExistingIdeaFolder(sandbox, slug);
 
 		if (existingFolder && !job.update) {
-			// Return existing URL without re-running analysis
-			const outputPath = `ideas/${existingFolder}/research.md`;
-			const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-			logInfo(job.id, "existing_idea_found");
-			const updatedJob = await updateJob(env.JOBS, job.id, {
-				status: "completed",
-				github_url: githubUrl,
+			await handleExistingIdea({
+				job,
+				env,
+				existingFolder,
+				branch,
+				jobStartTime,
 			});
-			logJobComplete(job.id, "completed", Date.now() - jobStartTime);
-			if (updatedJob) {
-				await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
-			}
 			return;
 		}
 
 		// Determine folder and output path
 		const folderName = existingFolder || `${datePrefix}-${slug}`;
 		const outputPath = `ideas/${folderName}/research.md`;
-		const isUpdate = existingFolder && job.update;
+		const isUpdate = !!(existingFolder && job.update);
 
 		await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
 
@@ -174,41 +248,18 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 			job.mode === "business"
 				? "/prompts/business.md"
 				: "/prompts/exploration.md";
-		const contextPart = job.context
-			? `\n\nAdditional context: ${job.context}`
-			: "";
 
-		let prompt: string;
-		if (isUpdate) {
-			// Update mode: append new section to existing research
-			prompt = `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
-
-Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
-
-## Update - ${datePrefix}
-
-Include new insights, updated analysis, or changed recommendations based on current thinking.
-
-Idea: ${job.idea}${contextPart}
-
-Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
-		} else {
-			// New idea mode
-			prompt = `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
-
-Idea: ${job.idea}${contextPart}
-
-After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
-		}
+		const prompt = buildPrompt({
+			idea: job.idea,
+			context: job.context,
+			isUpdate,
+			datePrefix,
+			promptFile,
+			outputPath,
+		});
 
 		const model = job.model === "opus" ? "opus" : "sonnet";
-		const escapedPrompt = prompt
-			.replace(/\\/g, "\\\\")
-			.replace(/"/g, '\\"')
-			.replace(/`/g, "\\`")
-			.replace(/\$/g, "\\$")
-			.replace(/\n/g, "\\n");
-		const claudeCmd = `claude --model ${model} -p "${escapedPrompt}" --permission-mode acceptEdits`;
+		const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
 
 		logClaudeStarted(job.id, model);
 		try {
@@ -223,30 +274,17 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 		}
 		logInfo(job.id, "claude_complete");
 
-		await sandbox.exec('git config user.email "idea-explorer@workers.dev"', {
-			cwd: "/workspace",
-		});
-
-		await sandbox.exec('git config user.name "Idea Explorer"', {
-			cwd: "/workspace",
-		});
-
-		await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
-
 		const commitMessage = isUpdate
 			? `idea: ${slug} - research updated`
 			: `idea: ${slug} - research complete`;
-		const escapedMessage = commitMessage
-			.replace(/\\/g, "\\\\")
-			.replace(/"/g, '\\"')
-			.replace(/`/g, "\\`")
-			.replace(/\$/g, "\\$");
-		await sandbox.exec(`git commit -m "${escapedMessage}"`, {
-			cwd: "/workspace",
-		});
 
-		await pushWithRetry(sandbox, branch, repoUrl, job.id);
-		logCommitPushed(job.id);
+		await commitAndPush(sandbox, {
+			outputPath,
+			message: escapeShell(commitMessage),
+			branch,
+			repoUrl,
+			jobId: job.id,
+		});
 
 		const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
 		const updatedJob = await updateJob(env.JOBS, job.id, {
@@ -259,27 +297,13 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 			await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
 		}
 	} catch (error) {
-		const errorMessage =
-			error instanceof Error ? error.message : "Unknown error";
-		const isTimeout =
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("TIMEOUT") ||
-			errorMessage.includes("timed out");
-
-		const finalError = isTimeout
-			? "Container execution timed out (15 minute limit exceeded)"
-			: errorMessage;
-
-		logError(job.id, "exploration_failed", new Error(finalError));
-		const updatedJob = await updateJob(env.JOBS, job.id, {
-			status: "failed",
-			error: finalError,
+		await handleExplorationError({
+			error,
+			job,
+			env,
+			branch,
+			jobStartTime,
 		});
-		logJobComplete(job.id, "failed", Date.now() - jobStartTime);
-
-		if (updatedJob) {
-			await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
-		}
 	}
 }
 
