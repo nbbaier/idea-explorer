@@ -6,9 +6,10 @@ set -e
 
 MAX_ITERATIONS=${1:-10}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRD_FILE="$SCRIPT_DIR/prd.json"
-PROGRESS_FILE="$SCRIPT_DIR/progress.txt"
-ARCHIVE_DIR="$SCRIPT_DIR/archive"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PRD_FILE="$REPO_ROOT/tasks/prd.json"
+PROGRESS_FILE="$REPO_ROOT/tasks/progress.txt"
+ARCHIVE_DIR="$REPO_ROOT/tasks/archive"
 LAST_BRANCH_FILE="$SCRIPT_DIR/.last-branch"
 
 # Archive previous run if branch changed
