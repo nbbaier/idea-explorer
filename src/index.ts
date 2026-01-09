@@ -26,7 +26,7 @@ type ExploreEnv = Env & { WEBHOOK_URL?: string; JOBS: KVNamespace };
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
-app.use("*", requireAuth());
+app.use("/api/*", requireAuth());
 
 function isValidExploreRequest(body: unknown): body is ExploreRequest {
 	if (typeof body !== "object" || body === null) return false;
@@ -293,7 +293,7 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	}
 }
 
-app.post("/explore", async (c) => {
+app.post("/api/explore", async (c) => {
 	let body: unknown;
 	try {
 		body = await c.req.json();
@@ -318,7 +318,7 @@ app.post("/explore", async (c) => {
 	return c.json({ job_id: job.id, status: "pending" }, 202);
 });
 
-app.get("/status/:id", async (c) => {
+app.get("/api/status/:id", async (c) => {
 	const jobId = c.req.param("id");
 	const job = await getJob(c.env.JOBS, jobId);
 
@@ -343,7 +343,35 @@ app.get("/status/:id", async (c) => {
 	return c.json(response);
 });
 
-app.get("/test-webhook", async (c) => {
+app.get("/", async (c) => {
+	const docs = `
+<html>
+  <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
+    <h2>Idea Explorer</h2>
+    <p>
+      A Cloudflare Container-based service that runs autonomous Claude Code
+      sessions to explore and analyze ideas, committing results to a GitHub
+      repository.
+    </p>
+    <h3>API</h3>
+    <p>POST /api/explore</p>
+    <p>GET /api/status/:id</p>
+    <p>GET /api/health</p>
+    <p>GET /api/test-webhook</p>
+    <h3>Documentation</h3>
+    <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
+  </body>
+</html>
+
+   `;
+	return c.html(docs);
+});
+
+app.get("/api/health", async (c) => {
+	return c.json({ status: "ok" });
+});
+
+app.get("/api/test-webhook", async (c) => {
 	const webhookUrl = c.req.query("webhook_url") || c.env.WEBHOOK_URL;
 	const status = c.req.query("status") === "failed" ? "failed" : "completed";
 	const callbackSecret = c.req.query("callback_secret");

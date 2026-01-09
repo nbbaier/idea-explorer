@@ -59,14 +59,15 @@ bun run deploy
 ### Start an Exploration
 
 ```bash
-curl -X POST https://idea-explorer.your-domain.workers.dev/explore \
+curl -X POST https://idea-explorer.your-domain.workers.dev/api/explore \
   -H "Authorization: Bearer YOUR_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "idea": "AI-powered code review assistant",
-    "webhook_url": "https://your-server.com/webhook",
+    "webhook_url": "https://your-server.com/webhook", # Optional: default webhook URL for job notifications
+    "callback_secret": "your-webhook-secret", # Optional: secret for HMAC-SHA256 webhook signature verification
     "mode": "business",
-    "model": "sonnet"
+    "model": "sonnet"       # Optional: Claude model to use (default: "sonnet")
   }'
 ```
 
@@ -85,7 +86,7 @@ curl -X POST https://idea-explorer.your-domain.workers.dev/explore \
 ### Check Status
 
 ```bash
-curl https://idea-explorer.your-domain.workers.dev/status/{job_id} \
+curl https://idea-explorer.your-domain.workers.dev/api/status/{job_id} \
   -H "Authorization: Bearer YOUR_API_TOKEN"
 ```
 
@@ -105,7 +106,7 @@ curl https://idea-explorer.your-domain.workers.dev/status/{job_id} \
 ```
 idea-explorer/
 ├── src/
-│   ├── index.ts          # Main Hono app with /explore and /status endpoints
+│   ├── index.ts          # Main Hono app with /api/explore and /api/status endpoints
 │   ├── jobs.ts           # Job types and KV storage functions
 │   ├── middleware/       # Auth middleware
 │   └── utils/            # Git, webhook, logging, and helper utilities
