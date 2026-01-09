@@ -31,7 +31,7 @@ The service accepts ideas via API, spins up a Claude Code session in a sandboxed
                   │                                               │       │
                   │  1. Clone ideas repo (sparse checkout)        │       │
                   │  2. Check for existing idea folder            │       │
-                  │     ├─ exists & update=false → use existing   │       |
+                  │     ├─ exists & update=false → use existing   │       │
                   │     └─ exists & update=true → append update   │       │
                   │  3. Run Claude Code with analysis prompt      │       │
                   │  4. Write research.md                      ───┘       │
@@ -77,8 +77,9 @@ Start an idea exploration job.
 ```
 
 Note: Duplicate detection happens asynchronously. If an existing idea is found:
-- With `update: false` (default): Job completes quickly with the existing `github_url`
-- With `update: true`: A new `## Update - YYYY-MM-DD` section is appended to the existing research
+
+-  With `update: false` (default): Job completes quickly with the existing `github_url`
+-  With `update: true`: A new `## Update - YYYY-MM-DD` section is appended to the existing research
 
 **Error Responses:**
 
@@ -109,7 +110,7 @@ Check the status of an exploration job.
 
 ```json
 {
-  "error": "Job not found"
+   "error": "Job not found"
 }
 ```
 
@@ -125,7 +126,7 @@ Simple health check endpoint.
 
 ```json
 {
-  "status": "ok"
+   "status": "ok"
 }
 ```
 
@@ -139,20 +140,20 @@ Test webhook delivery without running an exploration.
 
 **Query Parameters:**
 
-| Parameter         | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `webhook_url`     | Optional: Target URL (defaults to `WEBHOOK_URL` env) |
+| Parameter         | Description                                              |
+| ----------------- | -------------------------------------------------------- |
+| `webhook_url`     | Optional: Target URL (defaults to `WEBHOOK_URL` env)     |
 | `status`          | Optional: `completed` or `failed` (default: `completed`) |
-| `callback_secret` | Optional: Secret for HMAC signature                  |
+| `callback_secret` | Optional: Secret for HMAC signature                      |
 
 **Response:**
 
 ```json
 {
-  "message": "Webhook test sent",
-  "webhook_url": "https://...",
-  "status": "completed",
-  "result": { "success": true, "attempts": 1, "statusCode": 200 }
+   "message": "Webhook test sent",
+   "webhook_url": "https://...",
+   "status": "completed",
+   "result": { "success": true, "attempts": 1, "statusCode": 200 }
 }
 ```
 
@@ -410,8 +411,8 @@ After cloning the repository:
 2. Create directory: `ideas/YYYY-MM-DD-<slug>/` (or reuse existing folder for updates)
 3. Write `research.md`
 4. Commit with message:
-   - New: `idea: <slug> - research complete`
-   - Update: `idea: <slug> - research updated`
+   -  New: `idea: <slug> - research complete`
+   -  Update: `idea: <slug> - research updated`
 5. Push to configured branch (with retry on failure)
 
 **Authentication:** GitHub PAT stored in Cloudflare secrets
@@ -459,11 +460,11 @@ prompts/
 
 ### Worker Environment
 
-| Name            | Description                                             |
-| --------------- | ------------------------------------------------------- |
-| `GITHUB_REPO`   | Target repository (e.g., `user/ideas`)                  |
-| `GITHUB_BRANCH` | Branch to commit to (default: `main`)                   |
-| `WEBHOOK_URL`   | Optional default webhook URL when request omits one     |
+| Name            | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `GITHUB_REPO`   | Target repository (e.g., `user/ideas`)              |
+| `GITHUB_BRANCH` | Branch to commit to (default: `main`)               |
+| `WEBHOOK_URL`   | Optional default webhook URL when request omits one |
 
 ### Job Storage
 

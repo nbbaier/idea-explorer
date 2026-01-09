@@ -1,8 +1,9 @@
 import { getSandbox, Sandbox } from "@cloudflare/sandbox";
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
 	createJob,
-	type ExploreRequest,
+	ExploreRequestSchema,
 	getJob,
 	type Job,
 	updateJob,
@@ -27,34 +28,6 @@ type ExploreEnv = Env & { WEBHOOK_URL?: string; JOBS: KVNamespace };
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
 app.use("/api/*", requireAuth());
-
-function isValidExploreRequest(body: unknown): body is ExploreRequest {
-	if (typeof body !== "object" || body === null) return false;
-	const obj = body as Record<string, unknown>;
-	if (typeof obj.idea !== "string" || obj.idea.trim() === "") return false;
-	if (
-		obj.webhook_url !== undefined &&
-		(typeof obj.webhook_url !== "string" || obj.webhook_url.trim() === "")
-	)
-		return false;
-	if (
-		obj.mode !== undefined &&
-		obj.mode !== "business" &&
-		obj.mode !== "exploration"
-	)
-		return false;
-	if (obj.model !== undefined && obj.model !== "sonnet" && obj.model !== "opus")
-		return false;
-	if (
-		obj.callback_secret !== undefined &&
-		typeof obj.callback_secret !== "string"
-	)
-		return false;
-	if (obj.context !== undefined && typeof obj.context !== "string")
-		return false;
-	if (obj.update !== undefined && typeof obj.update !== "boolean") return false;
-	return true;
-}
 
 function getDatePrefix(): string {
 	const now = new Date();
@@ -293,38 +266,32 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	}
 }
 
-app.post("/api/explore", async (c) => {
-	let body: unknown;
-	try {
-		body = await c.req.json();
-	} catch {
-		return c.json({ error: "Invalid JSON body" }, 400);
-	}
+app.post(
+	"/api/explore",
+	zValidator("json", ExploreRequestSchema),
+	async (c) => {
+		const body = c.req.valid("json");
 
-	if (!isValidExploreRequest(body)) {
-		return c.json({ error: "Bad Request: idea is required" }, 400);
-	}
+		const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
 
-	const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
+		const job = await createJob(c.env.JOBS, {
+			...body,
+			webhook_url: webhookUrl,
+		});
 
-	const job = await createJob(c.env.JOBS, {
-		...body,
-		webhook_url: webhookUrl,
-	});
-	logJobCreated(job.id, job.idea, job.mode);
+		logJobCreated(job.id, job.idea, job.mode);
 
-	c.executionCtx.waitUntil(runExploration(job, c.env));
+		c.executionCtx.waitUntil(runExploration(job, c.env));
 
-	return c.json({ job_id: job.id, status: "pending" }, 202);
-});
+		return c.json({ job_id: job.id, status: "pending" }, 202);
+	},
+);
 
 app.get("/api/status/:id", async (c) => {
 	const jobId = c.req.param("id");
 	const job = await getJob(c.env.JOBS, jobId);
 
-	if (!job) {
-		return c.json({ error: "Job not found" }, 404);
-	}
+	if (!job) return c.json({ error: "Job not found" }, 404);
 
 	const response: Record<string, string> = {
 		status: job.status,
@@ -362,7 +329,6 @@ app.get("/", async (c) => {
     <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
   </body>
 </html>
-
    `;
 	return c.html(docs);
 });

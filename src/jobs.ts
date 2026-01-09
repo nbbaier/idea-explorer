@@ -1,31 +1,45 @@
-export type JobStatus = "pending" | "running" | "completed" | "failed";
-export type ExploreMode = "business" | "exploration";
-export type ModelType = "sonnet" | "opus";
+import { z } from "zod";
 
-export interface ExploreRequest {
-	idea: string;
-	webhook_url?: string;
-	mode?: ExploreMode;
-	model?: ModelType;
-	callback_secret?: string;
-	context?: string;
-	update?: boolean;
-}
+export const JobStatusSchema = z.enum([
+	"pending",
+	"running",
+	"completed",
+	"failed",
+]);
+export const ExploreModeSchema = z.enum(["business", "exploration"]);
+export const ModelTypeSchema = z.enum(["sonnet", "opus"]);
 
-export interface Job {
-	id: string;
-	idea: string;
-	mode: ExploreMode;
-	model: ModelType;
-	status: JobStatus;
-	webhook_url?: string;
-	callback_secret?: string;
-	context?: string;
-	update?: boolean;
-	github_url?: string;
-	error?: string;
-	created_at: number;
-}
+export const ExploreRequestSchema = z.object({
+	idea: z.string(),
+	webhook_url: z.string().optional(),
+	mode: ExploreModeSchema.optional(),
+	model: ModelTypeSchema.optional(),
+	callback_secret: z.string().optional(),
+	context: z.string().optional(),
+	update: z.boolean().optional(),
+});
+
+export const JobSchema = z.object({
+	id: z.string(),
+	idea: z.string(),
+	mode: ExploreModeSchema,
+	model: ModelTypeSchema,
+	status: JobStatusSchema,
+	webhook_url: z.string().optional(),
+	callback_secret: z.string().optional(),
+	context: z.string().optional(),
+	update: z.boolean().optional(),
+	github_url: z.string().optional(),
+	error: z.string().optional(),
+	created_at: z.number(),
+});
+
+export type JobStatus = z.infer<typeof JobStatusSchema>;
+export type ExploreMode = z.infer<typeof ExploreModeSchema>;
+export type ModelType = z.infer<typeof ModelTypeSchema>;
+
+export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
+export type Job = z.infer<typeof JobSchema>;
 
 export async function createJob(
 	kv: KVNamespace,
