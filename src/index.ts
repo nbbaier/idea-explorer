@@ -1,4 +1,5 @@
 import { getSandbox, Sandbox } from "@cloudflare/sandbox";
+import { Hono } from "hono";
 import {
 	createJob,
 	type ExploreRequest,
@@ -6,7 +7,7 @@ import {
 	type Job,
 	updateJob,
 } from "./jobs";
-import { type AuthEnv, requireAuth } from "./middleware/auth";
+import { requireAuth } from "./middleware/auth";
 import { cloneWithRetry, commitAndPush } from "./utils/git";
 import {
 	logClaudeStarted,
@@ -21,15 +22,11 @@ import { escapeShell } from "./utils/shell";
 import { generateSlug } from "./utils/slug";
 import { sendWebhook } from "./utils/webhook";
 
-interface ExploreEnv extends AuthEnv {
-	ANTHROPIC_API_KEY: string;
-	GITHUB_PAT: string;
-	GITHUB_REPO: string;
-	GITHUB_BRANCH: string;
-	WEBHOOK_URL?: string;
-	Sandbox: DurableObjectNamespace<Sandbox>;
-	JOBS: KVNamespace;
-}
+type ExploreEnv = Env & { WEBHOOK_URL?: string; JOBS: KVNamespace };
+
+const app = new Hono<{ Bindings: ExploreEnv }>();
+
+app.use("*", requireAuth());
 
 function isValidExploreRequest(body: unknown): body is ExploreRequest {
 	if (typeof body !== "object" || body === null) return false;
@@ -94,9 +91,6 @@ async function findExistingIdeaFolder(
 	return null;
 }
 
-/**
- * Builds the Claude prompt based on mode and context
- */
 function buildPrompt({
 	idea,
 	context,
@@ -135,9 +129,6 @@ Idea: ${idea}${contextPart}
 After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
 }
 
-/**
- * Handles the case when an idea already exists and update is not requested
- */
 async function handleExistingIdea({
 	job,
 	env,
@@ -164,9 +155,6 @@ async function handleExistingIdea({
 	}
 }
 
-/**
- * Handles errors from exploration and updates job status
- */
 async function handleExplorationError({
 	error,
 	job,
@@ -223,7 +211,6 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		await cloneWithRetry(sandbox, repoUrl, branch, job.id);
 		logCloneComplete(job.id, Date.now() - cloneStartTime);
 
-		// Check if idea already exists
 		const existingFolder = await findExistingIdeaFolder(sandbox, slug);
 
 		if (existingFolder && !job.update) {
@@ -237,7 +224,6 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 			return;
 		}
 
-		// Determine folder and output path
 		const folderName = existingFolder || `${datePrefix}-${slug}`;
 		const outputPath = `ideas/${folderName}/research.md`;
 		const isUpdate = !!(existingFolder && job.update);
@@ -307,79 +293,57 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	}
 }
 
-export default {
-	async fetch(
-		request: Request,
-		env: ExploreEnv,
-		ctx: ExecutionContext,
-	): Promise<Response> {
-		const url = new URL(request.url);
+app.post("/explore", async (c) => {
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		return c.json({ error: "Invalid JSON body" }, 400);
+	}
 
-		if (request.method === "POST" && url.pathname === "/explore") {
-			const auth = requireAuth(request, env);
-			if (!auth.success) return auth.response;
+	if (!isValidExploreRequest(body)) {
+		return c.json({ error: "Bad Request: idea is required" }, 400);
+	}
 
-			let body: unknown;
-			try {
-				body = await request.json();
-			} catch {
-				return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-			}
+	const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
 
-			if (!isValidExploreRequest(body)) {
-				return Response.json(
-					{ error: "Bad Request: idea is required" },
-					{ status: 400 },
-				);
-			}
+	const job = await createJob(c.env.JOBS, {
+		...body,
+		webhook_url: webhookUrl,
+	});
+	logJobCreated(job.id, job.idea, job.mode);
 
-			const webhookUrl = body.webhook_url || env.WEBHOOK_URL;
+	c.executionCtx.waitUntil(runExploration(job, c.env));
 
-			const job = await createJob(env.JOBS, {
-				...body,
-				webhook_url: webhookUrl,
-			});
-			logJobCreated(job.id, job.idea, job.mode);
+	return c.json({ job_id: job.id, status: "pending" }, 202);
+});
 
-			ctx.waitUntil(runExploration(job, env));
+app.get("/status/:id", async (c) => {
+	const jobId = c.req.param("id");
+	const job = await getJob(c.env.JOBS, jobId);
 
-			return Response.json(
-				{ job_id: job.id, status: "pending" },
-				{ status: 202 },
-			);
-		}
+	if (!job) {
+		return c.json({ error: "Job not found" }, 404);
+	}
 
-		const statusMatch = url.pathname.match(/^\/status\/([^/]+)$/);
-		if (request.method === "GET" && statusMatch) {
-			const auth = requireAuth(request, env);
-			if (!auth.success) return auth.response;
+	const response: Record<string, string> = {
+		status: job.status,
+		idea: job.idea,
+		mode: job.mode,
+	};
 
-			const jobId = statusMatch[1];
-			const job = await getJob(env.JOBS, jobId);
+	if (job.status === "completed" && job.github_url) {
+		response.github_url = job.github_url;
+	}
 
-			if (!job) {
-				return Response.json({ error: "Job not found" }, { status: 404 });
-			}
+	if (job.status === "failed" && job.error) {
+		response.error = job.error;
+	}
 
-			const response: Record<string, string> = {
-				status: job.status,
-				idea: job.idea,
-				mode: job.mode,
-			};
+	return c.json(response);
+});
 
-			if (job.status === "completed" && job.github_url) {
-				response.github_url = job.github_url;
-			}
+app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
-			if (job.status === "failed" && job.error) {
-				response.error = job.error;
-			}
-
-			return Response.json(response);
-		}
-
-		return Response.json({ error: "Not found" }, { status: 404 });
-	},
-};
-
+export default app;
 export { Sandbox };

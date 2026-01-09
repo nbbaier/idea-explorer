@@ -24,5 +24,7 @@
 	},
 	"author": "",
 	"license": "MIT",
-	"dependencies": {}
+	"dependencies": {
+		"hono": "^4.11.3"
+	}
 }

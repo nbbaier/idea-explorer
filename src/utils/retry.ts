@@ -1,6 +1,3 @@
-/**
- * Generic retry utility with exponential backoff
- */
 export interface RetryOptions {
 	maxAttempts: number;
 	delaysMs: number[];
@@ -47,7 +44,6 @@ export async function retryWithBackoff<T>(
 			// Error will be logged by caller if needed
 		}
 
-		// Wait before next retry (if not last attempt)
 		if (attempt < options.maxAttempts) {
 			await sleep(options.delaysMs[attempt - 1]);
 		}
