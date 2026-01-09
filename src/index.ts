@@ -23,7 +23,10 @@ import { escapeShell } from "./utils/shell";
 import { generateSlug } from "./utils/slug";
 import { sendWebhook } from "./utils/webhook";
 
-type ExploreEnv = Env & { WEBHOOK_URL?: string; JOBS: KVNamespace };
+type ExploreEnv = Env & {
+	WEBHOOK_URL?: string;
+	IDEA_EXPLORER_JOBS: KVNamespace;
+};
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
@@ -118,7 +121,7 @@ async function handleExistingIdea({
 	const outputPath = `ideas/${existingFolder}/research.md`;
 	const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
 	logInfo(job.id, "existing_idea_found");
-	const updatedJob = await updateJob(env.JOBS, job.id, {
+	const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
 		status: "completed",
 		github_url: githubUrl,
 	});
@@ -152,7 +155,7 @@ async function handleExplorationError({
 		: errorMessage;
 
 	logError(job.id, "exploration_failed", new Error(finalError));
-	const updatedJob = await updateJob(env.JOBS, job.id, {
+	const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
 		status: "failed",
 		error: finalError,
 	});
@@ -165,7 +168,7 @@ async function handleExplorationError({
 
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	const jobStartTime = Date.now();
-	await updateJob(env.JOBS, job.id, { status: "running" });
+	await updateJob(env.IDEA_EXPLORER_JOBS, job.id, { status: "running" });
 	logContainerStarted(job.id);
 
 	const sandbox = getSandbox(env.Sandbox, job.id);
@@ -246,7 +249,7 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		});
 
 		const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-		const updatedJob = await updateJob(env.JOBS, job.id, {
+		const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
 			status: "completed",
 			github_url: githubUrl,
 		});
@@ -274,7 +277,7 @@ app.post(
 
 		const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
 
-		const job = await createJob(c.env.JOBS, {
+		const job = await createJob(c.env.IDEA_EXPLORER_JOBS, {
 			...body,
 			webhook_url: webhookUrl,
 		});
@@ -289,7 +292,7 @@ app.post(
 
 app.get("/api/status/:id", async (c) => {
 	const jobId = c.req.param("id");
-	const job = await getJob(c.env.JOBS, jobId);
+	const job = await getJob(c.env.IDEA_EXPLORER_JOBS, jobId);
 
 	if (!job) return c.json({ error: "Job not found" }, 404);
 
