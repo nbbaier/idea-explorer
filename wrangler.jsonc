@@ -8,7 +8,7 @@
 		"enabled": true
 	},
 	"vars": {
-		"GITHUB_REPO": "your-username/ideas",
+		"GITHUB_REPO": "nbbaier/idea-explorer",
 		"GITHUB_BRANCH": "main"
 	},
 	"containers": [
