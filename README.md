@@ -2,6 +2,15 @@
 
 A Cloudflare Container-based service that runs autonomous Claude Code sessions to explore and analyze ideas, committing results to a GitHub repository.
 
+## Features
+
+- **Two analysis modes**: Business viability analysis or creative exploration
+- **Model selection**: Choose between Claude Sonnet or Opus
+- **Duplicate detection**: Automatically finds existing research for the same idea
+- **Update mode**: Append new analysis to existing research
+- **Webhook notifications**: Get notified when exploration completes (with optional HMAC signing)
+- **Job status tracking**: Query job status via API
+
 ## Setup
 
 ### 1. Configure Environment Variables
@@ -15,18 +24,20 @@ Edit `wrangler.jsonc` to set your GitHub repository and branch:
 }
 ```
 
-### 2. Set Up Cloudflare Secrets
+### 2. Configure KV Namespace
 
-The service requires three secrets. Set them using the Wrangler CLI:
+Create a KV namespace for job storage and update `wrangler.jsonc` with the IDs:
 
 ```bash
-# Anthropic API key for Claude Code
+wrangler kv namespace create JOBS
+wrangler kv namespace create JOBS --preview
+```
+
+### 3. Set Up Cloudflare Secrets
+
+```bash
 wrangler secret put ANTHROPIC_API_KEY
-
-# GitHub Personal Access Token with repo write access
 wrangler secret put GITHUB_PAT
-
-# Bearer token for API authentication
 wrangler secret put API_BEARER_TOKEN
 ```
 
@@ -37,10 +48,10 @@ wrangler secret put API_BEARER_TOKEN
 | `API_BEARER_TOKEN`  | Token used to authenticate API requests (generate a strong random string)   |
 | `WEBHOOK_URL`       | (Optional) Default webhook URL for job completion notifications             |
 
-### 3. Deploy
+### 4. Deploy
 
 ```bash
-wrangler deploy
+bun run deploy
 ```
 
 ## Usage
@@ -49,14 +60,27 @@ wrangler deploy
 
 ```bash
 curl -X POST https://idea-explorer.your-domain.workers.dev/explore \
-   -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "idea": "AI-powered code review assistant",
     "webhook_url": "https://your-server.com/webhook",
-    "mode": "business"
+    "mode": "business",
+    "model": "sonnet"
   }'
 ```
+
+### Request Body
+
+| Field             | Type                          | Required | Description                                      |
+| ----------------- | ----------------------------- | -------- | ------------------------------------------------ |
+| `idea`            | string                        | Yes      | The idea to explore                              |
+| `webhook_url`     | string                        | No       | URL to receive completion callback               |
+| `mode`            | `"business"` \| `"exploration"` | No       | Analysis framework (default: `"business"`)       |
+| `model`           | `"sonnet"` \| `"opus"`        | No       | Claude model to use (default: `"sonnet"`)        |
+| `callback_secret` | string                        | No       | Secret for HMAC-SHA256 webhook signature         |
+| `context`         | string                        | No       | Additional context for the analysis              |
+| `update`          | boolean                       | No       | Append to existing research instead of skipping  |
 
 ### Check Status
 
@@ -65,9 +89,36 @@ curl https://idea-explorer.your-domain.workers.dev/status/{job_id} \
   -H "Authorization: Bearer YOUR_API_TOKEN"
 ```
 
+### Response
+
+```json
+{
+  "status": "completed",
+  "idea": "AI-powered code review assistant",
+  "mode": "business",
+  "github_url": "https://github.com/user/ideas/blob/main/ideas/2025-01-07-ai-code-review/research.md"
+}
+```
+
+## Project Structure
+
+```
+idea-explorer/
+├── src/
+│   ├── index.ts          # Main Hono app with /explore and /status endpoints
+│   ├── jobs.ts           # Job types and KV storage functions
+│   ├── middleware/       # Auth middleware
+│   └── utils/            # Git, webhook, logging, and helper utilities
+├── prompts/
+│   ├── business.md       # Business analysis framework template
+│   └── exploration.md    # Creative exploration framework template
+├── Dockerfile            # Container image with Claude Code CLI
+└── wrangler.jsonc        # Cloudflare Workers configuration
+```
+
 ## API Reference
 
-See [SPEC.md](./SPEC.md) for full API documentation.
+See [SPEC.md](./SPEC.md) for full API documentation including webhook specification and signature verification.
 
 ## Local Development
 
@@ -79,3 +130,12 @@ cp .dev.vars.example .dev.vars
 # Then run the dev server
 bun run dev
 ```
+
+## Scripts
+
+| Command           | Description                    |
+| ----------------- | ------------------------------ |
+| `bun run dev`     | Start local development server |
+| `bun run deploy`  | Deploy to Cloudflare           |
+| `bun run check`   | Run Biome linter               |
+| `bun run typecheck` | Run TypeScript type checking |
