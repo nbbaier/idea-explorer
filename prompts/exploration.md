@@ -4,11 +4,12 @@ You are exploring an idea with divergent thinking. Use the framework below to pr
 
 ## Instructions
 
-1. Deconstruct the core insight behind the idea
-2. Generate 5-10 distinct directions to explore
-3. Find unexpected connections and combinations
-4. Identify key questions worth answering
-5. Output your exploration as a markdown document following the template below
+1. **Review existing research:** Check the `/workspace/ideas/` directory for previous explorations that might be related. If you find relevant prior research, reference it in your exploration and identify connections, combinations, or extensions.
+2. Deconstruct the core insight behind the idea
+3. Generate 5-10 distinct directions to explore
+4. Find unexpected connections and combinations
+5. Identify key questions worth answering
+6. Output your exploration as a markdown document following the template below
 
 ## Output Template
 
@@ -47,6 +48,10 @@ You are exploring an idea with divergent thinking. Use the framework below to pr
 ## Unexpected Connections
 
 [Adjacent ideas, unusual combinations, what-if scenarios]
+
+## Related Research
+
+[If relevant prior ideas were found in /workspace/ideas/, summarize connections and how they might inform or extend this exploration. Otherwise, note "No directly related prior research found."]
 
 ## Questions Worth Answering
 

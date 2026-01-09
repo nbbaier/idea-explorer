@@ -4,10 +4,11 @@ You are analyzing an idea for business viability. Use the framework below to pro
 
 ## Instructions
 
-1. Analyze the provided idea thoroughly
-2. Fill out each section with detailed, actionable insights
-3. Be honest and direct in your assessment
-4. Output your analysis as a markdown document following the template below
+1. **Review existing research:** Check the `/workspace/ideas/` directory for previous analyses that might be related. If you find relevant prior research, reference it in your analysis and note any connections or overlaps.
+2. Analyze the provided idea thoroughly
+3. Fill out each section with detailed, actionable insights
+4. Be honest and direct in your assessment
+5. Output your analysis as a markdown document following the template below
 
 ## Output Template
 
@@ -35,7 +36,11 @@ You are analyzing an idea for business viability. Use the framework below to pro
 - MVP scope and complexity
 - Major technical risks
 
-## 4. Verdict
+## 4. Related Research
+
+[If relevant prior ideas were found in /workspace/ideas/, summarize connections here. Otherwise, note "No directly related prior research found."]
+
+## 5. Verdict
 
 **Recommendation:** STRONG YES | CONDITIONAL YES | PIVOT | PASS
 
