@@ -1,23 +1,31 @@
+import { z } from "zod";
 import type { Job } from "../jobs";
 import { logError, logWebhookSent } from "./logger";
 import { retryWithBackoff } from "./retry";
 
-interface WebhookSuccessPayload {
-	status: "completed";
-	job_id: string;
-	idea: string;
-	github_url: string;
-	github_raw_url: string;
-}
+const WebhookSuccessPayloadSchema = z.object({
+	status: z.literal("completed"),
+	job_id: z.string(),
+	idea: z.string(),
+	github_url: z.string(),
+	github_raw_url: z.string(),
+});
 
-interface WebhookFailurePayload {
-	status: "failed";
-	job_id: string;
-	idea: string;
-	error: string;
-}
+const WebhookFailurePayloadSchema = z.object({
+	status: z.literal("failed"),
+	job_id: z.string(),
+	idea: z.string(),
+	error: z.string(),
+});
 
-export type WebhookPayload = WebhookSuccessPayload | WebhookFailurePayload;
+const WebhookPayloadSchema = z.discriminatedUnion("status", [
+	WebhookSuccessPayloadSchema,
+	WebhookFailurePayloadSchema,
+]);
+
+export type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
+export type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
+export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 
 async function generateSignature(
 	secret: string,
