@@ -38,7 +38,7 @@ The service accepts ideas via API, spins up a Claude Code session in a sandboxed
                   │  5. Git commit + push               (updates KV)      │
                   │  6. Call webhook (with retry)                         │
                   │                                                       │
-                  └───────────────────────────────────────────────────────
+                  └───────────────────────────────────────────────────────┘
 ```
 
 ---
