@@ -18,27 +18,27 @@ The service accepts ideas via API, spins up a Claude Code session in a sandboxed
 │  POST /api/explore ──► Validate ──► Return 202 + job_id                 │
 │                                           │                             │
 │                                           ▼                             │
-│                                    Spawn Container ─────────────────┐   │
-│                                                                     │   │
-│  GET /api/status/{id} ◄─── Poll for status (reads from KV) ───┐    │   │
-│  GET /api/health                                               │    │   │
-│  GET /api/test-webhook                                         │    │   │
-│                                                                 │    │   │
-└─────────────────────────────────────────────────────────────────┼────┼───┘
+│                                    Spawn Container ──────────────────┐  │
+│                                                                      │  │
+│  GET /api/status/{id} ◄─── Poll for status (reads from KV) ─────┐    │  │
+│  GET /api/health                                                │    │  │
+│  GET /api/test-webhook                                          │    │  │
+│                                                                 │    │  │
+└─────────────────────────────────────────────────────────────────┼────┼──┘
                                                                   │    │
-                  ┌───────────────────────────────────────────────┼────▼───┐
-                  │              Sandbox Container                │        │
-                  │                                               │        │
-                  │  1. Clone ideas repo (sparse checkout)        │        │
-                  │  2. Check for existing idea folder            │        │
-                  │     ├─ exists & update=false → use existing   │        │
-                  │     └─ exists & update=true → append update   │        │
-                  │  3. Run Claude Code with analysis prompt      │        │
-                  │  4. Write research.md                      ───┘        │
-                  │  5. Git commit + push               (updates KV)       │
-                  │  6. Call webhook (with retry)                          │
-                  │                                                        │
-                  └────────────────────────────────────────────────────────┘
+                  ┌───────────────────────────────────────────────┼────▼──┐
+                  │              Sandbox Container                │       │
+                  │                                               │       │
+                  │  1. Clone ideas repo (sparse checkout)        │       │
+                  │  2. Check for existing idea folder            │       │
+                  │     ├─ exists & update=false → use existing   │       |
+                  │     └─ exists & update=true → append update   │       │
+                  │  3. Run Claude Code with analysis prompt      │       │
+                  │  4. Write research.md                      ───┘       │
+                  │  5. Git commit + push               (updates KV)      │
+                  │  6. Call webhook (with retry)                         │
+                  │                                                       │
+                  └───────────────────────────────────────────────────────
 ```
 
 ---
