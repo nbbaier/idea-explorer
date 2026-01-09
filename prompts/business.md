@@ -29,18 +29,24 @@ You are analyzing an idea for business viability. Use the framework below to pro
 - Existing solutions and competitors
 - Key differentiators
 
-## 3. Technical Feasibility
+## 3. Use Cases & Personas
+
+- Primary use cases (top 3)
+- Key user personas
+- Value proposition for each persona
+
+## 4. Technical Feasibility
 
 - Core technical requirements
 - Build vs buy decisions
 - MVP scope and complexity
 - Major technical risks
 
-## 4. Related Research
+## 5. Related Research
 
 [If relevant prior ideas were found in /workspace/ideas/, summarize connections here. Otherwise, note "No directly related prior research found."]
 
-## 5. Verdict
+## 6. Verdict
 
 **Recommendation:** STRONG YES | CONDITIONAL YES | PIVOT | PASS
 
