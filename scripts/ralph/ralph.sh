@@ -18,22 +18,53 @@ if [ -f "$PRD_FILE" ] && [ -f "$LAST_BRANCH_FILE" ]; then
 	LAST_BRANCH=$(cat "$LAST_BRANCH_FILE" 2>/dev/null || echo "")
 
 	if [ -n "$CURRENT_BRANCH" ] && [ -n "$LAST_BRANCH" ] && [ "$CURRENT_BRANCH" != "$LAST_BRANCH" ]; then
-		# Archive the previous run
-		DATE=$(date +%Y-%m-%d)
-		# Strip "ralph/" prefix from branch name for folder
-		FOLDER_NAME=$(echo "$LAST_BRANCH" | sed 's|^ralph/||')
-		ARCHIVE_FOLDER="$ARCHIVE_DIR/$DATE-$FOLDER_NAME"
+		# Check if already archived
+		ALREADY_ARCHIVED=false
+		if [ -d "$ARCHIVE_DIR" ]; then
+			for f in "$ARCHIVE_DIR"/*/prd.json; do
+				if [ -f "$f" ] && [ "$(jq -r '.branchName' "$f" 2>/dev/null)" == "$LAST_BRANCH" ]; then
+					ALREADY_ARCHIVED=true
+					break
+				fi
+			done
+		fi
 
-		echo "Archiving previous run: $LAST_BRANCH"
-		mkdir -p "$ARCHIVE_FOLDER"
-		[ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
-		[ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
-		echo "   Archived to: $ARCHIVE_FOLDER"
+		if [ "$ALREADY_ARCHIVED" = "true" ]; then
+			echo "Branch changed to $CURRENT_BRANCH, but $LAST_BRANCH is already archived. Skipping archive."
+		else
+			# Archive the previous run
+			DATE=$(date +%Y-%m-%d)
+			# Strip "ralph/" prefix from branch name for folder
+			FOLDER_NAME=$(echo "$LAST_BRANCH" | sed 's|^ralph/||')
+			ARCHIVE_FOLDER="$ARCHIVE_DIR/$DATE-$FOLDER_NAME"
 
-		# Reset progress file for new run
-		echo "# Ralph Progress Log" >"$PROGRESS_FILE"
-		echo "Started: $(date)" >>"$PROGRESS_FILE"
-		echo "---" >>"$PROGRESS_FILE"
+			echo "Archiving previous run: $LAST_BRANCH"
+			mkdir -p "$ARCHIVE_FOLDER"
+			[ -f "$PRD_FILE" ] && cp "$PRD_FILE" "$ARCHIVE_FOLDER/"
+			[ -f "$PROGRESS_FILE" ] && cp "$PROGRESS_FILE" "$ARCHIVE_FOLDER/"
+			echo "   Archived to: $ARCHIVE_FOLDER"
+		fi
+
+		# Reset progress file for new run, keeping Codebase Patterns if they exist
+		if [ -f "$PROGRESS_FILE" ]; then
+			PATTERNS=$(sed -n '/## Codebase Patterns/,/---/p' "$PROGRESS_FILE" 2>/dev/null || echo "")
+			if [ -n "$PATTERNS" ]; then
+				echo "$PATTERNS" >"$PROGRESS_FILE.tmp"
+				echo "" >>"$PROGRESS_FILE.tmp"
+				echo "# Ralph Progress Log" >>"$PROGRESS_FILE.tmp"
+				echo "Started: $(date)" >>"$PROGRESS_FILE.tmp"
+				echo "---" >>"$PROGRESS_FILE.tmp"
+				mv "$PROGRESS_FILE.tmp" "$PROGRESS_FILE"
+			else
+				echo "# Ralph Progress Log" >"$PROGRESS_FILE"
+				echo "Started: $(date)" >>"$PROGRESS_FILE"
+				echo "---" >>"$PROGRESS_FILE"
+			fi
+		else
+			echo "# Ralph Progress Log" >"$PROGRESS_FILE"
+			echo "Started: $(date)" >>"$PROGRESS_FILE"
+			echo "---" >>"$PROGRESS_FILE"
+		fi
 	fi
 fi
 
