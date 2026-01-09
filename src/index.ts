@@ -54,6 +54,8 @@ function isValidExploreRequest(body: unknown): body is ExploreRequest {
 		return false;
 	if (obj.context !== undefined && typeof obj.context !== "string")
 		return false;
+	if (obj.update !== undefined && typeof obj.update !== "boolean")
+		return false;
 	return true;
 }
 
@@ -71,7 +73,7 @@ async function cloneWithRetry(
 	branch: string,
 	jobId: string,
 ): Promise<void> {
-	const cloneCmd = `git clone --depth 1 --branch "${branch}" "${repoUrl}" /workspace`;
+	const cloneCmd = `git clone --filter=blob:none --sparse --branch "${branch}" "${repoUrl}" /workspace`;
 	try {
 		await sandbox.exec(cloneCmd);
 	} catch (error) {
@@ -79,6 +81,7 @@ async function cloneWithRetry(
 		logInfo(jobId, "clone_retry");
 		await sandbox.exec(cloneCmd);
 	}
+	await sandbox.exec("git sparse-checkout set ideas/", { cwd: "/workspace" });
 }
 
 async function pushWithRetry(
@@ -99,6 +102,27 @@ async function pushWithRetry(
 	}
 }
 
+async function findExistingIdeaFolder(
+	sandbox: ReturnType<typeof getSandbox>,
+	slug: string,
+): Promise<string | null> {
+	try {
+		const result = await sandbox.exec("ls /workspace/ideas/ 2>/dev/null || true", {
+			cwd: "/workspace",
+		});
+		const stdout = typeof result === "string" ? result : (result as { stdout?: string }).stdout ?? "";
+		const folders = stdout.trim().split("\n").filter(Boolean);
+		for (const folder of folders) {
+			if (folder.endsWith(`-${slug}`)) {
+				return folder;
+			}
+		}
+	} catch {
+		// No ideas directory yet, that's fine
+	}
+	return null;
+}
+
 async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	const jobStartTime = Date.now();
 	await updateJob(env.JOBS, job.id, { status: "running" });
@@ -107,8 +131,6 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 	const sandbox = getSandbox(env.Sandbox, job.id);
 	const slug = generateSlug(job.idea);
 	const datePrefix = getDatePrefix();
-	const folderName = `${datePrefix}-${slug}`;
-	const outputPath = `ideas/${folderName}/research.md`;
 	const branch = env.GITHUB_BRANCH || "main";
 	const repoUrl = `https://x-access-token:${env.GITHUB_PAT}@github.com/${env.GITHUB_REPO}.git`;
 
@@ -122,6 +144,30 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		await cloneWithRetry(sandbox, repoUrl, branch, job.id);
 		logCloneComplete(job.id, Date.now() - cloneStartTime);
 
+		// Check if idea already exists
+		const existingFolder = await findExistingIdeaFolder(sandbox, slug);
+
+		if (existingFolder && !job.update) {
+			// Return existing URL without re-running analysis
+			const outputPath = `ideas/${existingFolder}/research.md`;
+			const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
+			logInfo(job.id, "existing_idea_found");
+			const updatedJob = await updateJob(env.JOBS, job.id, {
+				status: "completed",
+				github_url: githubUrl,
+			});
+			logJobComplete(job.id, "completed", Date.now() - jobStartTime);
+			if (updatedJob) {
+				await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
+			}
+			return;
+		}
+
+		// Determine folder and output path
+		const folderName = existingFolder || `${datePrefix}-${slug}`;
+		const outputPath = `ideas/${folderName}/research.md`;
+		const isUpdate = existingFolder && job.update;
+
 		await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
 
 		const promptFile =
@@ -131,11 +177,29 @@ async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
 		const contextPart = job.context
 			? `\n\nAdditional context: ${job.context}`
 			: "";
-		const prompt = `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
+
+		let prompt: string;
+		if (isUpdate) {
+			// Update mode: append new section to existing research
+			prompt = `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
+
+Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
+
+## Update - ${datePrefix}
+
+Include new insights, updated analysis, or changed recommendations based on current thinking.
+
+Idea: ${job.idea}${contextPart}
+
+Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
+		} else {
+			// New idea mode
+			prompt = `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
 
 Idea: ${job.idea}${contextPart}
 
 After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
+		}
 
 		const model = job.model === "opus" ? "opus" : "sonnet";
 		const escapedPrompt = prompt
@@ -169,7 +233,9 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 
 		await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
 
-		const commitMessage = `idea: ${slug} - research complete`;
+		const commitMessage = isUpdate
+			? `idea: ${slug} - research updated`
+			: `idea: ${slug} - research complete`;
 		const escapedMessage = commitMessage
 			.replace(/\\/g, "\\\\")
 			.replace(/"/g, '\\"')

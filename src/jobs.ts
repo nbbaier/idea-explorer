@@ -9,6 +9,7 @@ export interface ExploreRequest {
 	model?: ModelType;
 	callback_secret?: string;
 	context?: string;
+	update?: boolean;
 }
 
 export interface Job {
@@ -20,6 +21,7 @@ export interface Job {
 	webhook_url?: string;
 	callback_secret?: string;
 	context?: string;
+	update?: boolean;
 	github_url?: string;
 	error?: string;
 	created_at: number;
@@ -39,6 +41,7 @@ export async function createJob(
 		webhook_url: request.webhook_url,
 		callback_secret: request.callback_secret,
 		context: request.context,
+		update: request.update ?? false,
 		created_at: Date.now(),
 	};
 	await kv.put(id, JSON.stringify(job));
