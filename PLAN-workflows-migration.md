@@ -145,23 +145,49 @@ export { ExplorationWorkflow } from './workflows/exploration';
 | Step | Timeout | Retries | Notes |
 |------|---------|---------|-------|
 | initialize | 30s | 3 | KV operations only |
-| setup-sandbox | 2 min | 2 | Clone can be slow |
+| setup-sandbox | 5 min | 2 | Clone can be slow; generous timeout for large repos or GitHub issues |
 | check-existing | 30s | 3 | Simple ls command |
-| run-claude | 15 min | 1 | Main long-running step |
-| commit-push | 2 min | 3 | Git operations with retry |
-| notify | 30s | 3 | Webhook with retry |
+| run-claude | 15 min | 0 | No retries - re-running can produce different results or double-append |
+| commit-push | 2 min | 3 | Must be idempotent - use `git pull --rebase` before commit |
+| notify | 30s | 3 | Must handle deduplication via `webhook_sent_at` timestamp |
+
+## Code Organization
+
+Refactor `runExploration` into small helpers that the workflow calls:
+
+- `initializeJob(jobId, env)` → updates KV to `running`, returns `branch`, `repoUrl`, `slug`, `datePrefix`
+- `setupSandbox(job, env, slug, branch, repoUrl)` → `getSandbox`, `setEnvVars`, `cloneWithRetry`
+- `findOrCreateIdeaFolder(sandbox, slug, datePrefix, job)` → returns `{ folderName, isUpdate, existingFolder }`
+- `runClaudeStep(sandbox, job, promptArgs)` → builds prompt, logs, `sandbox.exec`
+- `commitAndPushStep(sandbox, commitArgs)` → thin wrapper around existing `commitAndPush`
+- `completeJobSuccess(jobId, env, branch, outputPath)` → updates KV to `completed` and sends webhook
+- `failJob(jobId, env, branch, error)` → wraps `handleExplorationError`
+
+This approach:
+- Reuses all existing logic and logging
+- Makes each workflow step minimal and easy to reason about
+- Keeps Workflows knowledge constrained to a single file (`exploration.ts`)
 
 ## Key Considerations
 
 1. **Sandbox Access**: The Sandbox Durable Object binding is accessible from within the Workflow because the Workflow runs in the same Worker environment with the same bindings.
 
-2. **Idempotency**: Each step should handle being re-run. The `step.do()` caches results, so a step that succeeds won't re-execute on retry.
+2. **State Serialization**: Do NOT store sandbox instances or complex objects in workflow state. Recompute `getSandbox(env.Sandbox, jobId)` in each step. Only return simple JSON-serializable values (strings, numbers, booleans, small plain objects) from `step.do()`.
 
-3. **Error Handling**: Failed steps will be retried according to config. Final failures update job status to "failed" in a catch block or final step.
+3. **Idempotency**: Each step should handle being re-run safely:
+   - **Git operations**: Use `git pull --rebase` before commit to handle retries without conflicts
+   - **Webhook delivery**: Store `webhook_sent_at` timestamp in job record and short-circuit if present to prevent duplicate sends
+   - **Claude step**: Set retries to 0 since re-running can produce different results or double-append in update mode
 
-4. **State Passing**: Each step returns data needed by subsequent steps. Workflow state is automatically persisted between steps.
+4. **Error Handling**: 
+   - Wrap the workflow `run()` body in a try/catch
+   - On error, call `failJob` helper to update KV status to `failed` with error message
+   - Rethrow after updating so workflow ends in `errored` state
+   - This ensures job status is never stuck at `running` if workflow errors
 
-5. **Job ID as Workflow ID**: Using the job ID as the workflow instance ID allows easy correlation between job status (KV) and workflow status.
+5. **State Passing**: Each step returns data needed by subsequent steps. Workflow state is automatically persisted between steps.
+
+6. **Job ID as Workflow ID**: Using the job ID as the workflow instance ID allows easy correlation between job status (KV) and workflow status.
 
 ## Verification
 
@@ -173,3 +199,7 @@ export { ExplorationWorkflow } from './workflows/exploration';
 6. Check logs for step execution progression
 7. Verify webhook delivery on completion
 8. Test failure scenario - verify retry behavior
+
+## Estimated Effort
+
+**1-2 days** including implementation and end-to-end testing.
