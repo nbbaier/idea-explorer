@@ -10,36 +10,67 @@ The service accepts ideas via API, spins up a Claude Code session in a sandboxed
 
 ## Architecture
 
+The service uses **Cloudflare Workflows** for durable execution of long-running exploration jobs. Workflows provide automatic retries, state persistence between steps, and survive IoContext timeouts.
+
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Cloudflare Worker                             │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  POST /api/explore ──► Validate ──► Return 202 + job_id                 │
-│                                           │                             │
-│                                           ▼                             │
-│                                    Spawn Container ──────────────────┐  │
-│                                                                      │  │
-│  GET /api/status/{id} ◄─── Poll for status (reads from KV) ─────┐    │  │
-│  GET /api/health                                                │    │  │
-│  GET /api/test-webhook                                          │    │  │
-│                                                                 │    │  │
-└─────────────────────────────────────────────────────────────────┼────┼──┘
-                                                                  │    │
-                  ┌───────────────────────────────────────────────┼────▼──┐
-                  │              Sandbox Container                │       │
-                  │                                               │       │
-                  │  1. Clone ideas repo (sparse checkout)        │       │
-                  │  2. Check for existing idea folder            │       │
-                  │     ├─ exists & update=false → use existing   │       │
-                  │     └─ exists & update=true → append update   │       │
-                  │  3. Run Claude Code with analysis prompt      │       │
-                  │  4. Write research.md                      ───┘       │
-                  │  5. Git commit + push               (updates KV)      │
-                  │  6. Call webhook (with retry)                         │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              Cloudflare Worker                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  POST /api/explore ──► Validate ──► Create Job (KV) ──► Trigger Workflow     │
+│                                                              │               │
+│                                                              ▼               │
+│  GET /api/status/{id} ◄────────────────────────── Reads from KV             │
+│  GET /api/workflow-status/{id} ◄───────────────── Reads Workflow state      │
+│  GET /api/health                                                             │
+│  GET /api/test-webhook                                                       │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         Cloudflare Workflow                                  │
+│                      (ExplorationWorkflow)                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Step 1: initialize ────► Update job status to "running"                     │
+│              │                                                               │
+│              ▼                                                               │
+│  Step 2: setup-sandbox ─► Get sandbox, set env vars, clone repo              │
+│              │                                                               │
+│              ▼                                                               │
+│  Step 3: check-existing ► Check for existing idea folder                     │
+│              │              ├─ exists & update=false → complete early        │
+│              │              └─ exists & update=true → continue               │
+│              ▼                                                               │
+│  Step 4: run-claude ────► Execute Claude Code (15 min timeout)               │
+│              │                                                               │
+│              ▼                                                               │
+│  Step 5: commit-push ───► Git commit + push to GitHub                        │
+│              │                                                               │
+│              ▼                                                               │
+│  Step 6: notify ────────► Update KV status, send webhook                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+                  ┌───────────────────────────────────────────────────────┐
+                  │              Sandbox Container                        │
+                  │                                                       │
+                  │  - Clone ideas repo (sparse checkout)                 │
+                  │  - Run Claude Code with analysis prompt               │
+                  │  - Write research.md                                  │
+                  │  - Git commit + push                                  │
                   │                                                       │
                   └───────────────────────────────────────────────────────┘
 ```
+
+### Workflow Benefits
+
+- **Durable execution**: Steps survive IoContext timeouts and Worker restarts
+- **Automatic retries**: Each step can be configured with retry policies
+- **State persistence**: Data returned from each step is persisted automatically
+- **Observability**: Native workflow status tracking via dashboard and API
 
 ---
 
@@ -111,6 +142,44 @@ Check the status of an exploration job.
 ```json
 {
    "error": "Job not found"
+}
+```
+
+---
+
+### GET /api/workflow-status/{job_id}
+
+Check the native Cloudflare Workflow execution status for a job. Provides more granular status information than the job status endpoint.
+
+**Authentication:** Bearer token in `Authorization` header
+
+**Success Response (200 OK):**
+
+```json
+{
+  "workflow_status": "running",
+  "output": null,
+  "error": null
+}
+```
+
+**Workflow Status Values:**
+
+| Status | Description |
+|--------|-------------|
+| `queued` | Workflow is queued but not yet started |
+| `running` | Workflow is currently executing |
+| `paused` | Workflow is paused (e.g., during `step.sleep()`) |
+| `waiting` | Workflow is waiting for external input |
+| `complete` | Workflow finished successfully |
+| `errored` | Workflow failed with an error |
+| `terminated` | Workflow was manually terminated |
+
+**Error Response (404 Not Found):**
+
+```json
+{
+   "error": "Workflow instance not found"
 }
 ```
 
@@ -525,6 +594,7 @@ After 3 failed delivery attempts:
 
 ## Implementation Checklist
 
+### Core Features
 -  [x] Update Dockerfile with 15min timeout and prompts
 -  [x] Create business.md and exploration.md prompt templates
 -  [x] Implement POST /api/explore endpoint
@@ -539,7 +609,18 @@ After 3 failed delivery attempts:
 -  [x] Implement retry logic for webhooks
 -  [x] Add Cloudflare secrets for API keys
 -  [x] Add KV-based job storage
--  [ ] Test end-to-end flow
+
+### Cloudflare Workflows Migration
+-  [ ] Create ExplorationWorkflow class (`src/workflows/exploration.ts`)
+-  [ ] Add workflow binding to wrangler.jsonc
+-  [ ] Replace waitUntil() with workflow trigger in POST /api/explore
+-  [ ] Implement GET /api/workflow-status/{id} endpoint
+-  [ ] Update type definitions with workflow bindings
+-  [ ] Export workflow class from index.ts
+
+### Testing & Deployment
+-  [ ] Test end-to-end flow with workflows
+-  [ ] Verify workflow retry behavior
 -  [ ] Deploy to Cloudflare
 
 ---
