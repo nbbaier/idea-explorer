@@ -1,26 +1,9 @@
-import { getSandbox, Sandbox } from "@cloudflare/sandbox";
+import { Sandbox } from "@cloudflare/sandbox";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import {
-	createJob,
-	ExploreRequestSchema,
-	getJob,
-	type Job,
-	updateJob,
-} from "./jobs";
+import { createJob, ExploreRequestSchema, getJob, type Job } from "./jobs";
 import { requireAuth } from "./middleware/auth";
-import { cloneWithRetry, commitAndPush } from "./utils/git";
-import {
-	logClaudeStarted,
-	logCloneComplete,
-	logContainerStarted,
-	logError,
-	logInfo,
-	logJobComplete,
-	logJobCreated,
-} from "./utils/logger";
-import { escapeShell } from "./utils/shell";
-import { generateSlug } from "./utils/slug";
+import { logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
 
 type ExploreEnv = Env & {
@@ -31,243 +14,6 @@ type ExploreEnv = Env & {
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
 app.use("/api/*", requireAuth());
-
-function getDatePrefix(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-async function findExistingIdeaFolder(
-	sandbox: ReturnType<typeof getSandbox>,
-	slug: string,
-): Promise<string | null> {
-	try {
-		const result = await sandbox.exec(
-			"ls /workspace/ideas/ 2>/dev/null || true",
-			{
-				cwd: "/workspace",
-			},
-		);
-		const stdout =
-			typeof result === "string"
-				? result
-				: ((result as { stdout?: string }).stdout ?? "");
-		const folders = stdout.trim().split("\n").filter(Boolean);
-		for (const folder of folders) {
-			if (folder.endsWith(`-${slug}`)) {
-				return folder;
-			}
-		}
-	} catch {
-		// No ideas directory yet, that's fine
-	}
-	return null;
-}
-
-function buildPrompt({
-	idea,
-	context,
-	isUpdate,
-	datePrefix,
-	promptFile,
-	outputPath,
-}: {
-	idea: string;
-	context?: string;
-	isUpdate: boolean;
-	datePrefix: string;
-	promptFile: string;
-	outputPath: string;
-}): string {
-	const contextPart = context ? `\n\nAdditional context: ${context}` : "";
-
-	if (isUpdate) {
-		return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
-
-Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
-
-## Update - ${datePrefix}
-
-Include new insights, updated analysis, or changed recommendations based on current thinking.
-
-Idea: ${idea}${contextPart}
-
-Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
-	}
-
-	return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
-
-Idea: ${idea}${contextPart}
-
-After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
-}
-
-async function handleExistingIdea({
-	job,
-	env,
-	existingFolder,
-	branch,
-	jobStartTime,
-}: {
-	job: Job;
-	env: ExploreEnv;
-	existingFolder: string;
-	branch: string;
-	jobStartTime: number;
-}): Promise<void> {
-	const outputPath = `ideas/${existingFolder}/research.md`;
-	const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-	logInfo(job.id, "existing_idea_found");
-	const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
-		status: "completed",
-		github_url: githubUrl,
-	});
-	logJobComplete(job.id, "completed", Date.now() - jobStartTime);
-	if (updatedJob) {
-		await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
-	}
-}
-
-async function handleExplorationError({
-	error,
-	job,
-	env,
-	branch,
-	jobStartTime,
-}: {
-	error: unknown;
-	job: Job;
-	env: ExploreEnv;
-	branch: string;
-	jobStartTime: number;
-}): Promise<void> {
-	const errorMessage = error instanceof Error ? error.message : "Unknown error";
-	const isTimeout =
-		errorMessage.includes("timeout") ||
-		errorMessage.includes("TIMEOUT") ||
-		errorMessage.includes("timed out");
-
-	const finalError = isTimeout
-		? "Container execution timed out (15 minute limit exceeded)"
-		: errorMessage;
-
-	logError(job.id, "exploration_failed", new Error(finalError));
-	const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
-		status: "failed",
-		error: finalError,
-	});
-	logJobComplete(job.id, "failed", Date.now() - jobStartTime);
-
-	if (updatedJob) {
-		await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
-	}
-}
-
-async function runExploration(job: Job, env: ExploreEnv): Promise<void> {
-	const jobStartTime = Date.now();
-	await updateJob(env.IDEA_EXPLORER_JOBS, job.id, { status: "running" });
-	logContainerStarted(job.id);
-
-	const sandbox = getSandbox(env.Sandbox, job.id);
-	const slug = generateSlug(job.idea);
-	const datePrefix = getDatePrefix();
-	const branch = env.GITHUB_BRANCH || "main";
-	const repoUrl = `https://x-access-token:${env.GITHUB_PAT}@github.com/${env.GITHUB_REPO}.git`;
-
-	try {
-		await sandbox.setEnvVars({
-			ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
-			GITHUB_PAT: env.GITHUB_PAT,
-		});
-
-		const cloneStartTime = Date.now();
-		await cloneWithRetry(sandbox, repoUrl, branch, job.id);
-		logCloneComplete(job.id, Date.now() - cloneStartTime);
-
-		const existingFolder = await findExistingIdeaFolder(sandbox, slug);
-
-		if (existingFolder && !job.update) {
-			await handleExistingIdea({
-				job,
-				env,
-				existingFolder,
-				branch,
-				jobStartTime,
-			});
-			return;
-		}
-
-		const folderName = existingFolder || `${datePrefix}-${slug}`;
-		const outputPath = `ideas/${folderName}/research.md`;
-		const isUpdate = !!(existingFolder && job.update);
-
-		await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
-
-		const promptFile =
-			job.mode === "business"
-				? "/prompts/business.md"
-				: "/prompts/exploration.md";
-
-		const prompt = buildPrompt({
-			idea: job.idea,
-			context: job.context,
-			isUpdate,
-			datePrefix,
-			promptFile,
-			outputPath,
-		});
-
-		const model = job.model === "opus" ? "opus" : "sonnet";
-		const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
-
-		logClaudeStarted(job.id, model);
-		try {
-			await sandbox.exec(claudeCmd, { cwd: "/workspace" });
-		} catch (claudeError) {
-			logError(job.id, "claude_execution", claudeError);
-			const claudeErrorMsg =
-				claudeError instanceof Error
-					? claudeError.message
-					: "Claude execution failed";
-			throw new Error(`Claude Code error: ${claudeErrorMsg}`);
-		}
-		logInfo(job.id, "claude_complete");
-
-		const commitMessage = isUpdate
-			? `idea: ${slug} - research updated`
-			: `idea: ${slug} - research complete`;
-
-		await commitAndPush(sandbox, {
-			outputPath,
-			message: escapeShell(commitMessage),
-			branch,
-			repoUrl,
-			jobId: job.id,
-		});
-
-		const githubUrl = `https://github.com/${env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-		const updatedJob = await updateJob(env.IDEA_EXPLORER_JOBS, job.id, {
-			status: "completed",
-			github_url: githubUrl,
-		});
-		logJobComplete(job.id, "completed", Date.now() - jobStartTime);
-
-		if (updatedJob) {
-			await sendWebhook(updatedJob, env.GITHUB_REPO, branch);
-		}
-	} catch (error) {
-		await handleExplorationError({
-			error,
-			job,
-			env,
-			branch,
-			jobStartTime,
-		});
-	}
-}
 
 app.post(
 	"/api/explore",
@@ -284,7 +30,19 @@ app.post(
 
 		logJobCreated(job.id, job.idea, job.mode);
 
-		c.executionCtx.waitUntil(runExploration(job, c.env));
+		await c.env.EXPLORATION_WORKFLOW.create({
+			id: job.id,
+			params: {
+				jobId: job.id,
+				idea: job.idea,
+				mode: job.mode,
+				model: job.model,
+				context: job.context,
+				update: job.update,
+				webhook_url: job.webhook_url,
+				callback_secret: job.callback_secret,
+			},
+		});
 
 		return c.json({ job_id: job.id, status: "pending" }, 202);
 	},
@@ -311,6 +69,21 @@ app.get("/api/status/:id", async (c) => {
 	}
 
 	return c.json(response);
+});
+
+app.get("/api/workflow-status/:id", async (c) => {
+	const jobId = c.req.param("id");
+	try {
+		const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
+		const status = await instance.status();
+		return c.json({
+			workflow_status: status.status,
+			output: status.output,
+			error: status.error,
+		});
+	} catch {
+		return c.json({ error: "Workflow instance not found" }, 404);
+	}
 });
 
 app.get("/", async (c) => {
@@ -387,3 +160,4 @@ app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
 export default app;
 export { Sandbox };
+export { ExplorationWorkflow } from "./workflows/exploration";

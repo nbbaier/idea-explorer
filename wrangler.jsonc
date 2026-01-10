@@ -39,5 +39,12 @@
 			"id": "dbcbf4512f9f4fd18a20d5fc7e23d3ef",
 			"preview_id": "28ee7c8f6b504387b6eab6d2ffde4ed9"
 		}
+	],
+	"workflows": [
+		{
+			"name": "exploration-workflow",
+			"binding": "EXPLORATION_WORKFLOW",
+			"class_name": "ExplorationWorkflow"
+		}
 	]
 }

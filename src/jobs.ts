@@ -32,6 +32,7 @@ export const JobSchema = z.object({
 	github_url: z.string().optional(),
 	error: z.string().optional(),
 	created_at: z.number(),
+	webhook_sent_at: z.number().optional(),
 });
 
 export type JobStatus = z.infer<typeof JobStatusSchema>;
