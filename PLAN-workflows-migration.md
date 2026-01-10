@@ -128,7 +128,7 @@ This provides granular workflow state: `queued`, `running`, `paused`, `complete`
 
 ### Step 5: Update Types
 
-Run `pnpm wrangler types` to regenerate `worker-configuration.d.ts` with the new `EXPLORATION_WORKFLOW` binding.
+Run `bun types` to regenerate `worker-configuration.d.ts` with the new `EXPLORATION_WORKFLOW` binding.
 
 ### Step 6: Export Workflow Class
 
