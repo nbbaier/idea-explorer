@@ -165,7 +165,7 @@ export { ExplorationWorkflow } from './workflows/exploration';
 
 ## Verification
 
-1. Deploy with `pnpm deploy`
+1. Deploy with `bun deploy`
 2. Submit test exploration: `POST /api/explore` with test idea
 3. Check job status: `GET /api/status/:id` - should show status updates
 4. Check workflow status: `GET /api/workflow-status/:id` - shows step-level progress
