@@ -10,6 +10,7 @@ A Cloudflare Container-based service that runs autonomous Claude Code sessions t
 -  **Update mode**: Append new analysis to existing research
 -  **Webhook notifications**: Get notified when exploration completes (with optional HMAC signing)
 -  **Job status tracking**: Query job status via API
+-  **GitHub Issues integration**: Submit ideas via GitHub issues for automated exploration ([setup guide](./.github/GITHUB_ISSUES_INTEGRATION.md))
 
 ## Setup
 
@@ -55,6 +56,26 @@ bun run deploy
 ```
 
 ## Usage
+
+### Option 1: Submit via GitHub Issues (Recommended for casual use)
+
+The easiest way to submit ideas is through GitHub issues:
+
+1. Create a new issue in this repository
+2. Add a descriptive title with your idea
+3. Add the `idea` label
+4. Wait for the automated workflow to process it
+
+The system will automatically:
+- Submit your idea for exploration
+- Update you with a Job ID
+- Post the research link when complete
+
+**Setup guides:**
+- **[Quick Start (5 minutes)](./.github/QUICKSTART.md)** - Get up and running fast
+- **[Full setup guide](./.github/GITHUB_ISSUES_INTEGRATION.md)** - Detailed documentation
+
+### Option 2: Direct API Access
 
 ### Start an Exploration
 

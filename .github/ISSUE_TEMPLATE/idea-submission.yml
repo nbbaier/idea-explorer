@@ -1,0 +1,49 @@
+name: 💡 Submit an Idea
+description: Submit an idea for automated AI exploration
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for submitting an idea! Our AI agent will automatically analyze it using the **Business Viability** framework, which includes:
+        - Problem analysis
+        - Market analysis
+        - Technical feasibility
+        - A recommendation verdict
+        
+  - type: input
+    id: idea
+    attributes:
+      label: What's your idea?
+      description: A concise description of your idea (this is what will be sent to the AI agent)
+      placeholder: e.g., "AI-powered code review assistant that learns from team patterns"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context (Optional)
+      description: Any extra details, constraints, or specific aspects you'd like the AI to consider (also sent to the AI agent)
+      placeholder: |
+        e.g.,
+        - Target audience: Small development teams (5-10 people)
+        - Must integrate with GitHub
+        - Looking to validate market demand before building
+    validations:
+      required: false
+      
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ### What happens next?
+        
+        1. ⚡ Our automated workflow will pick up this issue immediately (usually within seconds)
+        2. 🤖 The AI agent will start exploring your idea
+        3. 📊 You'll get a comment with a Job ID to track progress
+        4. ✅ When complete (~15 min), you'll receive a link to the research document
+        5. 🎯 The issue will be automatically closed with the final results
+        
+        You can also check progress manually in the Actions tab.

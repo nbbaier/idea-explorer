@@ -1,0 +1,179 @@
+name: Process Idea Issues
+
+on:
+  issues:
+    types: [opened, labeled]
+  schedule:
+    # Run every hour to check for pending issues
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  process-ideas:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Process idea issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
+          API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
+        run: |
+          # Validate required secrets
+          if [ -z "$API_URL" ]; then
+            echo "Error: IDEA_EXPLORER_API_URL secret not set"
+            exit 1
+          fi
+          if [ -z "$API_TOKEN" ]; then
+            echo "Error: IDEA_EXPLORER_API_TOKEN secret not set"
+            exit 1
+          fi
+          
+          # Get all open issues with 'idea' label (paginate beyond 100)
+          gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/issues?labels=idea&state=open&per_page=100" \
+            --jq '.[]' | jq -c '.' | while read -r issue; do
+            ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+            ISSUE_BODY=$(echo "$issue" | jq -r '.body // ""')
+            
+            # Fetch current labels to avoid race conditions
+            ISSUE_LABELS=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" | jq -r '[.[].name] | join(",")')
+            
+            echo "Processing issue #$ISSUE_NUMBER: $ISSUE_TITLE"
+            
+            # Skip if already processing or completed
+            if echo "$ISSUE_LABELS" | grep -q "idea-processing\|idea-completed\|idea-failed"; then
+              echo "  Skipping - already processed or in progress"
+              continue
+            fi
+            
+            # Add 'idea-processing' label
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
+              -f labels[]='idea-processing' || true
+            
+            # Submit to idea-explorer API
+            TITLE_CLEAN=$(echo "$ISSUE_TITLE" | sed 's/^\\[IDEA\\][[:space:]]*//')
+
+            extract_issue_form_section() {
+              local heading="$1"
+              printf '%s\n' "$ISSUE_BODY" | awk -v heading="$heading" '
+                BEGIN { found=0 }
+                {
+                  sub(/\r$/, "")
+                  if (found) {
+                    if ($0 ~ /^### /) exit
+                    print
+                  }
+                  if ($0 == "### " heading) found=1
+                }
+              '
+            }
+
+            FORM_IDEA=$(extract_issue_form_section "What's your idea?")
+            if [ -z "$(printf '%s' "$FORM_IDEA" | tr -d '[:space:]')" ]; then
+              FORM_IDEA=$(extract_issue_form_section "Idea")
+            fi
+
+            FORM_CONTEXT=$(extract_issue_form_section "Additional Context (Optional)")
+            if [ -z "$(printf '%s' "$FORM_CONTEXT" | tr -d '[:space:]')" ]; then
+              FORM_CONTEXT=$(extract_issue_form_section "Additional Context")
+            fi
+
+            IDEA_TEXT="$TITLE_CLEAN"
+            if [ -n "$(printf '%s' "$FORM_IDEA" | tr -d '[:space:]')" ]; then
+              IDEA_TEXT="${IDEA_TEXT}"$'\n\n'"${FORM_IDEA}"
+            elif [ -n "$ISSUE_BODY" ]; then
+              IDEA_TEXT="${IDEA_TEXT}"$'\n\n'"${ISSUE_BODY}"
+            fi
+
+            PAYLOAD=$(jq -n \
+              --arg idea "$IDEA_TEXT" \
+              --arg mode "business" \
+              --arg model "sonnet" \
+              --arg context "$FORM_CONTEXT" \
+              '{idea: $idea, mode: $mode, model: $model} + ((($context | gsub("\\s+"; "")) | length) > 0 ? {context: $context} : {})')
+            
+            # Make API request
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/api/explore" \
+              -H "Authorization: Bearer $API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD")
+            
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+            
+            if [ "$HTTP_CODE" = "202" ]; then
+              JOB_ID=$(echo "$BODY" | jq -r '.job_id')
+              echo "  Successfully submitted - Job ID: $JOB_ID"
+              
+              # Create comment body
+              TEMP_FILE=$(mktemp)
+              cat > "$TEMP_FILE" << EOF
+          🚀 Idea exploration started! Job ID: \`$JOB_ID\`
+
+          The analysis will be available soon. You can check the status at:
+          \`\`\`
+          $API_URL/api/status/$JOB_ID
+          \`\`\`
+
+          I'll update this issue when the exploration is complete.
+          EOF
+              
+              # Add comment with job ID
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
+            else
+              echo "  Failed to submit - HTTP $HTTP_CODE: $BODY"
+              
+              # Remove processing label and add failed label
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels/idea-processing" || true
+              
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
+                -f labels[]='idea-failed' || true
+              
+              # Add error comment
+              TEMP_FILE=$(mktemp)
+              echo "❌ Failed to submit idea for exploration. Error: HTTP $HTTP_CODE" > "$TEMP_FILE"
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
+            fi
+            
+            # Small delay to avoid rate limiting
+            sleep 2
+          done
