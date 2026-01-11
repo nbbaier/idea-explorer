@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
+      - name: Process idea issues
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
@@ -36,7 +36,11 @@ jobs:
           fi
           
           # Get all open issues with 'idea' label
-          # Get all open issues with 'idea' label
+          ISSUES=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/issues?labels=idea&state=open&per_page=100")
+          
           echo "$ISSUES" | jq -c '.[]' | while read -r issue; do
             ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
             ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
@@ -54,7 +58,6 @@ jobs:
             if echo "$ISSUE_LABELS" | grep -q "idea-processing\|idea-completed\|idea-failed"; then
               echo "  Skipping - already processed or in progress"
               continue
-            fi
             fi
             
             # Add 'idea-processing' label
@@ -91,15 +94,15 @@ jobs:
               # Create comment body
               TEMP_FILE=$(mktemp)
               cat > "$TEMP_FILE" << EOF
-🚀 Idea exploration started! Job ID: \`$JOB_ID\`
+          🚀 Idea exploration started! Job ID: \`$JOB_ID\`
 
-The analysis will be available soon. You can check the status at:
-\`\`\`
-$API_URL/api/status/$JOB_ID
-\`\`\`
+          The analysis will be available soon. You can check the status at:
+          \`\`\`
+          $API_URL/api/status/$JOB_ID
+          \`\`\`
 
-I'll update this issue when the exploration is complete.
-EOF
+          I'll update this issue when the exploration is complete.
+          EOF
               
               # Add comment with job ID
               gh api \
