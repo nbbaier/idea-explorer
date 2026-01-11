@@ -82,7 +82,8 @@ jobs:
               echo "  Successfully submitted - Job ID: $JOB_ID"
               
               # Create comment body
-              cat > /tmp/comment.txt << EOF
+              TEMP_FILE=$(mktemp)
+              cat > "$TEMP_FILE" << EOF
           🚀 Idea exploration started! Job ID: \`$JOB_ID\`
 
           The analysis will be available soon. You can check the status at:
@@ -99,7 +100,9 @@ jobs:
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input /tmp/comment.txt || true
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
             else
               echo "  Failed to submit - HTTP $HTTP_CODE: $BODY"
               
@@ -118,13 +121,16 @@ jobs:
                 -f labels[]='idea-failed' || true
               
               # Add error comment
-              echo "❌ Failed to submit idea for exploration. Error: HTTP $HTTP_CODE" > /tmp/error.txt
+              TEMP_FILE=$(mktemp)
+              echo "❌ Failed to submit idea for exploration. Error: HTTP $HTTP_CODE" > "$TEMP_FILE"
               gh api \
                 --method POST \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input /tmp/error.txt || true
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
             fi
             
             # Small delay to avoid rate limiting

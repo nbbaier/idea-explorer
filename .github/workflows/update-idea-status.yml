@@ -47,7 +47,7 @@ jobs:
               "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments")
             
             # Extract job ID from comments (look for "Job ID: `xxxxx`")
-            JOB_ID=$(echo "$COMMENTS" | jq -r '.[].body' | grep -oP 'Job ID: `\K[^`]+' | head -n1)
+            JOB_ID=$(echo "$COMMENTS" | jq -r '.[].body' | grep -o 'Job ID: `[^`]*`' | sed 's/Job ID: `//;s/`//' | head -n1)
             
             if [ -z "$JOB_ID" ]; then
               echo "  No job ID found in comments, skipping"
@@ -89,7 +89,8 @@ jobs:
                 -f labels[]='idea-completed' || true
               
               # Add completion comment
-              cat > /tmp/complete.txt << EOF
+              TEMP_FILE=$(mktemp)
+              cat > "$TEMP_FILE" << EOF
           ✅ Idea exploration complete!
 
           Research available at: $GITHUB_URL
@@ -102,7 +103,9 @@ jobs:
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input /tmp/complete.txt || true
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
               
               # Close the issue
               gh api \
@@ -132,7 +135,8 @@ jobs:
                 -f labels[]='idea-failed' || true
               
               # Add failure comment
-              cat > /tmp/failed.txt << EOF
+              TEMP_FILE=$(mktemp)
+              cat > "$TEMP_FILE" << EOF
           ❌ Idea exploration failed
 
           Error: $ERROR_MSG
@@ -145,7 +149,9 @@ jobs:
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input /tmp/failed.txt || true
+                --input "$TEMP_FILE" || true
+              
+              rm -f "$TEMP_FILE"
               
               echo "  Updated issue #$ISSUE_NUMBER to failed"
             else
