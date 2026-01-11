@@ -6,9 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for submitting an idea! Our AI agent will automatically analyze it and provide research insights.
-        
-        The exploration will typically take 5-15 minutes and will include:
+        Thanks for submitting an idea! Our AI agent will automatically analyze it using the **Business Viability** framework, which includes:
         - Problem analysis
         - Market analysis
         - Technical feasibility
@@ -35,18 +33,6 @@ body:
         - Looking to validate market demand before building
     validations:
       required: false
-      
-  - type: dropdown
-    id: mode
-    attributes:
-      label: Analysis Mode
-      description: What type of analysis would you like?
-      options:
-        - Business Viability (default) - Focused evaluation of market and feasibility
-        - Creative Exploration - Divergent thinking and multiple directions
-      default: 0
-    validations:
-      required: true
       
   - type: markdown
     attributes:
