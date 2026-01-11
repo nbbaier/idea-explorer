@@ -106,7 +106,6 @@ You can manually trigger the workflows from the **Actions** tab:
 ### Process Ideas Workflow
 
 **Triggers:**
-- When a new issue is opened
 - When a label is added to an issue
 - Every hour (scheduled)
 - Manual trigger
