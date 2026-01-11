@@ -71,7 +71,9 @@ The system will automatically:
 - Update you with a Job ID
 - Post the research link when complete
 
-**[Full setup guide](./.github/GITHUB_ISSUES_INTEGRATION.md)**
+**Setup guides:**
+- **[Quick Start (5 minutes)](./.github/QUICKSTART.md)** - Get up and running fast
+- **[Full setup guide](./.github/GITHUB_ISSUES_INTEGRATION.md)** - Detailed documentation
 
 ### Option 2: Direct API Access
 

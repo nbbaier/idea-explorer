@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: 🚀 Quick Start Guide
+    url: https://github.com/nbbaier/idea-explorer/blob/main/.github/QUICKSTART.md
+    about: 5-minute setup guide for GitHub Issues integration
   - name: 📚 Documentation
     url: https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md
     about: Read the full API specification and documentation

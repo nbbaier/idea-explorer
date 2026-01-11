@@ -2,6 +2,43 @@
 
 This repository includes automated workflows that allow you to submit ideas via GitHub issues for automated exploration.
 
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     GitHub Issue Created                        │
+│                    (with 'idea' label)                          │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│            Process Ideas Workflow (Hourly + On Event)           │
+│  1. Detects new 'idea' label                                    │
+│  2. Adds 'idea-processing' label                                │
+│  3. Submits to /api/explore endpoint                            │
+│  4. Posts comment with Job ID                                   │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Idea Explorer Worker                           │
+│  • Spins up Claude Code in sandbox                              │
+│  • Analyzes idea (5-15 minutes)                                 │
+│  • Commits research.md to GitHub repo                           │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│         Update Status Workflow (Every 15 Minutes)               │
+│  1. Checks /api/status/{job_id}                                 │
+│  2. When complete:                                              │
+│     • Removes 'idea-processing' label                           │
+│     • Adds 'idea-completed' label                               │
+│     • Posts comment with research link                          │
+│     • Closes issue                                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ## How It Works
 
 1. **Submit an Idea**: Create a new GitHub issue with the `idea` label
