@@ -22,12 +22,22 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Check and update issue status
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
           API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
         run: |
+          # Validate required secrets
+          if [ -z "$API_URL" ]; then
+            echo "Error: IDEA_EXPLORER_API_URL secret not set"
+            exit 1
+          fi
+          if [ -z "$API_TOKEN" ]; then
+            echo "Error: IDEA_EXPLORER_API_TOKEN secret not set"
+            exit 1
+          fi
+          
+          # Get all issues with 'idea-processing' label
           # Get all issues with 'idea-processing' label
           ISSUES=$(gh api \
             -H "Accept: application/vnd.github+json" \
@@ -91,12 +101,12 @@ jobs:
               # Add completion comment
               TEMP_FILE=$(mktemp)
               cat > "$TEMP_FILE" << EOF
-          ✅ Idea exploration complete!
+✅ Idea exploration complete!
 
-          Research available at: $GITHUB_URL
+Research available at: $GITHUB_URL
 
-          The AI has completed analyzing your idea. Check out the research document for insights and recommendations!
-          EOF
+The AI has completed analyzing your idea. Check out the research document for insights and recommendations!
+EOF
               
               gh api \
                 --method POST \
@@ -137,12 +147,12 @@ jobs:
               # Add failure comment
               TEMP_FILE=$(mktemp)
               cat > "$TEMP_FILE" << EOF
-          ❌ Idea exploration failed
+❌ Idea exploration failed
 
-          Error: $ERROR_MSG
+Error: $ERROR_MSG
 
-          You may want to try submitting the idea again or adjust the description.
-          EOF
+You may want to try submitting the idea again or adjust the description.
+EOF
               
               gh api \
                 --method POST \
