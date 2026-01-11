@@ -10,6 +10,7 @@ on:
 
 jobs:
   process-ideas:
+    if: ${{ github.event.label.name == 'idea' }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
