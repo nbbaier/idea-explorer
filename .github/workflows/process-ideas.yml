@@ -2,7 +2,7 @@ name: Process Idea Issues
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
   schedule:
     # Run every hour to check for pending issues
     - cron: '0 * * * *'
