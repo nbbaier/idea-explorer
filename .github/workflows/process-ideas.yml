@@ -35,13 +35,12 @@ jobs:
             exit 1
           fi
           
-          # Get all open issues with 'idea' label
-          ISSUES=$(gh api \
+          # Get all open issues with 'idea' label (paginate beyond 100)
+          gh api --paginate \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${{ github.repository }}/issues?labels=idea&state=open&per_page=100")
-          
-          echo "$ISSUES" | jq -c '.[]' | while read -r issue; do
+            "/repos/${{ github.repository }}/issues?labels=idea&state=open&per_page=100" \
+            --jq '.[]' | jq -c '.' | while read -r issue; do
             ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
             ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
             ISSUE_BODY=$(echo "$issue" | jq -r '.body // ""')
@@ -69,20 +68,52 @@ jobs:
               -f labels[]='idea-processing' || true
             
             # Submit to idea-explorer API
-            IDEA_TEXT="$ISSUE_TITLE"
-            if [ -n "$ISSUE_BODY" ]; then
-              IDEA_TEXT="$ISSUE_TITLE - $ISSUE_BODY"
+            TITLE_CLEAN=$(echo "$ISSUE_TITLE" | sed 's/^\\[IDEA\\][[:space:]]*//')
+
+            extract_issue_form_section() {
+              local heading="$1"
+              printf '%s\n' "$ISSUE_BODY" | awk -v heading="$heading" '
+                BEGIN { found=0 }
+                {
+                  sub(/\r$/, "")
+                  if (found) {
+                    if ($0 ~ /^### /) exit
+                    print
+                  }
+                  if ($0 == "### " heading) found=1
+                }
+              '
+            }
+
+            FORM_IDEA=$(extract_issue_form_section "What's your idea?")
+            if [ -z "$(printf '%s' "$FORM_IDEA" | tr -d '[:space:]')" ]; then
+              FORM_IDEA=$(extract_issue_form_section "Idea")
             fi
+
+            FORM_CONTEXT=$(extract_issue_form_section "Additional Context (Optional)")
+            if [ -z "$(printf '%s' "$FORM_CONTEXT" | tr -d '[:space:]')" ]; then
+              FORM_CONTEXT=$(extract_issue_form_section "Additional Context")
+            fi
+
+            IDEA_TEXT="$TITLE_CLEAN"
+            if [ -n "$(printf '%s' "$FORM_IDEA" | tr -d '[:space:]')" ]; then
+              IDEA_TEXT="${IDEA_TEXT}"$'\n\n'"${FORM_IDEA}"
+            elif [ -n "$ISSUE_BODY" ]; then
+              IDEA_TEXT="${IDEA_TEXT}"$'\n\n'"${ISSUE_BODY}"
+            fi
+
+            PAYLOAD=$(jq -n \
+              --arg idea "$IDEA_TEXT" \
+              --arg mode "business" \
+              --arg model "sonnet" \
+              --arg context "$FORM_CONTEXT" \
+              '{idea: $idea, mode: $mode, model: $model} + ((($context | gsub("\\s+"; "")) | length) > 0 ? {context: $context} : {})')
             
             # Make API request
             RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/api/explore" \
               -H "Authorization: Bearer $API_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{
-                \"idea\": $(echo "$IDEA_TEXT" | jq -Rs .),
-                \"mode\": \"business\",
-                \"model\": \"sonnet\"
-              }")
+              -d "$PAYLOAD")
             
             HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
             BODY=$(echo "$RESPONSE" | sed '$d')

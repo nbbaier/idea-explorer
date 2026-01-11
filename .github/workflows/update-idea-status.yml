@@ -33,13 +33,12 @@ jobs:
             exit 1
           fi
           
-          # Get all issues with 'idea-processing' label
-          ISSUES=$(gh api \
+          # Get all issues with 'idea-processing' label (paginate beyond 100)
+          gh api --paginate \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${{ github.repository }}/issues?labels=idea-processing&state=open&per_page=100")
-          
-          echo "$ISSUES" | jq -c '.[]' | while read -r issue; do
+            "/repos/${{ github.repository }}/issues?labels=idea-processing&state=open&per_page=100" \
+            --jq '.[]' | jq -c '.' | while read -r issue; do
             ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
             ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
             
