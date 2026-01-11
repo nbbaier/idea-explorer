@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md
+    about: Read the full API specification and documentation
+  - name: 🔧 GitHub Issues Integration Guide
+    url: https://github.com/nbbaier/idea-explorer/blob/main/.github/GITHUB_ISSUES_INTEGRATION.md
+    about: Learn how the automated idea submission workflow works

@@ -1,0 +1,157 @@
+name: Update Idea Status
+
+on:
+  schedule:
+    # Run every 15 minutes to check for completed jobs
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-status:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check and update issue status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
+          API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
+        run: |
+          # Get all issues with 'idea-processing' label
+          ISSUES=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/issues?labels=idea-processing&state=open&per_page=100")
+          
+          echo "$ISSUES" | jq -c '.[]' | while read -r issue; do
+            ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
+            
+            echo "Checking issue #$ISSUE_NUMBER: $ISSUE_TITLE"
+            
+            # Get comments to find the Job ID
+            COMMENTS=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments")
+            
+            # Extract job ID from comments (look for "Job ID: `xxxxx`")
+            JOB_ID=$(echo "$COMMENTS" | jq -r '.[].body' | grep -oP 'Job ID: `\K[^`]+' | head -n1)
+            
+            if [ -z "$JOB_ID" ]; then
+              echo "  No job ID found in comments, skipping"
+              continue
+            fi
+            
+            echo "  Found Job ID: $JOB_ID"
+            
+            # Check job status
+            STATUS_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$API_URL/api/status/$JOB_ID" \
+              -H "Authorization: Bearer $API_TOKEN")
+            
+            HTTP_CODE=$(echo "$STATUS_RESPONSE" | tail -n1)
+            STATUS_BODY=$(echo "$STATUS_RESPONSE" | sed '$d')
+            
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "  Failed to get status - HTTP $HTTP_CODE"
+              continue
+            fi
+            
+            JOB_STATUS=$(echo "$STATUS_BODY" | jq -r '.status')
+            echo "  Job status: $JOB_STATUS"
+            
+            if [ "$JOB_STATUS" = "completed" ]; then
+              GITHUB_URL=$(echo "$STATUS_BODY" | jq -r '.github_url')
+              
+              # Remove 'idea-processing' label and add 'idea-completed'
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels/idea-processing" || true
+              
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
+                -f labels[]='idea-completed' || true
+              
+              # Add completion comment
+              cat > /tmp/complete.txt << EOF
+          ✅ Idea exploration complete!
+
+          Research available at: $GITHUB_URL
+
+          The AI has completed analyzing your idea. Check out the research document for insights and recommendations!
+          EOF
+              
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
+                --input /tmp/complete.txt || true
+              
+              # Close the issue
+              gh api \
+                --method PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" \
+                -f state='closed' || true
+              
+              echo "  Updated issue #$ISSUE_NUMBER to completed"
+              
+            elif [ "$JOB_STATUS" = "failed" ]; then
+              ERROR_MSG=$(echo "$STATUS_BODY" | jq -r '.error // "Unknown error"')
+              
+              # Remove 'idea-processing' label and add 'idea-failed'
+              gh api \
+                --method DELETE \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels/idea-processing" || true
+              
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
+                -f labels[]='idea-failed' || true
+              
+              # Add failure comment
+              cat > /tmp/failed.txt << EOF
+          ❌ Idea exploration failed
+
+          Error: $ERROR_MSG
+
+          You may want to try submitting the idea again or adjust the description.
+          EOF
+              
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
+                --input /tmp/failed.txt || true
+              
+              echo "  Updated issue #$ISSUE_NUMBER to failed"
+            else
+              echo "  Job still $JOB_STATUS, will check again later"
+            fi
+            
+            # Small delay to avoid rate limiting
+            sleep 2
+          done
