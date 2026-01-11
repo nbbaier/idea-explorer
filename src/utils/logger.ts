@@ -3,40 +3,41 @@ export interface LogData {
 }
 
 function log(
-	level: "info" | "error",
-	jobId: string,
+	level: "info" | "error" | "warn",
 	event: string,
 	data?: LogData,
+	jobId?: string,
 ): void {
-	console.log(
-		JSON.stringify({
-			level,
-			job_id: jobId,
-			event,
-			...data,
-			timestamp: new Date().toISOString(),
-		}),
-	);
+	const logEntry: Record<string, unknown> = {
+		level,
+		event,
+		...data,
+		timestamp: new Date().toISOString(),
+	};
+	if (jobId) {
+		logEntry.job_id = jobId;
+	}
+	console.log(JSON.stringify(logEntry));
 }
 
 export function logJobCreated(jobId: string, idea: string, mode: string): void {
-	log("info", jobId, "job_created", { idea, mode });
+	log("info", "job_created", { idea, mode }, jobId);
 }
 
 export function logContainerStarted(jobId: string): void {
-	log("info", jobId, "container_started");
+	log("info", "container_started", undefined, jobId);
 }
 
 export function logCloneComplete(jobId: string, durationMs: number): void {
-	log("info", jobId, "clone_complete", { duration_ms: durationMs });
+	log("info", "clone_complete", { duration_ms: durationMs }, jobId);
 }
 
 export function logClaudeStarted(jobId: string, model: string): void {
-	log("info", jobId, "claude_started", { model });
+	log("info", "claude_started", { model }, jobId);
 }
 
 export function logCommitPushed(jobId: string): void {
-	log("info", jobId, "commit_pushed");
+	log("info", "commit_pushed", undefined, jobId);
 }
 
 export function logWebhookSent(
@@ -44,7 +45,7 @@ export function logWebhookSent(
 	statusCode: number,
 	attempt: number,
 ): void {
-	log("info", jobId, "webhook_sent", { status_code: statusCode, attempt });
+	log("info", "webhook_sent", { status_code: statusCode, attempt }, jobId);
 }
 
 export function logJobComplete(
@@ -52,21 +53,31 @@ export function logJobComplete(
 	status: string,
 	totalDurationMs: number,
 ): void {
-	log("info", jobId, "job_complete", {
-		status,
-		total_duration_ms: totalDurationMs,
-	});
+	log(
+		"info",
+		"job_complete",
+		{
+			status,
+			total_duration_ms: totalDurationMs,
+		},
+		jobId,
+	);
 }
 
 export function logError(
-	jobId: string,
 	operation: string,
 	error: unknown,
+	data?: LogData,
+	jobId?: string,
 ): void {
-	const errorMessage = error instanceof Error ? error.message : "Unknown error";
-	log("error", jobId, operation, { error: errorMessage });
+	const errorMessage = error instanceof Error ? error.message : String(error);
+	log("error", operation, { error: errorMessage, ...data }, jobId);
 }
 
-export function logInfo(jobId: string, event: string, data?: LogData): void {
-	log("info", jobId, event, data);
+export function logInfo(event: string, data?: LogData, jobId?: string): void {
+	log("info", event, data, jobId);
+}
+
+export function logWarn(event: string, data?: LogData, jobId?: string): void {
+	log("warn", event, data, jobId);
 }

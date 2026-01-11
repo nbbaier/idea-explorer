@@ -16,8 +16,8 @@ export async function cloneWithRetry(
 	try {
 		await sandbox.exec(cloneCmd);
 	} catch (error) {
-		logError(jobId, "clone_first_attempt", error);
-		logInfo(jobId, "clone_retry");
+		logError("clone_first_attempt", error, undefined, jobId);
+		logInfo("clone_retry", undefined, jobId);
 		await sandbox.exec(cloneCmd);
 	}
 	await sandbox.exec("git sparse-checkout set ideas/", { cwd: "/workspace" });
@@ -35,8 +35,8 @@ export async function pushWithRetry(
 	try {
 		await sandbox.exec(`git push origin "${branch}"`, { cwd: "/workspace" });
 	} catch (error) {
-		logError(jobId, "push_first_attempt", error);
-		logInfo(jobId, "push_retry_with_pull");
+		logError("push_first_attempt", error, undefined, jobId);
+		logInfo("push_retry_with_pull", undefined, jobId);
 		await sandbox.exec(`git pull --rebase "${repoUrl}" "${branch}"`, {
 			cwd: "/workspace",
 		});

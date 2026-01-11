@@ -63,14 +63,22 @@ describe("retryWithBackoff", () => {
 			.mockResolvedValueOnce("attempt1")
 			.mockResolvedValueOnce("attempt2");
 
-		const shouldRetry = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false);
+		const shouldRetry = vi
+			.fn()
+			.mockReturnValueOnce(true)
+			.mockReturnValueOnce(false);
 
 		const onAttempt = vi.fn();
 
-		await retryWithBackoff(operation, shouldRetry, {
-			maxAttempts: 2,
-			delaysMs: [10, 20],
-		}, onAttempt);
+		await retryWithBackoff(
+			operation,
+			shouldRetry,
+			{
+				maxAttempts: 2,
+				delaysMs: [10, 20],
+			},
+			onAttempt,
+		);
 
 		expect(onAttempt).toHaveBeenCalledTimes(2);
 		expect(onAttempt).toHaveBeenNthCalledWith(1, 1, "attempt1");

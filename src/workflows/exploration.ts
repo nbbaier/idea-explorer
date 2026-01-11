@@ -166,14 +166,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 					async () => {
 						const outputPath = `ideas/${existingFolder}/research.md`;
 						const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-						logInfo(jobId, "existing_idea_found");
+						logInfo("existing_idea_found", undefined, jobId);
 
 						const existingJob = await getJob(
 							this.env.IDEA_EXPLORER_JOBS,
 							jobId,
 						);
 						if (existingJob?.webhook_sent_at) {
-							logInfo(jobId, "webhook_already_sent");
+							logInfo("webhook_already_sent", undefined, jobId);
 							return;
 						}
 
@@ -206,39 +206,40 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 				"run-claude",
 				{ timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
 				async () => {
-				const sandbox = getSandbox(this.env.Sandbox, jobId);
-				await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
+					const sandbox = getSandbox(this.env.Sandbox, jobId);
+					await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
 
-				const promptFile =
-					mode === "business"
-						? "/prompts/business.md"
-						: "/prompts/exploration.md";
+					const promptFile =
+						mode === "business"
+							? "/prompts/business.md"
+							: "/prompts/exploration.md";
 
-				const prompt = buildPrompt({
-					idea,
-					context,
-					isUpdate,
-					datePrefix,
-					promptFile,
-					outputPath,
-				});
+					const prompt = buildPrompt({
+						idea,
+						context,
+						isUpdate,
+						datePrefix,
+						promptFile,
+						outputPath,
+					});
 
-				const modelName = model === "opus" ? "opus" : "sonnet";
-				const claudeCmd = `claude --model ${modelName} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
+					const modelName = model === "opus" ? "opus" : "sonnet";
+					const claudeCmd = `claude --model ${modelName} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
 
-				logClaudeStarted(jobId, modelName);
-				try {
-					await sandbox.exec(claudeCmd, { cwd: "/workspace" });
-				} catch (claudeError) {
-					logError(jobId, "claude_execution", claudeError);
-					const claudeErrorMsg =
-						claudeError instanceof Error
-							? claudeError.message
-							: "Claude execution failed";
-					throw new Error(`Claude Code error: ${claudeErrorMsg}`);
-				}
-				logInfo(jobId, "claude_complete");
-			});
+					logClaudeStarted(jobId, modelName);
+					try {
+						await sandbox.exec(claudeCmd, { cwd: "/workspace" });
+					} catch (claudeError) {
+						logError("claude_execution", claudeError, undefined, jobId);
+						const claudeErrorMsg =
+							claudeError instanceof Error
+								? claudeError.message
+								: "Claude execution failed";
+						throw new Error(`Claude Code error: ${claudeErrorMsg}`);
+					}
+					logInfo("claude_complete", undefined, jobId);
+				},
+			);
 
 			// Step 5: Commit and push results
 			await step.do(
@@ -265,12 +266,9 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 				"notify",
 				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
 				async () => {
-					const existingJob = await getJob(
-						this.env.IDEA_EXPLORER_JOBS,
-						jobId,
-					);
+					const existingJob = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
 					if (existingJob?.webhook_sent_at) {
-						logInfo(jobId, "webhook_already_sent");
+						logInfo("webhook_already_sent", undefined, jobId);
 						return;
 					}
 
@@ -315,11 +313,11 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			? "Container execution timed out (15 minute limit exceeded)"
 			: errorMessage;
 
-		logError(jobId, "exploration_failed", new Error(finalError));
+		logError("exploration_failed", new Error(finalError), undefined, jobId);
 
 		const existingJob = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
 		if (existingJob?.webhook_sent_at) {
-			logInfo(jobId, "webhook_already_sent");
+			logInfo("webhook_already_sent", undefined, jobId);
 			return;
 		}
 

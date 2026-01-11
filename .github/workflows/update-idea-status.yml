@@ -1,167 +1,29 @@
 name: Update Idea Status
 
 on:
-  schedule:
-    # Run every 15 minutes to check for completed jobs
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # Allow manual triggering
+   schedule:
+      # Run every 15 minutes to check for completed jobs
+      - cron: "*/15 * * * *"
+   workflow_dispatch: # Allow manual triggering
 
 jobs:
-  update-status:
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      contents: read
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+   update-status:
+      runs-on: ubuntu-latest
+      permissions:
+         issues: write
+         contents: read
 
-      - name: Check and update issue status
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
-          API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
-        run: |
-          # Validate required secrets
-          if [ -z "$API_URL" ]; then
-            echo "Error: IDEA_EXPLORER_API_URL secret not set"
-            exit 1
-          fi
-          if [ -z "$API_TOKEN" ]; then
-            echo "Error: IDEA_EXPLORER_API_TOKEN secret not set"
-            exit 1
-          fi
-          
-          # Get all issues with 'idea-processing' label (paginate beyond 100)
-          gh api --paginate \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/${{ github.repository }}/issues?labels=idea-processing&state=open&per_page=100" \
-            --jq '.[]' | jq -c '.' | while read -r issue; do
-            ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
-            ISSUE_TITLE=$(echo "$issue" | jq -r '.title')
-            
-            echo "Checking issue #$ISSUE_NUMBER: $ISSUE_TITLE"
-            
-            # Get comments to find the Job ID
-            COMMENTS=$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments")
-            
-            # Extract job ID from comments (look for "Job ID: `xxxxx`")
-            JOB_ID=$(echo "$COMMENTS" | jq -r '.[].body' | grep -o 'Job ID: `[^`]*`' | sed 's/Job ID: `//;s/`//' | head -n1)
-            
-            if [ -z "$JOB_ID" ]; then
-              echo "  No job ID found in comments, skipping"
-              continue
-            fi
-            
-            echo "  Found Job ID: $JOB_ID"
-            
-            # Check job status
-            STATUS_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$API_URL/api/status/$JOB_ID" \
-              -H "Authorization: Bearer $API_TOKEN")
-            
-            HTTP_CODE=$(echo "$STATUS_RESPONSE" | tail -n1)
-            STATUS_BODY=$(echo "$STATUS_RESPONSE" | sed '$d')
-            
-            if [ "$HTTP_CODE" != "200" ]; then
-              echo "  Failed to get status - HTTP $HTTP_CODE"
-              continue
-            fi
-            
-            JOB_STATUS=$(echo "$STATUS_BODY" | jq -r '.status')
-            echo "  Job status: $JOB_STATUS"
-            
-            if [ "$JOB_STATUS" = "completed" ]; then
-              GITHUB_URL=$(echo "$STATUS_BODY" | jq -r '.github_url')
-              
-              # Remove 'idea-processing' label and add 'idea-completed'
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels/idea-processing" || true
-              
-              gh api \
-                --method POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
-                -f labels[]='idea-completed' || true
-              
-              # Add completion comment
-              TEMP_FILE=$(mktemp)
-              cat > "$TEMP_FILE" << EOF
-          ✅ Idea exploration complete!
-
-          Research available at: $GITHUB_URL
-
-          The AI has completed analyzing your idea. Check out the research document for insights and recommendations!
-          EOF
-              
-              gh api \
-                --method POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input "$TEMP_FILE" || true
-              
-              rm -f "$TEMP_FILE"
-              
-              # Close the issue
-              gh api \
-                --method PATCH \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" \
-                -f state='closed' || true
-              
-              echo "  Updated issue #$ISSUE_NUMBER to completed"
-              
-            elif [ "$JOB_STATUS" = "failed" ]; then
-              ERROR_MSG=$(echo "$STATUS_BODY" | jq -r '.error // "Unknown error"')
-              
-              # Remove 'idea-processing' label and add 'idea-failed'
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels/idea-processing" || true
-              
-              gh api \
-                --method POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/labels" \
-                -f labels[]='idea-failed' || true
-              
-              # Add failure comment
-              TEMP_FILE=$(mktemp)
-              cat > "$TEMP_FILE" << EOF
-          ❌ Idea exploration failed
-
-          Error: $ERROR_MSG
-
-          You may want to try submitting the idea again or adjust the description.
-          EOF
-              
-              gh api \
-                --method POST \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments" \
-                --input "$TEMP_FILE" || true
-              
-              rm -f "$TEMP_FILE"
-              
-              echo "  Updated issue #$ISSUE_NUMBER to failed"
-            else
-              echo "  Job still $JOB_STATUS, will check again later"
-            fi
-            
-            # Small delay to avoid rate limiting
-            sleep 2
-          done
+      steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+         - name: Set up bun
+           uses: oven-sh/setup-bun@v1
+         - name: Install dependencies
+           run: bun install
+         - name: Check and update issue status
+           env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              GITHUB_REPOSITORY: ${{ github.repository }}
+              IDEA_EXPLORER_API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
+              IDEA_EXPLORER_API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
+           run: bun run scripts/gh/update-idea-status.ts

@@ -122,7 +122,7 @@ export async function sendWebhook(
 				});
 				return { ok: response.ok, status: response.status };
 			} catch (error) {
-				logError(job.id, `webhook_attempt_${attempt}`, error);
+				logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
 				return { ok: false, status: 0 };
 			}
 		},

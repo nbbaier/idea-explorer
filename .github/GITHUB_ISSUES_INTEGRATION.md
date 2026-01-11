@@ -1,5 +1,3 @@
-# GitHub Issues Integration
-
 This repository includes automated workflows that allow you to submit ideas via GitHub issues for automated exploration.
 
 ## Architecture Overview
@@ -52,17 +50,17 @@ This repository includes automated workflows that allow you to submit ideas via 
 
 Add the following secrets to your repository (Settings → Secrets and variables → Actions):
 
-- `IDEA_EXPLORER_API_URL`: The base URL of your deployed Idea Explorer worker (e.g., `https://idea-explorer.your-domain.workers.dev`)
-- `IDEA_EXPLORER_API_TOKEN`: Your API bearer token for authentication
+-  `IDEA_EXPLORER_API_URL`: The base URL of your deployed Idea Explorer worker (e.g., `https://idea-explorer.your-domain.workers.dev`)
+-  `IDEA_EXPLORER_API_TOKEN`: Your API bearer token for authentication
 
 ### 2. Create Labels
 
 Create the following labels in your repository (Issues → Labels):
 
-- `idea` - For new idea submissions (color: `#0E8A16`)
-- `idea-processing` - Applied automatically when processing starts (color: `#FEF2C0`)
-- `idea-completed` - Applied when exploration is complete (color: `#5319E7`)
-- `idea-failed` - Applied when exploration fails (color: `#D73A4A`)
+-  `idea` - For new idea submissions (color: `#0E8A16`)
+-  `idea-processing` - Applied automatically when processing starts (color: `#FEF2C0`)
+-  `idea-completed` - Applied when exploration is complete (color: `#5319E7`)
+-  `idea-failed` - Applied when exploration fails (color: `#D73A4A`)
 
 ## Usage
 
@@ -98,19 +96,21 @@ Once submitted:
 
 You can manually trigger the workflows from the **Actions** tab:
 
-- **Process Idea Issues**: Manually check for new ideas to process
-- **Update Idea Status**: Manually check for completed explorations
+-  **Process Idea Issues**: Manually check for new ideas to process
+-  **Update Idea Status**: Manually check for completed explorations
 
 ## Workflow Details
 
 ### Process Ideas Workflow
 
 **Triggers:**
-- When a label is added to an issue
-- Every hour (scheduled)
-- Manual trigger
+
+-  When a label is added to an issue
+-  Every hour (scheduled)
+-  Manual trigger
 
 **What it does:**
+
 1. Finds all open issues with the `idea` label
 2. Skips issues already being processed or completed
 3. Submits each idea to the Idea Explorer API
@@ -120,38 +120,40 @@ You can manually trigger the workflows from the **Actions** tab:
 ### Update Status Workflow
 
 **Triggers:**
-- Every 15 minutes (scheduled)
-- Manual trigger
+
+-  Every 15 minutes (scheduled)
+-  Manual trigger
 
 **What it does:**
+
 1. Finds all issues with the `idea-processing` label
 2. Checks the status of each job via the API
 3. When a job completes:
-   - Updates the label to `idea-completed` or `idea-failed`
-   - Adds a comment with the research link (on success)
-   - Closes the issue (on success)
+   -  Updates the label to `idea-completed` or `idea-failed`
+   -  Adds a comment with the research link (on success)
+   -  Closes the issue (on success)
 
 ## Troubleshooting
 
 ### My issue wasn't picked up
 
-- Make sure you added the `idea` label
-- Check the Actions tab to see if the workflow ran
-- Manually trigger the "Process Idea Issues" workflow
+-  Make sure you added the `idea` label
+-  Check the Actions tab to see if the workflow ran
+-  Manually trigger the "Process Idea Issues" workflow
 
 ### The status hasn't updated
 
-- Explorations can take up to 15 minutes
-- The status update workflow runs every 15 minutes
-- Manually trigger the "Update Idea Status" workflow to force a check
+-  Explorations can take up to 15 minutes
+-  The status update workflow runs every 15 minutes
+-  Manually trigger the "Update Idea Status" workflow to force a check
 
 ### My idea failed
 
-- Check the error message in the issue comment
-- Common issues:
-  - API authentication problems (check your secrets)
-  - Worker deployment issues
-  - Timeout (idea was too complex)
+-  Check the error message in the issue comment
+-  Common issues:
+   -  API authentication problems (check your secrets)
+   -  Worker deployment issues
+   -  Timeout (idea was too complex)
 
 ## Integration with Existing API
 
@@ -159,9 +161,9 @@ These workflows use the existing `/api/explore` and `/api/status` endpoints. No 
 
 ## Cost Considerations
 
-- GitHub Actions minutes are free for public repositories
-- For private repositories, check your GitHub Actions quota
-- The workflows run:
-  - Process Ideas: Hourly + on issue events
-  - Update Status: Every 15 minutes
-  - Estimated monthly usage: ~1,000-2,000 minutes/month (depending on activity)
+-  GitHub Actions minutes are free for public repositories
+-  For private repositories, check your GitHub Actions quota
+-  The workflows run:
+   -  Process Ideas: Hourly + on issue events
+   -  Update Status: Every 15 minutes
+   -  Estimated monthly usage: ~1,000-2,000 minutes/month (depending on activity)
