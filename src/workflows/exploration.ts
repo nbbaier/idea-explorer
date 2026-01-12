@@ -5,6 +5,7 @@ import {
 } from "cloudflare:workers";
 import { getSandbox } from "@cloudflare/sandbox";
 import { getJob, updateJob } from "../jobs";
+import { createExplorationLog, formatAsJsonl } from "../utils/claude-log";
 import { cloneWithRetry, commitAndPush } from "../utils/git";
 import {
   logClaudeStarted,
@@ -323,6 +324,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
+      const logPath = `ideas/${folderName}/exploration-log.jsonl`;
       await step.do(
         "run-claude",
         { timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
@@ -347,11 +349,16 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             jobId,
           });
 
-          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
+          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits --output-format stream-json`;
 
           logClaudeStarted(jobId, model);
+          const claudeStartTime = Date.now();
+          let claudeOutput = "";
+
           try {
-            await sandbox.exec(claudeCmd, { cwd: "/workspace" });
+            const result = await sandbox.exec(claudeCmd, { cwd: "/workspace" });
+            claudeOutput =
+              typeof result === "string" ? result : (result?.stdout ?? "");
           } catch (claudeError) {
             logError("claude_execution", claudeError, undefined, jobId);
             const claudeErrorMsg =
@@ -360,6 +367,22 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
                 : "Claude execution failed";
             throw new Error(`Claude Code error: ${claudeErrorMsg}`);
           }
+
+          const { summary } = createExplorationLog(claudeOutput, {
+            jobId,
+            model,
+            idea,
+            startTime: claudeStartTime,
+          });
+
+          const logContent = formatAsJsonl([], summary);
+          await sandbox.exec(
+            `cat > "/workspace/${logPath}" << 'EXPLORATION_LOG_EOF'
+${logContent}
+EXPLORATION_LOG_EOF`,
+            { cwd: "/workspace" }
+          );
+
           logInfo("claude_complete", undefined, jobId);
         }
       );
@@ -383,6 +406,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 
           await commitAndPush(sandbox, {
             outputPath,
+            additionalPaths: [logPath],
             message: escapeShell(commitMessage),
             branch,
             repoUrl,

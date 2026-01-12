@@ -65,12 +65,14 @@ export async function commitAndPush(
   sandbox: SandboxInstance,
   {
     outputPath,
+    additionalPaths,
     message,
     branch,
     repoUrl,
     jobId,
   }: {
     outputPath: string;
+    additionalPaths?: string[];
     message: string;
     branch: string;
     repoUrl: string;
@@ -79,6 +81,11 @@ export async function commitAndPush(
 ): Promise<void> {
   await configureGitUser(sandbox);
   await sandbox.exec(`git add "${outputPath}"`, { cwd: "/workspace" });
+  if (additionalPaths) {
+    for (const path of additionalPaths) {
+      await sandbox.exec(`git add "${path}"`, { cwd: "/workspace" });
+    }
+  }
   await sandbox.exec(`git commit -m "${message}"`, { cwd: "/workspace" });
   await pushWithRetry(sandbox, branch, repoUrl, jobId);
   logCommitPushed(jobId);
