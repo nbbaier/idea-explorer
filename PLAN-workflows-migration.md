@@ -14,13 +14,13 @@ Replace `waitUntil()` with Cloudflare Workflows - a durable execution engine wit
 
 ## Files to Modify/Create
 
-| File | Action |
-|------|--------|
-| `src/workflows/exploration.ts` | Create - Workflow class definition |
-| `src/index.ts` | Modify - Trigger workflow instead of waitUntil |
-| `wrangler.jsonc` | Modify - Add workflow binding |
-| `worker-configuration.d.ts` | Regenerate - Add workflow types |
-| `SPEC.md` | Update - Document new architecture |
+| File                           | Action                                         |
+| ------------------------------ | ---------------------------------------------- |
+| `src/workflows/exploration.ts` | Create - Workflow class definition             |
+| `src/index.ts`                 | Modify - Trigger workflow instead of waitUntil |
+| `wrangler.jsonc`               | Modify - Add workflow binding                  |
+| `worker-configuration.d.ts`    | Regenerate - Add workflow types                |
+| `SPEC.md`                      | Update - Document new architecture             |
 
 ## Implementation Steps
 
@@ -29,27 +29,31 @@ Replace `waitUntil()` with Cloudflare Workflows - a durable execution engine wit
 Define `ExplorationWorkflow` extending `WorkflowEntrypoint<Env, JobParams>`:
 
 ```typescript
-import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
+import {
+   WorkflowEntrypoint,
+   WorkflowStep,
+   WorkflowEvent,
+} from "cloudflare:workers";
 
 type JobParams = {
-  jobId: string;
-  idea: string;
-  mode: 'business' | 'exploration';
-  model: 'sonnet' | 'opus';
-  context?: string;
-  update?: boolean;
-  webhook_url?: string;
-  callback_secret?: string;
+   jobId: string;
+   idea: string;
+   mode: "business" | "exploration";
+   model: "sonnet" | "opus";
+   context?: string;
+   update?: boolean;
+   webhook_url?: string;
+   callback_secret?: string;
 };
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<Env, JobParams> {
-  async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
-    // Step 1: Initialize and update job status
-    // Step 2: Setup sandbox and clone repo
-    // Step 3: Run Claude Code exploration
-    // Step 4: Commit and push results
-    // Step 5: Send webhook notification
-  }
+   async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
+      // Step 1: Initialize and update job status
+      // Step 2: Setup sandbox and clone repo
+      // Step 3: Run Claude Code exploration
+      // Step 4: Commit and push results
+      // Step 5: Send webhook notification
+   }
 }
 ```
 
@@ -58,9 +62,9 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<Env, JobParams> {
 1. **`initialize`** - Update job status to "running", generate slug, get date prefix
 2. **`setup-sandbox`** - Get sandbox, set env vars, clone repo with retry
 3. **`check-existing`** - Check for existing idea folder
-   - If exists and `update=false`: Complete early with existing URL
-   - If exists and `update=true`: Continue to append update section
-   - If not exists: Continue with new exploration
+   -  If exists and `update=false`: Complete early with existing URL
+   -  If exists and `update=true`: Continue to append update section
+   -  If not exists: Continue with new exploration
 4. **`run-claude`** - Execute Claude Code in sandbox (timeout: 15 min)
 5. **`commit-push`** - Commit and push results to GitHub
 6. **`notify`** - Update job status in KV and send webhook
@@ -89,17 +93,17 @@ c.executionCtx.waitUntil(runExploration(job, c.env));
 
 // After
 await c.env.EXPLORATION_WORKFLOW.create({
-  id: job.id,
-  params: {
-    jobId: job.id,
-    idea: job.idea,
-    mode: job.mode,
-    model: job.model,
-    context: job.context,
-    update: job.update,
-    webhook_url: job.webhook_url,
-    callback_secret: job.callback_secret,
-  },
+   id: job.id,
+   params: {
+      jobId: job.id,
+      idea: job.idea,
+      mode: job.mode,
+      model: job.model,
+      context: job.context,
+      update: job.update,
+      webhook_url: job.webhook_url,
+      callback_secret: job.callback_secret,
+   },
 });
 ```
 
@@ -109,18 +113,18 @@ Add `GET /api/workflow-status/:id` to expose native Cloudflare workflow status:
 
 ```typescript
 app.get("/api/workflow-status/:id", async (c) => {
-  const jobId = c.req.param("id");
-  try {
-    const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
-    const status = await instance.status();
-    return c.json({
-      workflow_status: status.status,
-      output: status.output,
-      error: status.error
-    });
-  } catch (error) {
-    return c.json({ error: "Workflow instance not found" }, 404);
-  }
+   const jobId = c.req.param("id");
+   try {
+      const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
+      const status = await instance.status();
+      return c.json({
+         workflow_status: status.status,
+         output: status.output,
+         error: status.error,
+      });
+   } catch (error) {
+      return c.json({ error: "Workflow instance not found" }, 404);
+   }
 });
 ```
 
@@ -137,36 +141,37 @@ Update exports in `src/index.ts`:
 ```typescript
 export default app;
 export { Sandbox };
-export { ExplorationWorkflow } from './workflows/exploration';
+export { ExplorationWorkflow } from "./workflows/exploration";
 ```
 
 ## Workflow Step Configuration
 
-| Step | Timeout | Retries | Notes |
-|------|---------|---------|-------|
-| initialize | 30s | 3 | KV operations only |
-| setup-sandbox | 5 min | 2 | Clone can be slow; generous timeout for large repos or GitHub issues |
-| check-existing | 30s | 3 | Simple ls command |
-| run-claude | 15 min | 0 | No retries - re-running can produce different results or double-append |
-| commit-push | 2 min | 3 | Must be idempotent - use `git pull --rebase` before commit |
-| notify | 30s | 3 | Must handle deduplication via `webhook_sent_at` timestamp |
+| Step           | Timeout | Retries | Notes                                                                  |
+| -------------- | ------- | ------- | ---------------------------------------------------------------------- |
+| initialize     | 30s     | 3       | KV operations only                                                     |
+| setup-sandbox  | 5 min   | 2       | Clone can be slow; generous timeout for large repos or GitHub issues   |
+| check-existing | 30s     | 3       | Simple ls command                                                      |
+| run-claude     | 15 min  | 0       | No retries - re-running can produce different results or double-append |
+| commit-push    | 2 min   | 3       | Must be idempotent - use `git pull --rebase` before commit             |
+| notify         | 30s     | 3       | Must handle deduplication via `webhook_sent_at` timestamp              |
 
 ## Code Organization
 
 Refactor `runExploration` into small helpers that the workflow calls:
 
-- `initializeJob(jobId, env)` → updates KV to `running`, returns `branch`, `repoUrl`, `slug`, `datePrefix`
-- `setupSandbox(job, env, slug, branch, repoUrl)` → `getSandbox`, `setEnvVars`, `cloneWithRetry`
-- `findOrCreateIdeaFolder(sandbox, slug, datePrefix, job)` → returns `{ folderName, isUpdate, existingFolder }`
-- `runClaudeStep(sandbox, job, promptArgs)` → builds prompt, logs, `sandbox.exec`
-- `commitAndPushStep(sandbox, commitArgs)` → thin wrapper around existing `commitAndPush`
-- `completeJobSuccess(jobId, env, branch, outputPath)` → updates KV to `completed` and sends webhook
-- `failJob(jobId, env, branch, error)` → wraps `handleExplorationError`
+-  `initializeJob(jobId, env)` → updates KV to `running`, returns `branch`, `repoUrl`, `slug`, `datePrefix`
+-  `setupSandbox(job, env, slug, branch, repoUrl)` → `getSandbox`, `setEnvVars`, `cloneWithRetry`
+-  `findOrCreateIdeaFolder(sandbox, slug, datePrefix, job)` → returns `{ folderName, isUpdate, existingFolder }`
+-  `runClaudeStep(sandbox, job, promptArgs)` → builds prompt, logs, `sandbox.exec`
+-  `commitAndPushStep(sandbox, commitArgs)` → thin wrapper around existing `commitAndPush`
+-  `completeJobSuccess(jobId, env, branch, outputPath)` → updates KV to `completed` and sends webhook
+-  `failJob(jobId, env, branch, error)` → wraps `handleExplorationError`
 
 This approach:
-- Reuses all existing logic and logging
-- Makes each workflow step minimal and easy to reason about
-- Keeps Workflows knowledge constrained to a single file (`exploration.ts`)
+
+-  Reuses all existing logic and logging
+-  Makes each workflow step minimal and easy to reason about
+-  Keeps Workflows knowledge constrained to a single file (`exploration.ts`)
 
 ## Key Considerations
 
@@ -175,15 +180,17 @@ This approach:
 2. **State Serialization**: Do NOT store sandbox instances or complex objects in workflow state. Recompute `getSandbox(env.Sandbox, jobId)` in each step. Only return simple JSON-serializable values (strings, numbers, booleans, small plain objects) from `step.do()`.
 
 3. **Idempotency**: Each step should handle being re-run safely:
-   - **Git operations**: Use `git pull --rebase` before commit to handle retries without conflicts
-   - **Webhook delivery**: Store `webhook_sent_at` timestamp in job record and short-circuit if present to prevent duplicate sends
-   - **Claude step**: Set retries to 0 since re-running can produce different results or double-append in update mode
 
-4. **Error Handling**: 
-   - Wrap the workflow `run()` body in a try/catch
-   - On error, call `failJob` helper to update KV status to `failed` with error message
-   - Rethrow after updating so workflow ends in `errored` state
-   - This ensures job status is never stuck at `running` if workflow errors
+   -  **Git operations**: Use `git pull --rebase` before commit to handle retries without conflicts
+   -  **Webhook delivery**: Store `webhook_sent_at` timestamp in job record and short-circuit if present to prevent duplicate sends
+   -  **Claude step**: Set retries to 0 since re-running can produce different results or double-append in update mode
+
+4. **Error Handling**:
+
+   -  Wrap the workflow `run()` body in a try/catch
+   -  On error, call `failJob` helper to update KV status to `failed` with error message
+   -  Rethrow after updating so workflow ends in `errored` state
+   -  This ensures job status is never stuck at `running` if workflow errors
 
 5. **State Passing**: Each step returns data needed by subsequent steps. Workflow state is automatically persisted between steps.
 
