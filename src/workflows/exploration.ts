@@ -223,6 +223,12 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			// Handle existing idea (no update requested)
 			if (existingCheck.existingFolder && !update) {
 				const existingFolder = existingCheck.existingFolder;
+				await updateStepProgress(
+					this.env.IDEA_EXPLORER_JOBS,
+					jobId,
+					3,
+					stepStartTime,
+				);
 				await step.do(
 					"handle-existing",
 					{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
