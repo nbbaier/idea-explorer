@@ -33,6 +33,12 @@ export const JobSchema = z.object({
 	error: z.string().optional(),
 	created_at: z.number(),
 	webhook_sent_at: z.number().optional(),
+	current_step: z.string().optional(),
+	current_step_label: z.string().optional(),
+	steps_completed: z.number().optional(),
+	steps_total: z.number().optional(),
+	step_started_at: z.number().optional(),
+	step_durations: z.record(z.string(), z.number()).optional(),
 });
 
 export type JobStatus = z.infer<typeof JobStatusSchema>;

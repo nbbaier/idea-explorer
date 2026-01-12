@@ -33,6 +33,53 @@ type ExplorationEnv = Env & {
 	IDEA_EXPLORER_JOBS: KVNamespace;
 };
 
+type StepMetadata = {
+	name: string;
+	label: string;
+};
+
+const WORKFLOW_STEPS: StepMetadata[] = [
+	{ name: "initialize", label: "Initializing job..." },
+	{
+		name: "setup_sandbox",
+		label: "Setting up sandbox and cloning repository...",
+	},
+	{ name: "check_existing", label: "Checking for existing research..." },
+	{ name: "run_claude", label: "Running Claude analysis..." },
+	{ name: "commit_push", label: "Committing and pushing results..." },
+	{ name: "notify", label: "Sending completion notification..." },
+];
+
+async function updateStepProgress(
+	kv: KVNamespace,
+	jobId: string,
+	stepIndex: number,
+	stepStartTime?: number,
+): Promise<void> {
+	const currentStep = WORKFLOW_STEPS[stepIndex];
+	const updates: Record<string, unknown> = {
+		current_step: currentStep.name,
+		current_step_label: currentStep.label,
+		steps_completed: stepIndex,
+		steps_total: WORKFLOW_STEPS.length,
+		step_started_at: Date.now(),
+	};
+
+	// If stepStartTime is provided, calculate and record duration for previous step
+	if (stepStartTime !== undefined && stepIndex > 0) {
+		const previousStep = WORKFLOW_STEPS[stepIndex - 1];
+		const duration = Date.now() - stepStartTime;
+		const job = await getJob(kv, jobId);
+		const stepDurations = job?.step_durations ?? {};
+		updates.step_durations = {
+			...stepDurations,
+			[previousStep.name]: duration,
+		};
+	}
+
+	await updateJob(kv, jobId, updates);
+}
+
 function getDatePrefix(): string {
 	const now = new Date();
 	const year = now.getFullYear();
@@ -118,6 +165,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 
 		try {
 			// Step 1: Initialize job
+			let stepStartTime = Date.now();
+			await updateStepProgress(this.env.IDEA_EXPLORER_JOBS, jobId, 0);
 			await step.do(
 				"initialize",
 				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
@@ -130,6 +179,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			);
 
 			// Step 2: Setup sandbox and clone repo
+			await updateStepProgress(
+				this.env.IDEA_EXPLORER_JOBS,
+				jobId,
+				1,
+				stepStartTime,
+			);
+			stepStartTime = Date.now();
 			await step.do(
 				"setup-sandbox",
 				{ retries: { limit: 2, delay: "30 seconds" }, timeout: "5 minutes" },
@@ -147,6 +203,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			);
 
 			// Step 3: Check for existing idea folder
+			await updateStepProgress(
+				this.env.IDEA_EXPLORER_JOBS,
+				jobId,
+				2,
+				stepStartTime,
+			);
+			stepStartTime = Date.now();
 			const existingCheck = await step.do(
 				"check-existing",
 				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
@@ -202,6 +265,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			const isUpdate = !!(existingCheck.existingFolder && update);
 
 			// Step 4: Run Claude Code exploration (no retries - re-running can produce different results)
+			await updateStepProgress(
+				this.env.IDEA_EXPLORER_JOBS,
+				jobId,
+				3,
+				stepStartTime,
+			);
+			stepStartTime = Date.now();
 			await step.do(
 				"run-claude",
 				{ timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
@@ -242,6 +312,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			);
 
 			// Step 5: Commit and push results
+			await updateStepProgress(
+				this.env.IDEA_EXPLORER_JOBS,
+				jobId,
+				4,
+				stepStartTime,
+			);
+			stepStartTime = Date.now();
 			await step.do(
 				"commit-push",
 				{ retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
@@ -262,6 +339,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 			);
 
 			// Step 6: Notify completion
+			await updateStepProgress(
+				this.env.IDEA_EXPLORER_JOBS,
+				jobId,
+				5,
+				stepStartTime,
+			);
+			stepStartTime = Date.now();
 			await step.do(
 				"notify",
 				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
@@ -289,6 +373,15 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 					}
 				},
 			);
+
+			// Record final step duration
+			const job = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
+			if (job?.step_durations) {
+				const duration = Date.now() - stepStartTime;
+				await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+					step_durations: { ...job.step_durations, notify: duration },
+				});
+			}
 		} catch (error) {
 			// Update job status to failed
 			await this.handleFailure(jobId, error, branch, jobStartTime);

@@ -9,6 +9,7 @@ const WebhookSuccessPayloadSchema = z.object({
 	idea: z.string(),
 	github_url: z.string(),
 	github_raw_url: z.string(),
+	step_durations: z.record(z.string(), z.number()).optional(),
 });
 
 const WebhookFailurePayloadSchema = z.object({
@@ -16,6 +17,7 @@ const WebhookFailurePayloadSchema = z.object({
 	job_id: z.string(),
 	idea: z.string(),
 	error: z.string(),
+	step_durations: z.record(z.string(), z.number()).optional(),
 });
 
 const WebhookPayloadSchema = z.discriminatedUnion("status", [
@@ -64,6 +66,7 @@ function buildSuccessPayload(
 		idea: job.idea,
 		github_url: githubUrl,
 		github_raw_url: githubRawUrl,
+		...(job.step_durations && { step_durations: job.step_durations }),
 	};
 }
 
@@ -73,6 +76,7 @@ function buildFailurePayload(job: Job): WebhookFailurePayload {
 		job_id: job.id,
 		idea: job.idea,
 		error: job.error ?? "Unknown error",
+		...(job.step_durations && { step_durations: job.step_durations }),
 	};
 }
 
