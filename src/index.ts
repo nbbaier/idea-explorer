@@ -18,6 +18,44 @@ type ExploreEnv = Env & {
 	IDEA_EXPLORER_JOBS: KVNamespace;
 };
 
+type EnumSchema = {
+	safeParse: (v: string) => { success: boolean };
+	options: readonly string[];
+};
+
+function validateEnumFilter(
+	value: string | undefined,
+	schema: EnumSchema,
+	fieldName: string,
+): { valid: true; value: string } | { valid: false; error: string } | null {
+	if (!value) return null;
+
+	const result = schema.safeParse(value);
+	if (!result.success) {
+		return {
+			valid: false,
+			error: `Invalid ${fieldName} value. Must be one of: ${schema.options.join(", ")}`,
+		};
+	}
+	return { valid: true, value };
+}
+
+function parsePaginationParams(
+	limitParam: string | undefined,
+	offsetParam: string | undefined,
+): { limit: number; offset: number } {
+	const DEFAULT_LIMIT = 20;
+	const MAX_LIMIT = 100;
+
+	const limit = Math.max(
+		1,
+		Math.min(MAX_LIMIT, Number.parseInt(limitParam ?? "", 10) || DEFAULT_LIMIT),
+	);
+	const offset = Math.max(0, Number.parseInt(offsetParam ?? "", 10) || 0);
+
+	return { limit, offset };
+}
+
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
 app.use("/api/*", requireAuth());
@@ -73,44 +111,36 @@ app.get("/api/jobs", async (c) => {
 
 	let filtered = jobs.filter((j): j is Job => j != null);
 
-	const statusFilter = c.req.query("status");
-	if (statusFilter) {
-		const statusValidation = JobStatusSchema.safeParse(statusFilter);
-		if (!statusValidation.success) {
-			return c.json(
-				{
-					error: `Invalid status value. Must be one of: ${JobStatusSchema.options.join(", ")}`,
-				},
-				400,
-			);
-		}
-		filtered = filtered.filter((j) => j.status === statusFilter);
+	const statusValidation = validateEnumFilter(
+		c.req.query("status"),
+		JobStatusSchema,
+		"status",
+	);
+	if (statusValidation?.valid === false) {
+		return c.json({ error: statusValidation.error }, 400);
+	}
+	if (statusValidation?.valid) {
+		filtered = filtered.filter((j) => j.status === statusValidation.value);
 	}
 
-	const modeFilter = c.req.query("mode");
-	if (modeFilter) {
-		const modeValidation = ExploreModeSchema.safeParse(modeFilter);
-		if (!modeValidation.success) {
-			return c.json(
-				{
-					error: `Invalid mode value. Must be one of: ${ExploreModeSchema.options.join(", ")}`,
-				},
-				400,
-			);
-		}
-		filtered = filtered.filter((j) => j.mode === modeFilter);
+	const modeValidation = validateEnumFilter(
+		c.req.query("mode"),
+		ExploreModeSchema,
+		"mode",
+	);
+	if (modeValidation?.valid === false) {
+		return c.json({ error: modeValidation.error }, 400);
+	}
+	if (modeValidation?.valid) {
+		filtered = filtered.filter((j) => j.mode === modeValidation.value);
 	}
 
 	filtered.sort((a, b) => b.created_at - a.created_at);
 
-	const limitParam = c.req.query("limit") || "20";
-	const offsetParam = c.req.query("offset") || "0";
-
-	const limit = Math.max(
-		1,
-		Math.min(100, Number.parseInt(limitParam, 10) || 20),
+	const { limit, offset } = parsePaginationParams(
+		c.req.query("limit"),
+		c.req.query("offset"),
 	);
-	const offset = Math.max(0, Number.parseInt(offsetParam, 10) || 0);
 
 	return c.json({
 		jobs: filtered.slice(offset, offset + limit),
@@ -126,34 +156,45 @@ app.get("/api/status/:id", async (c) => {
 
 	if (!job) return c.json({ error: "Job not found" }, 404);
 
-	const response: Record<string, unknown> = {
+	const baseResponse = {
 		status: job.status,
 		idea: job.idea,
 		mode: job.mode,
 	};
 
-	if (job.status === "completed" && job.github_url) {
-		response.github_url = job.github_url;
+	if (job.status === "completed") {
+		return c.json({
+			...baseResponse,
+			...(job.github_url && { github_url: job.github_url }),
+		});
 	}
 
-	if (job.status === "failed" && job.error) {
-		response.error = job.error;
+	if (job.status === "failed") {
+		return c.json({
+			...baseResponse,
+			...(job.error && { error: job.error }),
+		});
 	}
 
-	// Include step progress information when job is running
 	if (job.status === "running") {
-		if (job.current_step) response.current_step = job.current_step;
-		if (job.current_step_label)
-			response.current_step_label = job.current_step_label;
-		if (job.steps_completed !== undefined)
-			response.steps_completed = job.steps_completed;
-		if (job.steps_total !== undefined) response.steps_total = job.steps_total;
-		if (job.step_started_at !== undefined)
-			response.step_started_at = job.step_started_at;
-		if (job.step_durations) response.step_durations = job.step_durations;
+		return c.json({
+			...baseResponse,
+			...(job.current_step && { current_step: job.current_step }),
+			...(job.current_step_label && {
+				current_step_label: job.current_step_label,
+			}),
+			...(job.steps_completed !== undefined && {
+				steps_completed: job.steps_completed,
+			}),
+			...(job.steps_total !== undefined && { steps_total: job.steps_total }),
+			...(job.step_started_at !== undefined && {
+				step_started_at: job.step_started_at,
+			}),
+			...(job.step_durations && { step_durations: job.step_durations }),
+		});
 	}
 
-	return c.json(response);
+	return c.json(baseResponse);
 });
 
 app.get("/api/workflow-status/:id", async (c) => {

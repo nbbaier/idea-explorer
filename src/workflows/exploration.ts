@@ -85,6 +85,47 @@ function getDatePrefix(): string {
 	return `${year}-${month}-${day}`;
 }
 
+interface CompleteJobParams {
+	kv: KVNamespace;
+	jobId: string;
+	status: "completed" | "failed";
+	githubUrl?: string;
+	error?: string;
+	githubRepo: string;
+	branch: string;
+	jobStartTime: number;
+}
+
+async function completeJobAndNotify({
+	kv,
+	jobId,
+	status,
+	githubUrl,
+	error,
+	githubRepo,
+	branch,
+	jobStartTime,
+}: CompleteJobParams): Promise<void> {
+	const existingJob = await getJob(kv, jobId);
+	if (existingJob?.webhook_sent_at) {
+		logInfo("webhook_already_sent", undefined, jobId);
+		return;
+	}
+
+	const updatedJob = await updateJob(kv, jobId, {
+		status,
+		...(githubUrl && { github_url: githubUrl }),
+		...(error && { error }),
+		webhook_sent_at: Date.now(),
+	});
+
+	logJobComplete(jobId, status, Date.now() - jobStartTime);
+
+	if (updatedJob) {
+		await sendWebhook(updatedJob, githubRepo, branch);
+	}
+}
+
 async function findExistingIdeaFolder(
 	sandbox: ReturnType<typeof getSandbox>,
 	slug: string,
@@ -94,18 +135,16 @@ async function findExistingIdeaFolder(
 			"ls /workspace/ideas/ 2>/dev/null || true",
 			{ cwd: "/workspace" },
 		);
-		const stdout =
-			typeof result === "string"
-				? result
-				: ((result as { stdout?: string }).stdout ?? "");
-		const folders = stdout.trim().split("\n").filter(Boolean);
-		for (const folder of folders) {
-			if (folder.endsWith(`-${slug}`)) {
-				return folder;
-			}
-		}
-	} catch {}
-	return null;
+		const stdout = typeof result === "string" ? result : (result?.stdout ?? "");
+		const matchingFolder = stdout
+			.trim()
+			.split("\n")
+			.filter(Boolean)
+			.find((folder) => folder.endsWith(`-${slug}`));
+		return matchingFolder ?? null;
+	} catch {
+		return null;
+	}
 }
 
 function buildPrompt({
@@ -232,29 +271,15 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 						const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
 						logInfo("existing_idea_found", undefined, jobId);
 
-						const existingJob = await getJob(
-							this.env.IDEA_EXPLORER_JOBS,
+						await completeJobAndNotify({
+							kv: this.env.IDEA_EXPLORER_JOBS,
 							jobId,
-						);
-						if (existingJob?.webhook_sent_at) {
-							logInfo("webhook_already_sent", undefined, jobId);
-							return;
-						}
-
-						const updatedJob = await updateJob(
-							this.env.IDEA_EXPLORER_JOBS,
-							jobId,
-							{
-								status: "completed",
-								github_url: githubUrl,
-								webhook_sent_at: Date.now(),
-							},
-						);
-						logJobComplete(jobId, "completed", Date.now() - jobStartTime);
-
-						if (updatedJob) {
-							await sendWebhook(updatedJob, this.env.GITHUB_REPO, branch);
-						}
+							status: "completed",
+							githubUrl,
+							githubRepo: this.env.GITHUB_REPO,
+							branch,
+							jobStartTime,
+						});
 					},
 				);
 				return;
@@ -294,10 +319,9 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 						outputPath,
 					});
 
-					const modelName = model === "opus" ? "opus" : "sonnet";
-					const claudeCmd = `claude --model ${modelName} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
+					const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
 
-					logClaudeStarted(jobId, modelName);
+					logClaudeStarted(jobId, model);
 					try {
 						await sandbox.exec(claudeCmd, { cwd: "/workspace" });
 					} catch (claudeError) {
@@ -351,27 +375,16 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 				"notify",
 				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
 				async () => {
-					const existingJob = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
-					if (existingJob?.webhook_sent_at) {
-						logInfo("webhook_already_sent", undefined, jobId);
-						return;
-					}
-
 					const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-					const updatedJob = await updateJob(
-						this.env.IDEA_EXPLORER_JOBS,
+					await completeJobAndNotify({
+						kv: this.env.IDEA_EXPLORER_JOBS,
 						jobId,
-						{
-							status: "completed",
-							github_url: githubUrl,
-							webhook_sent_at: Date.now(),
-						},
-					);
-					logJobComplete(jobId, "completed", Date.now() - jobStartTime);
-
-					if (updatedJob) {
-						await sendWebhook(updatedJob, this.env.GITHUB_REPO, branch);
-					}
+						status: "completed",
+						githubUrl,
+						githubRepo: this.env.GITHUB_REPO,
+						branch,
+						jobStartTime,
+					});
 				},
 			);
 
@@ -410,22 +423,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 
 		logError("exploration_failed", new Error(finalError), undefined, jobId);
 
-		const existingJob = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
-		if (existingJob?.webhook_sent_at) {
-			logInfo("webhook_already_sent", undefined, jobId);
-			return;
-		}
-
-		const updatedJob = await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+		await completeJobAndNotify({
+			kv: this.env.IDEA_EXPLORER_JOBS,
+			jobId,
 			status: "failed",
 			error: finalError,
-			webhook_sent_at: Date.now(),
+			githubRepo: this.env.GITHUB_REPO,
+			branch,
+			jobStartTime,
 		});
-
-		logJobComplete(jobId, "failed", Date.now() - jobStartTime);
-
-		if (updatedJob) {
-			await sendWebhook(updatedJob, this.env.GITHUB_REPO, branch);
-		}
 	}
 }
