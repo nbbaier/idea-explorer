@@ -5,6 +5,7 @@
   "compatibility_date": "2025-05-06",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "logpush": true,
   "observability": {
     "enabled": true
   },

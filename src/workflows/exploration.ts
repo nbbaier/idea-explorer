@@ -147,22 +147,41 @@ async function findExistingIdeaFolder(
   }
 }
 
-function buildPrompt({
-  idea,
-  context,
-  isUpdate,
-  datePrefix,
-  promptFile,
-  outputPath,
-}: {
+interface BuildPromptParams {
   idea: string;
   context?: string;
   isUpdate: boolean;
   datePrefix: string;
   promptFile: string;
   outputPath: string;
-}): string {
+  mode: "business" | "exploration";
+  model: "sonnet" | "opus";
+  jobId: string;
+}
+
+function buildMetadataBlock(params: BuildPromptParams): string {
+  const lines = [
+    "---",
+    `idea: "${params.idea.replace(/"/g, '\\"')}"`,
+    `mode: ${params.mode}`,
+    `model: ${params.model}`,
+    `date: ${params.datePrefix}`,
+    `job_id: ${params.jobId}`,
+  ];
+
+  if (params.context) {
+    lines.push(`context: "${params.context.replace(/"/g, '\\"')}"`);
+  }
+
+  lines.push("---", "");
+  return lines.join("\n");
+}
+
+function buildPrompt(params: BuildPromptParams): string {
+  const { idea, context, isUpdate, datePrefix, promptFile, outputPath } =
+    params;
   const contextPart = context ? `\n\nAdditional context: ${context}` : "";
+  const metadataBlock = buildMetadataBlock(params);
 
   if (isUpdate) {
     return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
@@ -180,9 +199,15 @@ Make sure to preserve all existing content and append the new update section at 
 
   return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
 
+IMPORTANT: Start the file with this exact YAML frontmatter metadata block:
+
+${metadataBlock}
+
+Then follow with your analysis content.
+
 Idea: ${idea}${contextPart}
 
-After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output.`;
+After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output starting with the metadata block.`;
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<
@@ -317,6 +342,9 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             datePrefix,
             promptFile,
             outputPath,
+            mode,
+            model,
+            jobId,
           });
 
           const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
