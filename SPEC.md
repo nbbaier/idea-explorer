@@ -137,6 +137,46 @@ Check the status of an exploration job.
 }
 ```
 
+**When status is "running", additional step progress fields are included:**
+
+```json
+{
+  "status": "running",
+  "idea": "AI calendar assistant",
+  "mode": "business",
+  "current_step": "run_claude",
+  "current_step_label": "Running Claude analysis...",
+  "steps_completed": 3,
+  "steps_total": 6,
+  "step_started_at": 1704816000000,
+  "step_durations": {
+    "initialize": 245,
+    "setup_sandbox": 1820,
+    "check_existing": 312
+  }
+}
+```
+
+**Step Progress Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `current_step` | string | Name of the current workflow step |
+| `current_step_label` | string | Human-readable description of current step |
+| `steps_completed` | number | Number of steps completed so far (0 = no steps completed yet) |
+| `steps_total` | number | Total number of steps in the workflow (6) |
+| `step_started_at` | number | Unix timestamp (ms) when current step started |
+| `step_durations` | object | Map of completed step names to duration (ms) |
+
+**Workflow Steps:**
+
+1. `initialize` - Initializing job...
+2. `setup_sandbox` - Setting up sandbox and cloning repository...
+3. `check_existing` - Checking for existing research...
+4. `run_claude` - Running Claude analysis...
+5. `commit_push` - Committing and pushing results...
+6. `notify` - Sending completion notification...
+
 **Error Response (404 Not Found):**
 
 ```json
@@ -249,7 +289,15 @@ X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>  (only if callba
    "job_id": "abc123",
    "idea": "AI calendar assistant",
    "github_url": "https://github.com/user/ideas/blob/main/ideas/2025-01-07-ai-calendar/research.md",
-   "github_raw_url": "https://raw.githubusercontent.com/user/ideas/main/ideas/2025-01-07-ai-calendar/research.md"
+   "github_raw_url": "https://raw.githubusercontent.com/user/ideas/main/ideas/2025-01-07-ai-calendar/research.md",
+   "step_durations": {
+      "initialize": 245,
+      "setup_sandbox": 1820,
+      "check_existing": 312,
+      "run_claude": 450000,
+      "commit_push": 3200,
+      "notify": 150
+   }
 }
 ```
 
@@ -260,9 +308,16 @@ X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>  (only if callba
    "status": "failed",
    "job_id": "abc123",
    "idea": "AI calendar assistant",
-   "error": "Timeout exceeded"
+   "error": "Timeout exceeded",
+   "step_durations": {
+      "initialize": 245,
+      "setup_sandbox": 1820,
+      "check_existing": 312
+   }
 }
 ```
+
+**Note:** The optional `step_durations` field provides timing breakdown (in milliseconds) for each completed workflow step, useful for performance monitoring and debugging.
 
 **Retry Logic:**
 
