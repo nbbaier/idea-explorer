@@ -122,6 +122,29 @@ curl https://idea-explorer.your-domain.workers.dev/api/status/{job_id} \
 }
 ```
 
+### List Jobs
+
+```bash
+curl "https://idea-explorer.your-domain.workers.dev/api/jobs?status=completed&mode=business&limit=10&offset=0" \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+```
+
+| Query Param | Type                            | Description                              |
+| ----------- | ------------------------------- | ---------------------------------------- |
+| `status`    | `"pending"` \| `"completed"` \| `"failed"` | Filter by job status          |
+| `mode`      | `"business"` \| `"exploration"` | Filter by analysis mode                  |
+| `limit`     | number                          | Max results to return (1-100, default 20)|
+| `offset`    | number                          | Pagination offset (default 0)            |
+
+### Check Workflow Status
+
+```bash
+curl https://idea-explorer.your-domain.workers.dev/api/workflow-status/{job_id} \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+```
+
+Returns the underlying Cloudflare Workflow instance status, output, and any errors.
+
 ## Project Structure
 
 ```
