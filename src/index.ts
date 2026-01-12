@@ -48,6 +48,40 @@ app.post(
 	},
 );
 
+app.get("/api/jobs", async (c) => {
+	const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
+	const jobs = await Promise.all(
+		keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
+	);
+
+	// Apply filters
+	let filtered = jobs.filter((j) => j != null) as Job[];
+
+	const statusFilter = c.req.query("status");
+	if (statusFilter) {
+		filtered = filtered.filter((j) => j.status === statusFilter);
+	}
+
+	const modeFilter = c.req.query("mode");
+	if (modeFilter) {
+		filtered = filtered.filter((j) => j.mode === modeFilter);
+	}
+
+	// Sort by created_at descending
+	filtered.sort((a, b) => b.created_at - a.created_at);
+
+	// Paginate
+	const limit = Number.parseInt(c.req.query("limit") || "20", 10);
+	const offset = Number.parseInt(c.req.query("offset") || "0", 10);
+
+	return c.json({
+		jobs: filtered.slice(offset, offset + limit),
+		total: filtered.length,
+		limit,
+		offset,
+	});
+});
+
 app.get("/api/status/:id", async (c) => {
 	const jobId = c.req.param("id");
 	const job = await getJob(c.env.IDEA_EXPLORER_JOBS, jobId);
@@ -98,6 +132,7 @@ app.get("/", async (c) => {
     </p>
     <h3>API</h3>
     <p>POST /api/explore</p>
+    <p>GET /api/jobs</p>
     <p>GET /api/status/:id</p>
     <p>GET /api/health</p>
     <p>GET /api/test-webhook</p>
