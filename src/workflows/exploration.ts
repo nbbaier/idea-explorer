@@ -366,7 +366,15 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             jobId,
           });
 
-          const claudeCmd = `bash -lc "set -o pipefail; claude --model ${model} -p \\"${escapeShell(prompt)}\\" --permission-mode acceptEdits --output-format stream-json --verbose 2>&1 | tee /workspace/${rawLogPath}"`;
+          const promptPath = `/workspace/${folderPath}/.prompt.txt`;
+          await sandbox.exec(
+            `cat > "${promptPath}" << 'PROMPT_EOF'
+${prompt}
+PROMPT_EOF`,
+            { cwd: "/workspace" }
+          );
+
+          const claudeCmd = `bash -lc "set -o pipefail; claude --model ${model} -p \\"\\$(cat ${promptPath})\\" --permission-mode acceptEdits --output-format stream-json --verbose 2>&1 | tee /workspace/${rawLogPath}"`;
 
           logClaudeStarted(jobId, model);
           const claudeStartTime = Date.now();
