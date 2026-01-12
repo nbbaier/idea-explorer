@@ -27,9 +27,7 @@ app.post(
 	zValidator("json", ExploreRequestSchema),
 	async (c) => {
 		const body = c.req.valid("json");
-
 		const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
-
 		const job = await createJob(c.env.IDEA_EXPLORER_JOBS, {
 			...body,
 			webhook_url: webhookUrl,
@@ -64,14 +62,16 @@ app.get("/api/jobs", async (c) => {
 	try {
 		const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
 		jobs = await Promise.all(
-			keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
+			keys.map(
+				(k) =>
+					c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>,
+			),
 		);
 	} catch {
 		return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
 	}
 
-	// Apply filters
-	let filtered = jobs.filter((j) => j != null) as Job[];
+	let filtered = jobs.filter((j): j is Job => j != null);
 
 	const statusFilter = c.req.query("status");
 	if (statusFilter) {
@@ -101,10 +101,8 @@ app.get("/api/jobs", async (c) => {
 		filtered = filtered.filter((j) => j.mode === modeFilter);
 	}
 
-	// Sort by created_at descending
 	filtered.sort((a, b) => b.created_at - a.created_at);
 
-	// Paginate
 	const limitParam = c.req.query("limit") || "20";
 	const offsetParam = c.req.query("offset") || "0";
 

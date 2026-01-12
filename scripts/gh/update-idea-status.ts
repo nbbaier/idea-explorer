@@ -42,9 +42,7 @@ async function getIssueComments(issueNumber: number): Promise<Comment[]> {
 function extractJobId(comments: Comment[]): string | null {
 	for (const comment of comments) {
 		const match = comment.body.match(/Job ID: `([^`]+)`/);
-		if (match) {
-			return match[1];
-		}
+		if (match) return match[1];
 	}
 	return null;
 }

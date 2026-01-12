@@ -94,9 +94,7 @@ export async function sendWebhook(
 	branch: string,
 	extraHeaders?: Record<string, string>,
 ): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
-	if (!job.webhook_url) {
-		return { success: true, attempts: 0 };
-	}
+	if (!job.webhook_url) return { success: true, attempts: 0 };
 
 	const webhookUrl = job.webhook_url;
 

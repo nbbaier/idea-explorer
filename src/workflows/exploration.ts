@@ -33,12 +33,10 @@ type ExplorationEnv = Env & {
 	IDEA_EXPLORER_JOBS: KVNamespace;
 };
 
-type StepMetadata = {
+const WORKFLOW_STEPS: {
 	name: string;
 	label: string;
-};
-
-const WORKFLOW_STEPS: StepMetadata[] = [
+}[] = [
 	{ name: "initialize", label: "Initializing job..." },
 	{
 		name: "setup_sandbox",
@@ -65,7 +63,6 @@ async function updateStepProgress(
 		step_started_at: Date.now(),
 	};
 
-	// If stepStartTime is provided, calculate and record duration for previous step
 	if (stepStartTime !== undefined && stepIndex > 0) {
 		const previousStep = WORKFLOW_STEPS[stepIndex - 1];
 		const duration = Date.now() - stepStartTime;
@@ -107,9 +104,7 @@ async function findExistingIdeaFolder(
 				return folder;
 			}
 		}
-	} catch {
-		// No ideas directory yet
-	}
+	} catch {}
 	return null;
 }
 
