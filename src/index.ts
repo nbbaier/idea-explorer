@@ -98,7 +98,7 @@ app.get("/api/status/:id", async (c) => {
 
 	if (!job) return c.json({ error: "Job not found" }, 404);
 
-	const response: Record<string, string> = {
+	const response: Record<string, unknown> = {
 		status: job.status,
 		idea: job.idea,
 		mode: job.mode,
@@ -110,6 +110,19 @@ app.get("/api/status/:id", async (c) => {
 
 	if (job.status === "failed" && job.error) {
 		response.error = job.error;
+	}
+
+	// Include step progress information when job is running
+	if (job.status === "running") {
+		if (job.current_step) response.current_step = job.current_step;
+		if (job.current_step_label)
+			response.current_step_label = job.current_step_label;
+		if (job.steps_completed !== undefined)
+			response.steps_completed = job.steps_completed;
+		if (job.steps_total !== undefined) response.steps_total = job.steps_total;
+		if (job.step_started_at !== undefined)
+			response.step_started_at = job.step_started_at;
+		if (job.step_durations) response.step_durations = job.step_durations;
 	}
 
 	return c.json(response);
