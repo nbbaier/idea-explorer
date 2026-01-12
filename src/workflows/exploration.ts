@@ -6,7 +6,13 @@ import {
 import { getSandbox } from "@cloudflare/sandbox";
 import { getJob, updateJob } from "../jobs";
 import { createExplorationLog, formatAsJsonl } from "../utils/claude-log";
-import { cloneWithRetry, commitAndPush } from "../utils/git";
+import {
+  cloneWithRetry,
+  commitAndPush,
+  commitPartialWork,
+  moveToPartial,
+  squashWipCommits,
+} from "../utils/git";
 import {
   logClaudeStarted,
   logCloneComplete,
@@ -325,12 +331,21 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       );
       stepStartTime = Date.now();
       const logPath = `ideas/${folderName}/exploration-log.jsonl`;
+      const folderPath = `ideas/${folderName}`;
+
+      const checkpointConfig = {
+        folderPath,
+        branch,
+        repoUrl,
+        jobId,
+      };
+
       await step.do(
         "run-claude",
         { timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
         async () => {
           const sandbox = getSandbox(this.env.Sandbox, jobId);
-          await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
+          await sandbox.exec(`mkdir -p "/workspace/${folderPath}"`);
 
           const promptFile =
             mode === "business"
@@ -354,6 +369,17 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           logClaudeStarted(jobId, model);
           const claudeStartTime = Date.now();
           let claudeOutput = "";
+          let checkpointCount = 0;
+
+          const CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000;
+          const checkpointInterval = setInterval(async () => {
+            checkpointCount++;
+            logInfo("checkpoint_starting", undefined, jobId);
+            await commitPartialWork(sandbox, {
+              ...checkpointConfig,
+              message: `WIP: checkpoint ${checkpointCount} for ${slug}`,
+            });
+          }, CHECKPOINT_INTERVAL_MS);
 
           try {
             const result = await sandbox.exec(claudeCmd, { cwd: "/workspace" });
@@ -366,6 +392,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
                 ? claudeError.message
                 : "Claude execution failed";
             throw new Error(`Claude Code error: ${claudeErrorMsg}`);
+          } finally {
+            clearInterval(checkpointInterval);
           }
 
           const { summary } = createExplorationLog(claudeOutput, {
@@ -387,7 +415,7 @@ EXPLORATION_LOG_EOF`,
         }
       );
 
-      // Step 5: Commit and push results
+      // Step 5: Commit and push results (squash any WIP checkpoint commits)
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -403,6 +431,12 @@ EXPLORATION_LOG_EOF`,
           const commitMessage = isUpdate
             ? `idea: ${slug} - research updated`
             : `idea: ${slug} - research complete`;
+
+          await squashWipCommits(sandbox, {
+            slug,
+            finalMessage: escapeShell(commitMessage),
+            jobId,
+          });
 
           await commitAndPush(sandbox, {
             outputPath,
@@ -450,18 +484,37 @@ EXPLORATION_LOG_EOF`,
         });
       }
     } catch (error) {
-      // Update job status to failed
-      await this.handleFailure(jobId, error, branch, jobStartTime);
+      // Update job status to failed, attempt to salvage partial work
+      await this.handleFailure({
+        jobId,
+        error,
+        branch,
+        repoUrl,
+        folderName: `${datePrefix}-${slug}`,
+        slug,
+        jobStartTime,
+      });
       throw error;
     }
   }
 
-  private async handleFailure(
-    jobId: string,
-    error: unknown,
-    branch: string,
-    jobStartTime: number
-  ): Promise<void> {
+  private async handleFailure({
+    jobId,
+    error,
+    branch,
+    repoUrl,
+    folderName,
+    slug,
+    jobStartTime,
+  }: {
+    jobId: string;
+    error: unknown;
+    branch: string;
+    repoUrl: string;
+    folderName: string;
+    slug: string;
+    jobStartTime: number;
+  }): Promise<void> {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     const isTimeout =
@@ -475,11 +528,51 @@ EXPLORATION_LOG_EOF`,
 
     logError("exploration_failed", new Error(finalError), undefined, jobId);
 
+    let salvageSucceeded = false;
+    const folderPath = `ideas/${folderName}`;
+
+    try {
+      const sandbox = getSandbox(this.env.Sandbox, jobId);
+
+      const hasPartialWork = await sandbox
+        .exec(
+          `test -d "/workspace/${folderPath}" && ls -A "/workspace/${folderPath}"`
+        )
+        .then((result) => {
+          const output =
+            typeof result === "string" ? result : (result?.stdout ?? "");
+          return output.trim().length > 0;
+        })
+        .catch(() => false);
+
+      if (hasPartialWork) {
+        logInfo("salvage_attempting", undefined, jobId);
+
+        await moveToPartial(sandbox, { folderName, jobId });
+
+        salvageSucceeded = await commitPartialWork(sandbox, {
+          folderPath: "ideas/.partial",
+          message: `partial: ${slug} - salvaged after ${isTimeout ? "timeout" : "failure"}`,
+          branch,
+          repoUrl,
+          jobId,
+        });
+
+        if (salvageSucceeded) {
+          logInfo("salvage_succeeded", undefined, jobId);
+        }
+      }
+    } catch (salvageError) {
+      logError("salvage_failed", salvageError, undefined, jobId);
+    }
+
     await completeJobAndNotify({
       kv: this.env.IDEA_EXPLORER_JOBS,
       jobId,
       status: "failed",
-      error: finalError,
+      error: salvageSucceeded
+        ? `${finalError} (partial work saved to .partial/)`
+        : finalError,
       githubRepo: this.env.GITHUB_REPO,
       branch,
       jobStartTime,
