@@ -1,5 +1,5 @@
+import path from "node:path";
 import { logError, logInfo, logWarn } from "../../src/utils/logger";
-
 import {
 	addComment,
 	addLabel,
@@ -57,7 +57,8 @@ interface StatusResponse {
 
 async function checkJobStatus(jobId: string): Promise<StatusResponse | null> {
 	logInfo("checking_job_status", { job_id: jobId });
-	const response = await fetch(`${baseUrl}/api/status/${jobId}`, {
+	const statusUrl = path.join(baseUrl, "/api/status", jobId);
+	const response = await fetch(statusUrl, {
 		headers: {
 			Authorization: `Bearer ${bearerToken}`,
 		},

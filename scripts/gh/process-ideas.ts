@@ -1,3 +1,4 @@
+import path from "node:path";
 import { logError, logInfo, logWarn } from "../../src/utils/logger";
 import {
 	addComment,
@@ -116,7 +117,8 @@ async function processIssue(issue: Issue): Promise<void> {
 
 	try {
 		logInfo("exploration_request_sending", { issue_number: number });
-		const response = await fetch(`${baseUrl}/api/explore`, {
+		const exploreUrl = path.join(baseUrl, "/api/explore");
+		const response = await fetch(exploreUrl, {
 			method: "POST",
 			headers: {
 				Authorization: `Bearer ${bearerToken}`,
@@ -134,6 +136,8 @@ async function processIssue(issue: Issue): Promise<void> {
 				status_code: response.status,
 			});
 
+			const statusUrl = path.join(baseUrl, "/api/status", jobId);
+
 			await addComment(
 				githubToken,
 				repo,
@@ -142,7 +146,7 @@ async function processIssue(issue: Issue): Promise<void> {
 
 The analysis will be available soon. You can check the status at:
 \`\`\`
-${baseUrl}/api/status/${jobId}
+${statusUrl}
 \`\`\`
 
 I'll update this issue when the exploration is complete.`,
