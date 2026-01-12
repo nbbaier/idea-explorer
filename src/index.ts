@@ -49,6 +49,10 @@ app.post(
 );
 
 app.get("/api/jobs", async (c) => {
+	// Note: This implementation loads all jobs into memory for filtering.
+	// For personal use scale (dozens to hundreds of explorations), this is acceptable.
+	// If scaling beyond personal use, consider using KV metadata for filtering
+	// or migrating to a database with proper indexing.
 	const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
 	const jobs = await Promise.all(
 		keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
@@ -71,8 +75,14 @@ app.get("/api/jobs", async (c) => {
 	filtered.sort((a, b) => b.created_at - a.created_at);
 
 	// Paginate
-	const limit = Number.parseInt(c.req.query("limit") || "20", 10);
-	const offset = Number.parseInt(c.req.query("offset") || "0", 10);
+	const limitParam = c.req.query("limit") || "20";
+	const offsetParam = c.req.query("offset") || "0";
+
+	const limit = Math.max(
+		1,
+		Math.min(100, Number.parseInt(limitParam, 10) || 20),
+	);
+	const offset = Math.max(0, Number.parseInt(offsetParam, 10) || 0);
 
 	return c.json({
 		jobs: filtered.slice(offset, offset + limit),

@@ -322,4 +322,81 @@ describe("GET /api/jobs", () => {
 		expect(data.limit).toBe(20);
 		expect(data.offset).toBe(0);
 	});
+
+	it("should validate and clamp limit to max 100", async () => {
+		const jobs = {
+			job1: JSON.stringify({
+				id: "job1",
+				idea: "First idea",
+				mode: "business",
+				model: "sonnet",
+				status: "completed",
+				created_at: 1000,
+			}),
+		};
+
+		const env = createMockEnv(jobs);
+
+		const req = new Request("http://localhost/api/jobs?limit=500", {
+			headers: { Authorization: "Bearer test-token" },
+		});
+
+		const res = await app.fetch(req, env);
+		const data = (await res.json()) as JobsResponse;
+
+		expect(res.status).toBe(200);
+		expect(data.limit).toBe(100); // clamped to max
+	});
+
+	it("should handle negative offset and limit values", async () => {
+		const jobs = {
+			job1: JSON.stringify({
+				id: "job1",
+				idea: "First idea",
+				mode: "business",
+				model: "sonnet",
+				status: "completed",
+				created_at: 1000,
+			}),
+		};
+
+		const env = createMockEnv(jobs);
+
+		const req = new Request("http://localhost/api/jobs?limit=-10&offset=-5", {
+			headers: { Authorization: "Bearer test-token" },
+		});
+
+		const res = await app.fetch(req, env);
+		const data = (await res.json()) as JobsResponse;
+
+		expect(res.status).toBe(200);
+		expect(data.limit).toBe(1); // minimum value
+		expect(data.offset).toBe(0); // clamped to 0
+	});
+
+	it("should handle invalid pagination parameters", async () => {
+		const jobs = {
+			job1: JSON.stringify({
+				id: "job1",
+				idea: "First idea",
+				mode: "business",
+				model: "sonnet",
+				status: "completed",
+				created_at: 1000,
+			}),
+		};
+
+		const env = createMockEnv(jobs);
+
+		const req = new Request("http://localhost/api/jobs?limit=abc&offset=xyz", {
+			headers: { Authorization: "Bearer test-token" },
+		});
+
+		const res = await app.fetch(req, env);
+		const data = (await res.json()) as JobsResponse;
+
+		expect(res.status).toBe(200);
+		expect(data.limit).toBe(20); // default on invalid
+		expect(data.offset).toBe(0); // default on invalid
+	});
 });
