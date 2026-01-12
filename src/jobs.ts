@@ -39,6 +39,7 @@ export const JobSchema = z.object({
   steps_total: z.number().optional(),
   step_started_at: z.number().optional(),
   step_durations: z.record(z.string(), z.number()).optional(),
+  debug_log_path: z.string().nullable().optional(),
 });
 
 export type JobStatus = z.infer<typeof JobStatusSchema>;

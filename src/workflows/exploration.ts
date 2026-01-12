@@ -340,6 +340,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         jobId,
       };
 
+      const rawLogPath = `${folderPath}/exploration-log.raw.jsonl`;
+
       await step.do(
         "run-claude",
         { timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
@@ -364,11 +366,10 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             jobId,
           });
 
-          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits --output-format stream-json --verbose`;
+          const claudeCmd = `bash -lc "set -o pipefail; claude --model ${model} -p \\"${escapeShell(prompt)}\\" --permission-mode acceptEdits --output-format stream-json --verbose 2>&1 | tee /workspace/${rawLogPath}"`;
 
           logClaudeStarted(jobId, model);
           const claudeStartTime = Date.now();
-          let claudeOutput = "";
           let checkpointCount = 0;
 
           const CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000;
@@ -382,9 +383,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           }, CHECKPOINT_INTERVAL_MS);
 
           try {
-            const result = await sandbox.exec(claudeCmd, { cwd: "/workspace" });
-            claudeOutput =
-              typeof result === "string" ? result : (result?.stdout ?? "");
+            await sandbox.exec(claudeCmd, { cwd: "/workspace" });
           } catch (claudeError) {
             logError("claude_execution", claudeError, undefined, jobId);
             const claudeErrorMsg =
@@ -396,14 +395,23 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             clearInterval(checkpointInterval);
           }
 
-          const { summary } = createExplorationLog(claudeOutput, {
+          const rawResult = await sandbox.exec(
+            `cat "/workspace/${rawLogPath}" || true`,
+            { cwd: "/workspace" }
+          );
+          const rawOutput =
+            typeof rawResult === "string"
+              ? rawResult
+              : (rawResult?.stdout ?? "");
+
+          const { entries, summary } = createExplorationLog(rawOutput, {
             jobId,
             model,
             idea,
             startTime: claudeStartTime,
           });
 
-          const logContent = formatAsJsonl([], summary);
+          const logContent = formatAsJsonl(entries, summary);
           await sandbox.exec(
             `cat > "/workspace/${logPath}" << 'EXPLORATION_LOG_EOF'
 ${logContent}
@@ -493,6 +501,8 @@ EXPLORATION_LOG_EOF`,
         folderName: `${datePrefix}-${slug}`,
         slug,
         jobStartTime,
+        idea,
+        model,
       });
       throw error;
     }
@@ -506,6 +516,8 @@ EXPLORATION_LOG_EOF`,
     folderName,
     slug,
     jobStartTime,
+    idea,
+    model,
   }: {
     jobId: string;
     error: unknown;
@@ -514,6 +526,8 @@ EXPLORATION_LOG_EOF`,
     folderName: string;
     slug: string;
     jobStartTime: number;
+    idea: string;
+    model: "sonnet" | "opus";
   }): Promise<void> {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -529,6 +543,7 @@ EXPLORATION_LOG_EOF`,
     logError("exploration_failed", new Error(finalError), undefined, jobId);
 
     let salvageSucceeded = false;
+    let debugLogPath: string | null = null;
     const folderPath = `ideas/${folderName}`;
 
     try {
@@ -548,6 +563,16 @@ EXPLORATION_LOG_EOF`,
       if (hasPartialWork) {
         logInfo("salvage_attempting", undefined, jobId);
 
+        await this.generateDebugLogFromRaw({
+          sandbox,
+          rawLogPath: `${folderPath}/exploration-log.raw.jsonl`,
+          finalLogPath: `${folderPath}/exploration-log.jsonl`,
+          jobId,
+          model,
+          idea,
+          claudeStartTimeGuess: jobStartTime,
+        });
+
         await moveToPartial(sandbox, { folderName, jobId });
 
         salvageSucceeded = await commitPartialWork(sandbox, {
@@ -560,22 +585,85 @@ EXPLORATION_LOG_EOF`,
 
         if (salvageSucceeded) {
           logInfo("salvage_succeeded", undefined, jobId);
+          debugLogPath = `ideas/.partial/${folderName}/exploration-log.jsonl`;
         }
       }
     } catch (salvageError) {
       logError("salvage_failed", salvageError, undefined, jobId);
     }
 
+    await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+      debug_log_path: debugLogPath,
+    });
+
     await completeJobAndNotify({
       kv: this.env.IDEA_EXPLORER_JOBS,
       jobId,
       status: "failed",
       error: salvageSucceeded
-        ? `${finalError} (partial work saved to .partial/)`
+        ? `${finalError} (partial work and debug log saved to .partial/)`
         : finalError,
       githubRepo: this.env.GITHUB_REPO,
       branch,
       jobStartTime,
     });
+  }
+
+  private async generateDebugLogFromRaw({
+    sandbox,
+    rawLogPath,
+    finalLogPath,
+    jobId,
+    model,
+    idea,
+    claudeStartTimeGuess,
+  }: {
+    sandbox: ReturnType<typeof getSandbox>;
+    rawLogPath: string;
+    finalLogPath: string;
+    jobId: string;
+    model: string;
+    idea: string;
+    claudeStartTimeGuess: number;
+  }): Promise<void> {
+    try {
+      const rawResult = await sandbox.exec(
+        `if [ -f "/workspace/${rawLogPath}" ]; then cat "/workspace/${rawLogPath}"; fi`,
+        { cwd: "/workspace" }
+      );
+      const rawOutput =
+        typeof rawResult === "string" ? rawResult : (rawResult?.stdout ?? "");
+
+      if (!rawOutput.trim()) {
+        logInfo("debug_log_no_raw_output", undefined, jobId);
+        return;
+      }
+
+      const { entries, summary } = createExplorationLog(rawOutput, {
+        jobId,
+        model,
+        idea,
+        startTime: claudeStartTimeGuess,
+      });
+
+      const logContent = formatAsJsonl(entries, summary);
+      const logDir = finalLogPath.substring(0, finalLogPath.lastIndexOf("/"));
+
+      await sandbox.exec(
+        `mkdir -p "/workspace/${logDir}" && cat > "/workspace/${finalLogPath}" << 'EXPLORATION_LOG_EOF'
+${logContent}
+EXPLORATION_LOG_EOF`,
+        { cwd: "/workspace" }
+      );
+
+      logInfo("debug_log_generated", { path: finalLogPath }, jobId);
+    } catch (e) {
+      logError(
+        "debug_log_generation_failed",
+        e,
+        { rawLogPath, finalLogPath },
+        jobId
+      );
+    }
   }
 }
