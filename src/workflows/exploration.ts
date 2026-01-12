@@ -364,7 +364,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             jobId,
           });
 
-          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits --output-format stream-json`;
+          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits --output-format stream-json --verbose`;
 
           logClaudeStarted(jobId, model);
           const claudeStartTime = Date.now();
