@@ -376,10 +376,11 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 
 			// Record final step duration
 			const job = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
-			if (job?.step_durations) {
+			if (job) {
 				const duration = Date.now() - stepStartTime;
+				const stepDurations = job.step_durations ?? {};
 				await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
-					step_durations: { ...job.step_durations, notify: duration },
+					step_durations: { ...stepDurations, notify: duration },
 				});
 			}
 		} catch (error) {
