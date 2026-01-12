@@ -1,110 +1,110 @@
 {
-	"project": "Idea Explorer",
-	"branchName": "ralph/same-repo-sparse-checkout",
-	"description": "Migrate idea storage to same repo with Git sparse checkout for efficient container operations",
-	"userStories": [
-		{
-			"id": "US-001",
-			"title": "Update Git clone to use sparse checkout",
-			"description": "As a developer, I need the container to clone the repo efficiently so that container startup is fast and disk usage is minimal.",
-			"acceptanceCriteria": [
-				"Clone uses --filter=blob:none --sparse flags",
-				"Initial clone fetches only repo metadata, not file contents",
-				"Sparse checkout patterns set to ideas/ directory via git sparse-checkout set ideas/",
-				"Clone completes successfully with minimal data transfer",
-				"Typecheck passes"
-			],
-			"priority": 1,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-002",
-			"title": "Update environment configuration for same repo",
-			"description": "As a developer, I need to update configuration so the system uses the correct repository.",
-			"acceptanceCriteria": [
-				"GITHUB_REPO default/example updated to nbbaier/idea-explorer",
-				"wrangler.jsonc vars updated with new repo value",
-				".dev.vars.example updated with new repo value",
-				"README documentation updated to reflect same-repo architecture",
-				"Typecheck passes"
-			],
-			"priority": 2,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-003",
-			"title": "Update duplicate detection for same repo path",
-			"description": "As a developer, I need duplicate detection to query the correct repository path.",
-			"acceptanceCriteria": [
-				"GitHub API queries nbbaier/idea-explorer for ideas/ directory contents",
-				"Slug matching works correctly with ideas/YYYY-MM-DD-<slug>/ path structure",
-				"Returns correct GitHub URL pointing to idea-explorer repo",
-				"Typecheck passes"
-			],
-			"priority": 3,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-004",
-			"title": "Create new idea directories with sparse checkout",
-			"description": "As a user, I want to explore new ideas so that research is saved to the repository.",
-			"acceptanceCriteria": [
-				"New ideas/YYYY-MM-DD-<slug>/ directory created locally in sparse checkout repo",
-				"research.md written to the new directory",
-				"Git add, commit, push succeeds from sparse checkout",
-				"GitHub URL in response points to nbbaier/idea-explorer repo (https://github.com/nbbaier/idea-explorer/blob/main/ideas/...)",
-				"Raw URL uses format https://raw.githubusercontent.com/nbbaier/idea-explorer/main/ideas/...",
-				"Typecheck passes"
-			],
-			"priority": 4,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-005",
-			"title": "Enable browsing existing ideas for cross-referencing",
-			"description": "As an AI exploring an idea, I want access to previous research so that I can identify connections and avoid duplicating analysis.",
-			"acceptanceCriteria": [
-				"Sparse checkout includes all ideas/*/research.md files after git sparse-checkout set ideas/",
-				"Claude Code can read existing research files during analysis",
-				"Prompts updated to encourage cross-referencing previous research when relevant",
-				"Typecheck passes"
-			],
-			"priority": 5,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-006",
-			"title": "Add update flag to API request schema",
-			"description": "As a developer, I need to accept the update flag in the API so users can request idea updates.",
-			"acceptanceCriteria": [
-				"ExploreRequest type includes optional update: boolean field (default: false)",
-				"POST /explore accepts update field in request body",
-				"Job type stores update flag",
-				"Typecheck passes"
-			],
-			"priority": 6,
-			"passes": true,
-			"notes": ""
-		},
-		{
-			"id": "US-007",
-			"title": "Implement update flow for existing ideas",
-			"description": "As a user, I want to update an existing idea's research so that I can iterate on ideas over time.",
-			"acceptanceCriteria": [
-				"When update: false and idea exists: return existing URL (current duplicate detection behavior)",
-				"When update: true and idea exists: sparse-checkout existing folder, run analysis",
-				"Updated research appends new dated section (e.g., ## Update - 2025-01-08) rather than replacing",
-				"Commit message indicates update: idea: <slug> - research updated",
-				"Typecheck passes"
-			],
-			"priority": 7,
-			"passes": true,
-			"notes": ""
-		}
-	]
+  "project": "Idea Explorer",
+  "branchName": "ralph/same-repo-sparse-checkout",
+  "description": "Migrate idea storage to same repo with Git sparse checkout for efficient container operations",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Update Git clone to use sparse checkout",
+      "description": "As a developer, I need the container to clone the repo efficiently so that container startup is fast and disk usage is minimal.",
+      "acceptanceCriteria": [
+        "Clone uses --filter=blob:none --sparse flags",
+        "Initial clone fetches only repo metadata, not file contents",
+        "Sparse checkout patterns set to ideas/ directory via git sparse-checkout set ideas/",
+        "Clone completes successfully with minimal data transfer",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Update environment configuration for same repo",
+      "description": "As a developer, I need to update configuration so the system uses the correct repository.",
+      "acceptanceCriteria": [
+        "GITHUB_REPO default/example updated to nbbaier/idea-explorer",
+        "wrangler.jsonc vars updated with new repo value",
+        ".dev.vars.example updated with new repo value",
+        "README documentation updated to reflect same-repo architecture",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Update duplicate detection for same repo path",
+      "description": "As a developer, I need duplicate detection to query the correct repository path.",
+      "acceptanceCriteria": [
+        "GitHub API queries nbbaier/idea-explorer for ideas/ directory contents",
+        "Slug matching works correctly with ideas/YYYY-MM-DD-<slug>/ path structure",
+        "Returns correct GitHub URL pointing to idea-explorer repo",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create new idea directories with sparse checkout",
+      "description": "As a user, I want to explore new ideas so that research is saved to the repository.",
+      "acceptanceCriteria": [
+        "New ideas/YYYY-MM-DD-<slug>/ directory created locally in sparse checkout repo",
+        "research.md written to the new directory",
+        "Git add, commit, push succeeds from sparse checkout",
+        "GitHub URL in response points to nbbaier/idea-explorer repo (https://github.com/nbbaier/idea-explorer/blob/main/ideas/...)",
+        "Raw URL uses format https://raw.githubusercontent.com/nbbaier/idea-explorer/main/ideas/...",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Enable browsing existing ideas for cross-referencing",
+      "description": "As an AI exploring an idea, I want access to previous research so that I can identify connections and avoid duplicating analysis.",
+      "acceptanceCriteria": [
+        "Sparse checkout includes all ideas/*/research.md files after git sparse-checkout set ideas/",
+        "Claude Code can read existing research files during analysis",
+        "Prompts updated to encourage cross-referencing previous research when relevant",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add update flag to API request schema",
+      "description": "As a developer, I need to accept the update flag in the API so users can request idea updates.",
+      "acceptanceCriteria": [
+        "ExploreRequest type includes optional update: boolean field (default: false)",
+        "POST /explore accepts update field in request body",
+        "Job type stores update flag",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Implement update flow for existing ideas",
+      "description": "As a user, I want to update an existing idea's research so that I can iterate on ideas over time.",
+      "acceptanceCriteria": [
+        "When update: false and idea exists: return existing URL (current duplicate detection behavior)",
+        "When update: true and idea exists: sparse-checkout existing folder, run analysis",
+        "Updated research appends new dated section (e.g., ## Update - 2025-01-08) rather than replacing",
+        "Commit message indicates update: idea: <slug> - research updated",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    }
+  ]
 }

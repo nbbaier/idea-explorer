@@ -1,171 +1,171 @@
 import {
-	WorkflowEntrypoint,
-	type WorkflowEvent,
-	type WorkflowStep,
+  WorkflowEntrypoint,
+  type WorkflowEvent,
+  type WorkflowStep,
 } from "cloudflare:workers";
 import { getSandbox } from "@cloudflare/sandbox";
 import { getJob, updateJob } from "../jobs";
 import { cloneWithRetry, commitAndPush } from "../utils/git";
 import {
-	logClaudeStarted,
-	logCloneComplete,
-	logContainerStarted,
-	logError,
-	logInfo,
-	logJobComplete,
+  logClaudeStarted,
+  logCloneComplete,
+  logContainerStarted,
+  logError,
+  logInfo,
+  logJobComplete,
 } from "../utils/logger";
 import { escapeShell } from "../utils/shell";
 import { generateSlug } from "../utils/slug";
 import { sendWebhook } from "../utils/webhook";
 
-export type JobParams = {
-	jobId: string;
-	idea: string;
-	mode: "business" | "exploration";
-	model: "sonnet" | "opus";
-	context?: string;
-	update?: boolean;
-	webhook_url?: string;
-	callback_secret?: string;
-};
+export interface JobParams {
+  jobId: string;
+  idea: string;
+  mode: "business" | "exploration";
+  model: "sonnet" | "opus";
+  context?: string;
+  update?: boolean;
+  webhook_url?: string;
+  callback_secret?: string;
+}
 
 type ExplorationEnv = Env & {
-	IDEA_EXPLORER_JOBS: KVNamespace;
+  IDEA_EXPLORER_JOBS: KVNamespace;
 };
 
 const WORKFLOW_STEPS: {
-	name: string;
-	label: string;
+  name: string;
+  label: string;
 }[] = [
-	{ name: "initialize", label: "Initializing job..." },
-	{
-		name: "setup_sandbox",
-		label: "Setting up sandbox and cloning repository...",
-	},
-	{ name: "check_existing", label: "Checking for existing research..." },
-	{ name: "run_claude", label: "Running Claude analysis..." },
-	{ name: "commit_push", label: "Committing and pushing results..." },
-	{ name: "notify", label: "Sending completion notification..." },
+  { name: "initialize", label: "Initializing job..." },
+  {
+    name: "setup_sandbox",
+    label: "Setting up sandbox and cloning repository...",
+  },
+  { name: "check_existing", label: "Checking for existing research..." },
+  { name: "run_claude", label: "Running Claude analysis..." },
+  { name: "commit_push", label: "Committing and pushing results..." },
+  { name: "notify", label: "Sending completion notification..." },
 ];
 
 async function updateStepProgress(
-	kv: KVNamespace,
-	jobId: string,
-	stepIndex: number,
-	stepStartTime?: number,
+  kv: KVNamespace,
+  jobId: string,
+  stepIndex: number,
+  stepStartTime?: number
 ): Promise<void> {
-	const currentStep = WORKFLOW_STEPS[stepIndex];
-	const updates: Record<string, unknown> = {
-		current_step: currentStep.name,
-		current_step_label: currentStep.label,
-		steps_completed: stepIndex,
-		steps_total: WORKFLOW_STEPS.length,
-		step_started_at: Date.now(),
-	};
+  const currentStep = WORKFLOW_STEPS[stepIndex];
+  const updates: Record<string, unknown> = {
+    current_step: currentStep.name,
+    current_step_label: currentStep.label,
+    steps_completed: stepIndex,
+    steps_total: WORKFLOW_STEPS.length,
+    step_started_at: Date.now(),
+  };
 
-	if (stepStartTime !== undefined && stepIndex > 0) {
-		const previousStep = WORKFLOW_STEPS[stepIndex - 1];
-		const duration = Date.now() - stepStartTime;
-		const job = await getJob(kv, jobId);
-		const stepDurations = job?.step_durations ?? {};
-		updates.step_durations = {
-			...stepDurations,
-			[previousStep.name]: duration,
-		};
-	}
+  if (stepStartTime !== undefined && stepIndex > 0) {
+    const previousStep = WORKFLOW_STEPS[stepIndex - 1];
+    const duration = Date.now() - stepStartTime;
+    const job = await getJob(kv, jobId);
+    const stepDurations = job?.step_durations ?? {};
+    updates.step_durations = {
+      ...stepDurations,
+      [previousStep.name]: duration,
+    };
+  }
 
-	await updateJob(kv, jobId, updates);
+  await updateJob(kv, jobId, updates);
 }
 
 function getDatePrefix(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 interface CompleteJobParams {
-	kv: KVNamespace;
-	jobId: string;
-	status: "completed" | "failed";
-	githubUrl?: string;
-	error?: string;
-	githubRepo: string;
-	branch: string;
-	jobStartTime: number;
+  kv: KVNamespace;
+  jobId: string;
+  status: "completed" | "failed";
+  githubUrl?: string;
+  error?: string;
+  githubRepo: string;
+  branch: string;
+  jobStartTime: number;
 }
 
 async function completeJobAndNotify({
-	kv,
-	jobId,
-	status,
-	githubUrl,
-	error,
-	githubRepo,
-	branch,
-	jobStartTime,
+  kv,
+  jobId,
+  status,
+  githubUrl,
+  error,
+  githubRepo,
+  branch,
+  jobStartTime,
 }: CompleteJobParams): Promise<void> {
-	const existingJob = await getJob(kv, jobId);
-	if (existingJob?.webhook_sent_at) {
-		logInfo("webhook_already_sent", undefined, jobId);
-		return;
-	}
+  const existingJob = await getJob(kv, jobId);
+  if (existingJob?.webhook_sent_at) {
+    logInfo("webhook_already_sent", undefined, jobId);
+    return;
+  }
 
-	const updatedJob = await updateJob(kv, jobId, {
-		status,
-		...(githubUrl && { github_url: githubUrl }),
-		...(error && { error }),
-		webhook_sent_at: Date.now(),
-	});
+  const updatedJob = await updateJob(kv, jobId, {
+    status,
+    ...(githubUrl && { github_url: githubUrl }),
+    ...(error && { error }),
+    webhook_sent_at: Date.now(),
+  });
 
-	logJobComplete(jobId, status, Date.now() - jobStartTime);
+  logJobComplete(jobId, status, Date.now() - jobStartTime);
 
-	if (updatedJob) {
-		await sendWebhook(updatedJob, githubRepo, branch);
-	}
+  if (updatedJob) {
+    await sendWebhook(updatedJob, githubRepo, branch);
+  }
 }
 
 async function findExistingIdeaFolder(
-	sandbox: ReturnType<typeof getSandbox>,
-	slug: string,
+  sandbox: ReturnType<typeof getSandbox>,
+  slug: string
 ): Promise<string | null> {
-	try {
-		const result = await sandbox.exec(
-			"ls /workspace/ideas/ 2>/dev/null || true",
-			{ cwd: "/workspace" },
-		);
-		const stdout = typeof result === "string" ? result : (result?.stdout ?? "");
-		const matchingFolder = stdout
-			.trim()
-			.split("\n")
-			.filter(Boolean)
-			.find((folder) => folder.endsWith(`-${slug}`));
-		return matchingFolder ?? null;
-	} catch {
-		return null;
-	}
+  try {
+    const result = await sandbox.exec(
+      "ls /workspace/ideas/ 2>/dev/null || true",
+      { cwd: "/workspace" }
+    );
+    const stdout = typeof result === "string" ? result : (result?.stdout ?? "");
+    const matchingFolder = stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .find((folder) => folder.endsWith(`-${slug}`));
+    return matchingFolder ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function buildPrompt({
-	idea,
-	context,
-	isUpdate,
-	datePrefix,
-	promptFile,
-	outputPath,
+  idea,
+  context,
+  isUpdate,
+  datePrefix,
+  promptFile,
+  outputPath,
 }: {
-	idea: string;
-	context?: string;
-	isUpdate: boolean;
-	datePrefix: string;
-	promptFile: string;
-	outputPath: string;
+  idea: string;
+  context?: string;
+  isUpdate: boolean;
+  datePrefix: string;
+  promptFile: string;
+  outputPath: string;
 }): string {
-	const contextPart = context ? `\n\nAdditional context: ${context}` : "";
+  const contextPart = context ? `\n\nAdditional context: ${context}` : "";
 
-	if (isUpdate) {
-		return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
+  if (isUpdate) {
+    return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
 
 Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
 
@@ -176,9 +176,9 @@ Include new insights, updated analysis, or changed recommendations based on curr
 Idea: ${idea}${contextPart}
 
 Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
-	}
+  }
 
-	return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
+  return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
 
 Idea: ${idea}${contextPart}
 
@@ -186,251 +186,251 @@ After completing your analysis, make sure the file /workspace/${outputPath} cont
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<
-	ExplorationEnv,
-	JobParams
+  ExplorationEnv,
+  JobParams
 > {
-	async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
-		const { jobId, idea, mode, model, context, update } = event.payload;
-		const jobStartTime = Date.now();
-		const branch = this.env.GITHUB_BRANCH || "main";
-		const repoUrl = `https://x-access-token:${this.env.GITHUB_PAT}@github.com/${this.env.GITHUB_REPO}.git`;
-		const slug = generateSlug(idea);
-		const datePrefix = getDatePrefix();
+  async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
+    const { jobId, idea, mode, model, context, update } = event.payload;
+    const jobStartTime = Date.now();
+    const branch = this.env.GITHUB_BRANCH || "main";
+    const repoUrl = `https://x-access-token:${this.env.GITHUB_PAT}@github.com/${this.env.GITHUB_REPO}.git`;
+    const slug = generateSlug(idea);
+    const datePrefix = getDatePrefix();
 
-		try {
-			// Step 1: Initialize job
-			let stepStartTime = Date.now();
-			await updateStepProgress(this.env.IDEA_EXPLORER_JOBS, jobId, 0);
-			await step.do(
-				"initialize",
-				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
-				async () => {
-					await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
-						status: "running",
-					});
-					logContainerStarted(jobId);
-				},
-			);
+    try {
+      // Step 1: Initialize job
+      let stepStartTime = Date.now();
+      await updateStepProgress(this.env.IDEA_EXPLORER_JOBS, jobId, 0);
+      await step.do(
+        "initialize",
+        { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
+        async () => {
+          await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+            status: "running",
+          });
+          logContainerStarted(jobId);
+        }
+      );
 
-			// Step 2: Setup sandbox and clone repo
-			await updateStepProgress(
-				this.env.IDEA_EXPLORER_JOBS,
-				jobId,
-				1,
-				stepStartTime,
-			);
-			stepStartTime = Date.now();
-			await step.do(
-				"setup-sandbox",
-				{ retries: { limit: 2, delay: "30 seconds" }, timeout: "5 minutes" },
-				async () => {
-					const sandbox = getSandbox(this.env.Sandbox, jobId);
-					await sandbox.setEnvVars({
-						ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY,
-						GITHUB_PAT: this.env.GITHUB_PAT,
-					});
+      // Step 2: Setup sandbox and clone repo
+      await updateStepProgress(
+        this.env.IDEA_EXPLORER_JOBS,
+        jobId,
+        1,
+        stepStartTime
+      );
+      stepStartTime = Date.now();
+      await step.do(
+        "setup-sandbox",
+        { retries: { limit: 2, delay: "30 seconds" }, timeout: "5 minutes" },
+        async () => {
+          const sandbox = getSandbox(this.env.Sandbox, jobId);
+          await sandbox.setEnvVars({
+            ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY,
+            GITHUB_PAT: this.env.GITHUB_PAT,
+          });
 
-					const cloneStartTime = Date.now();
-					await cloneWithRetry(sandbox, repoUrl, branch, jobId);
-					logCloneComplete(jobId, Date.now() - cloneStartTime);
-				},
-			);
+          const cloneStartTime = Date.now();
+          await cloneWithRetry(sandbox, repoUrl, branch, jobId);
+          logCloneComplete(jobId, Date.now() - cloneStartTime);
+        }
+      );
 
-			// Step 3: Check for existing idea folder
-			await updateStepProgress(
-				this.env.IDEA_EXPLORER_JOBS,
-				jobId,
-				2,
-				stepStartTime,
-			);
-			stepStartTime = Date.now();
-			const existingCheck = await step.do(
-				"check-existing",
-				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
-				async () => {
-					const sandbox = getSandbox(this.env.Sandbox, jobId);
-					const existingFolder = await findExistingIdeaFolder(sandbox, slug);
-					return { existingFolder };
-				},
-			);
+      // Step 3: Check for existing idea folder
+      await updateStepProgress(
+        this.env.IDEA_EXPLORER_JOBS,
+        jobId,
+        2,
+        stepStartTime
+      );
+      stepStartTime = Date.now();
+      const existingCheck = await step.do(
+        "check-existing",
+        { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
+        async () => {
+          const sandbox = getSandbox(this.env.Sandbox, jobId);
+          const existingFolder = await findExistingIdeaFolder(sandbox, slug);
+          return { existingFolder };
+        }
+      );
 
-			// Handle existing idea (no update requested)
-			if (existingCheck.existingFolder && !update) {
-				const existingFolder = existingCheck.existingFolder;
-				await updateStepProgress(
-					this.env.IDEA_EXPLORER_JOBS,
-					jobId,
-					3,
-					stepStartTime,
-				);
-				await step.do(
-					"handle-existing",
-					{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
-					async () => {
-						const outputPath = `ideas/${existingFolder}/research.md`;
-						const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-						logInfo("existing_idea_found", undefined, jobId);
+      // Handle existing idea (no update requested)
+      if (existingCheck.existingFolder && !update) {
+        const existingFolder = existingCheck.existingFolder;
+        await updateStepProgress(
+          this.env.IDEA_EXPLORER_JOBS,
+          jobId,
+          3,
+          stepStartTime
+        );
+        await step.do(
+          "handle-existing",
+          { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
+          async () => {
+            const outputPath = `ideas/${existingFolder}/research.md`;
+            const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
+            logInfo("existing_idea_found", undefined, jobId);
 
-						await completeJobAndNotify({
-							kv: this.env.IDEA_EXPLORER_JOBS,
-							jobId,
-							status: "completed",
-							githubUrl,
-							githubRepo: this.env.GITHUB_REPO,
-							branch,
-							jobStartTime,
-						});
-					},
-				);
-				return;
-			}
+            await completeJobAndNotify({
+              kv: this.env.IDEA_EXPLORER_JOBS,
+              jobId,
+              status: "completed",
+              githubUrl,
+              githubRepo: this.env.GITHUB_REPO,
+              branch,
+              jobStartTime,
+            });
+          }
+        );
+        return;
+      }
 
-			const folderName =
-				existingCheck.existingFolder || `${datePrefix}-${slug}`;
-			const outputPath = `ideas/${folderName}/research.md`;
-			const isUpdate = !!(existingCheck.existingFolder && update);
+      const folderName =
+        existingCheck.existingFolder || `${datePrefix}-${slug}`;
+      const outputPath = `ideas/${folderName}/research.md`;
+      const isUpdate = !!(existingCheck.existingFolder && update);
 
-			// Step 4: Run Claude Code exploration (no retries - re-running can produce different results)
-			await updateStepProgress(
-				this.env.IDEA_EXPLORER_JOBS,
-				jobId,
-				3,
-				stepStartTime,
-			);
-			stepStartTime = Date.now();
-			await step.do(
-				"run-claude",
-				{ timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
-				async () => {
-					const sandbox = getSandbox(this.env.Sandbox, jobId);
-					await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
+      // Step 4: Run Claude Code exploration (no retries - re-running can produce different results)
+      await updateStepProgress(
+        this.env.IDEA_EXPLORER_JOBS,
+        jobId,
+        3,
+        stepStartTime
+      );
+      stepStartTime = Date.now();
+      await step.do(
+        "run-claude",
+        { timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
+        async () => {
+          const sandbox = getSandbox(this.env.Sandbox, jobId);
+          await sandbox.exec(`mkdir -p "/workspace/ideas/${folderName}"`);
 
-					const promptFile =
-						mode === "business"
-							? "/prompts/business.md"
-							: "/prompts/exploration.md";
+          const promptFile =
+            mode === "business"
+              ? "/prompts/business.md"
+              : "/prompts/exploration.md";
 
-					const prompt = buildPrompt({
-						idea,
-						context,
-						isUpdate,
-						datePrefix,
-						promptFile,
-						outputPath,
-					});
+          const prompt = buildPrompt({
+            idea,
+            context,
+            isUpdate,
+            datePrefix,
+            promptFile,
+            outputPath,
+          });
 
-					const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
+          const claudeCmd = `claude --model ${model} -p "${escapeShell(prompt)}" --permission-mode acceptEdits`;
 
-					logClaudeStarted(jobId, model);
-					try {
-						await sandbox.exec(claudeCmd, { cwd: "/workspace" });
-					} catch (claudeError) {
-						logError("claude_execution", claudeError, undefined, jobId);
-						const claudeErrorMsg =
-							claudeError instanceof Error
-								? claudeError.message
-								: "Claude execution failed";
-						throw new Error(`Claude Code error: ${claudeErrorMsg}`);
-					}
-					logInfo("claude_complete", undefined, jobId);
-				},
-			);
+          logClaudeStarted(jobId, model);
+          try {
+            await sandbox.exec(claudeCmd, { cwd: "/workspace" });
+          } catch (claudeError) {
+            logError("claude_execution", claudeError, undefined, jobId);
+            const claudeErrorMsg =
+              claudeError instanceof Error
+                ? claudeError.message
+                : "Claude execution failed";
+            throw new Error(`Claude Code error: ${claudeErrorMsg}`);
+          }
+          logInfo("claude_complete", undefined, jobId);
+        }
+      );
 
-			// Step 5: Commit and push results
-			await updateStepProgress(
-				this.env.IDEA_EXPLORER_JOBS,
-				jobId,
-				4,
-				stepStartTime,
-			);
-			stepStartTime = Date.now();
-			await step.do(
-				"commit-push",
-				{ retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
-				async () => {
-					const sandbox = getSandbox(this.env.Sandbox, jobId);
-					const commitMessage = isUpdate
-						? `idea: ${slug} - research updated`
-						: `idea: ${slug} - research complete`;
+      // Step 5: Commit and push results
+      await updateStepProgress(
+        this.env.IDEA_EXPLORER_JOBS,
+        jobId,
+        4,
+        stepStartTime
+      );
+      stepStartTime = Date.now();
+      await step.do(
+        "commit-push",
+        { retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
+        async () => {
+          const sandbox = getSandbox(this.env.Sandbox, jobId);
+          const commitMessage = isUpdate
+            ? `idea: ${slug} - research updated`
+            : `idea: ${slug} - research complete`;
 
-					await commitAndPush(sandbox, {
-						outputPath,
-						message: escapeShell(commitMessage),
-						branch,
-						repoUrl,
-						jobId,
-					});
-				},
-			);
+          await commitAndPush(sandbox, {
+            outputPath,
+            message: escapeShell(commitMessage),
+            branch,
+            repoUrl,
+            jobId,
+          });
+        }
+      );
 
-			// Step 6: Notify completion
-			await updateStepProgress(
-				this.env.IDEA_EXPLORER_JOBS,
-				jobId,
-				5,
-				stepStartTime,
-			);
-			stepStartTime = Date.now();
-			await step.do(
-				"notify",
-				{ retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
-				async () => {
-					const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-					await completeJobAndNotify({
-						kv: this.env.IDEA_EXPLORER_JOBS,
-						jobId,
-						status: "completed",
-						githubUrl,
-						githubRepo: this.env.GITHUB_REPO,
-						branch,
-						jobStartTime,
-					});
-				},
-			);
+      // Step 6: Notify completion
+      await updateStepProgress(
+        this.env.IDEA_EXPLORER_JOBS,
+        jobId,
+        5,
+        stepStartTime
+      );
+      stepStartTime = Date.now();
+      await step.do(
+        "notify",
+        { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
+        async () => {
+          const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
+          await completeJobAndNotify({
+            kv: this.env.IDEA_EXPLORER_JOBS,
+            jobId,
+            status: "completed",
+            githubUrl,
+            githubRepo: this.env.GITHUB_REPO,
+            branch,
+            jobStartTime,
+          });
+        }
+      );
 
-			// Record final step duration
-			const job = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
-			if (job) {
-				const duration = Date.now() - stepStartTime;
-				const stepDurations = job.step_durations ?? {};
-				await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
-					step_durations: { ...stepDurations, notify: duration },
-				});
-			}
-		} catch (error) {
-			// Update job status to failed
-			await this.handleFailure(jobId, error, branch, jobStartTime);
-			throw error;
-		}
-	}
+      // Record final step duration
+      const job = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
+      if (job) {
+        const duration = Date.now() - stepStartTime;
+        const stepDurations = job.step_durations ?? {};
+        await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+          step_durations: { ...stepDurations, notify: duration },
+        });
+      }
+    } catch (error) {
+      // Update job status to failed
+      await this.handleFailure(jobId, error, branch, jobStartTime);
+      throw error;
+    }
+  }
 
-	private async handleFailure(
-		jobId: string,
-		error: unknown,
-		branch: string,
-		jobStartTime: number,
-	): Promise<void> {
-		const errorMessage =
-			error instanceof Error ? error.message : "Unknown error";
-		const isTimeout =
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("TIMEOUT") ||
-			errorMessage.includes("timed out");
+  private async handleFailure(
+    jobId: string,
+    error: unknown,
+    branch: string,
+    jobStartTime: number
+  ): Promise<void> {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const isTimeout =
+      errorMessage.includes("timeout") ||
+      errorMessage.includes("TIMEOUT") ||
+      errorMessage.includes("timed out");
 
-		const finalError = isTimeout
-			? "Container execution timed out (15 minute limit exceeded)"
-			: errorMessage;
+    const finalError = isTimeout
+      ? "Container execution timed out (15 minute limit exceeded)"
+      : errorMessage;
 
-		logError("exploration_failed", new Error(finalError), undefined, jobId);
+    logError("exploration_failed", new Error(finalError), undefined, jobId);
 
-		await completeJobAndNotify({
-			kv: this.env.IDEA_EXPLORER_JOBS,
-			jobId,
-			status: "failed",
-			error: finalError,
-			githubRepo: this.env.GITHUB_REPO,
-			branch,
-			jobStartTime,
-		});
-	}
+    await completeJobAndNotify({
+      kv: this.env.IDEA_EXPLORER_JOBS,
+      jobId,
+      status: "failed",
+      error: finalError,
+      githubRepo: this.env.GITHUB_REPO,
+      branch,
+      jobStartTime,
+    });
+  }
 }

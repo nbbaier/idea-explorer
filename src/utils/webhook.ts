@@ -4,25 +4,25 @@ import { logError, logWebhookSent } from "./logger";
 import { retryWithBackoff } from "./retry";
 
 const WebhookSuccessPayloadSchema = z.object({
-	status: z.literal("completed"),
-	job_id: z.string(),
-	idea: z.string(),
-	github_url: z.string(),
-	github_raw_url: z.string(),
-	step_durations: z.record(z.string(), z.number()).optional(),
+  status: z.literal("completed"),
+  job_id: z.string(),
+  idea: z.string(),
+  github_url: z.string(),
+  github_raw_url: z.string(),
+  step_durations: z.record(z.string(), z.number()).optional(),
 });
 
 const WebhookFailurePayloadSchema = z.object({
-	status: z.literal("failed"),
-	job_id: z.string(),
-	idea: z.string(),
-	error: z.string(),
-	step_durations: z.record(z.string(), z.number()).optional(),
+  status: z.literal("failed"),
+  job_id: z.string(),
+  idea: z.string(),
+  error: z.string(),
+  step_durations: z.record(z.string(), z.number()).optional(),
 });
 
 const WebhookPayloadSchema = z.discriminatedUnion("status", [
-	WebhookSuccessPayloadSchema,
-	WebhookFailurePayloadSchema,
+  WebhookSuccessPayloadSchema,
+  WebhookFailurePayloadSchema,
 ]);
 
 export type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
@@ -30,117 +30,119 @@ export type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 
 async function generateSignature(
-	secret: string,
-	body: string,
+  secret: string,
+  body: string
 ): Promise<string> {
-	const encoder = new TextEncoder();
-	const key = await crypto.subtle.importKey(
-		"raw",
-		encoder.encode(secret),
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign"],
-	);
-	const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-	const hashArray = Array.from(new Uint8Array(signature));
-	const hashHex = hashArray
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("");
-	return `sha256=${hashHex}`;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const hashArray = Array.from(new Uint8Array(signature));
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `sha256=${hashHex}`;
 }
 
 function buildSuccessPayload(
-	job: Job,
-	githubRepo: string,
-	branch: string,
+  job: Job,
+  githubRepo: string,
+  branch: string
 ): WebhookSuccessPayload {
-	const githubUrl = job.github_url ?? "";
-	const outputPath = githubUrl.split(`/blob/${branch}/`)[1] ?? "";
-	const githubRawUrl = outputPath
-		? `https://raw.githubusercontent.com/${githubRepo}/${branch}/${outputPath}`
-		: "";
+  const githubUrl = job.github_url ?? "";
+  const outputPath = githubUrl.split(`/blob/${branch}/`)[1] ?? "";
+  const githubRawUrl = outputPath
+    ? `https://raw.githubusercontent.com/${githubRepo}/${branch}/${outputPath}`
+    : "";
 
-	return {
-		status: "completed",
-		job_id: job.id,
-		idea: job.idea,
-		github_url: githubUrl,
-		github_raw_url: githubRawUrl,
-		...(job.step_durations && { step_durations: job.step_durations }),
-	};
+  return {
+    status: "completed",
+    job_id: job.id,
+    idea: job.idea,
+    github_url: githubUrl,
+    github_raw_url: githubRawUrl,
+    ...(job.step_durations && { step_durations: job.step_durations }),
+  };
 }
 
 function buildFailurePayload(job: Job): WebhookFailurePayload {
-	return {
-		status: "failed",
-		job_id: job.id,
-		idea: job.idea,
-		error: job.error ?? "Unknown error",
-		...(job.step_durations && { step_durations: job.step_durations }),
-	};
+  return {
+    status: "failed",
+    job_id: job.id,
+    idea: job.idea,
+    error: job.error ?? "Unknown error",
+    ...(job.step_durations && { step_durations: job.step_durations }),
+  };
 }
 
-const RETRY_DELAYS_MS = [1000, 5000, 30000]; // 1s, 5s, 30s
+const RETRY_DELAYS_MS = [1000, 5000, 30_000]; // 1s, 5s, 30s
 const MAX_ATTEMPTS = 3;
 
 interface WebhookResponse {
-	ok: boolean;
-	status: number;
+  ok: boolean;
+  status: number;
 }
 
 export async function sendWebhook(
-	job: Job,
-	githubRepo: string,
-	branch: string,
-	extraHeaders?: Record<string, string>,
+  job: Job,
+  githubRepo: string,
+  branch: string,
+  extraHeaders?: Record<string, string>
 ): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
-	if (!job.webhook_url) return { success: true, attempts: 0 };
+  if (!job.webhook_url) {
+    return { success: true, attempts: 0 };
+  }
 
-	const webhookUrl = job.webhook_url;
+  const webhookUrl = job.webhook_url;
 
-	const payload: WebhookPayload =
-		job.status === "completed"
-			? buildSuccessPayload(job, githubRepo, branch)
-			: buildFailurePayload(job);
+  const payload: WebhookPayload =
+    job.status === "completed"
+      ? buildSuccessPayload(job, githubRepo, branch)
+      : buildFailurePayload(job);
 
-	const body = JSON.stringify(payload);
+  const body = JSON.stringify(payload);
 
-	const headers: Record<string, string> = {
-		"Content-Type": "application/json",
-		...extraHeaders,
-	};
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...extraHeaders,
+  };
 
-	if (job.callback_secret) {
-		headers["X-Signature"] = await generateSignature(job.callback_secret, body);
-	}
+  if (job.callback_secret) {
+    headers["X-Signature"] = await generateSignature(job.callback_secret, body);
+  }
 
-	const result = await retryWithBackoff<WebhookResponse>(
-		async (attempt) => {
-			try {
-				const response = await fetch(webhookUrl, {
-					method: "POST",
-					headers,
-					body,
-				});
-				return { ok: response.ok, status: response.status };
-			} catch (error) {
-				logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
-				return { ok: false, status: 0 };
-			}
-		},
-		(response) => !response.ok,
-		{
-			maxAttempts: MAX_ATTEMPTS,
-			delaysMs: RETRY_DELAYS_MS,
-		},
-		(attempt, response) => {
-			logWebhookSent(job.id, response.status, attempt);
-		},
-	);
+  const result = await retryWithBackoff<WebhookResponse>(
+    async (attempt) => {
+      try {
+        const response = await fetch(webhookUrl, {
+          method: "POST",
+          headers,
+          body,
+        });
+        return { ok: response.ok, status: response.status };
+      } catch (error) {
+        logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
+        return { ok: false, status: 0 };
+      }
+    },
+    (response) => !response.ok,
+    {
+      maxAttempts: MAX_ATTEMPTS,
+      delaysMs: RETRY_DELAYS_MS,
+    },
+    (attempt, response) => {
+      logWebhookSent(job.id, response.status, attempt);
+    }
+  );
 
-	return {
-		success: result.success,
-		statusCode: result.result?.status,
-		attempts: result.attempts,
-	};
+  return {
+    success: result.success,
+    statusCode: result.result?.status,
+    attempts: result.attempts,
+  };
 }

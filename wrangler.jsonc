@@ -1,50 +1,50 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "idea-explorer",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-05-06",
-	"compatibility_flags": ["nodejs_compat"],
-	"workers_dev": true,
-	"observability": {
-		"enabled": true
-	},
-	"vars": {
-		"GITHUB_REPO": "nbbaier/idea-explorer",
-		"GITHUB_BRANCH": "main"
-	},
-	"containers": [
-		{
-			"class_name": "Sandbox",
-			"image": "./Dockerfile",
-			"instance_type": "basic"
-		}
-	],
-	"durable_objects": {
-		"bindings": [
-			{
-				"class_name": "Sandbox",
-				"name": "Sandbox"
-			}
-		]
-	},
-	"migrations": [
-		{
-			"new_sqlite_classes": ["Sandbox"],
-			"tag": "v1"
-		}
-	],
-	"kv_namespaces": [
-		{
-			"binding": "IDEA_EXPLORER_JOBS",
-			"id": "dbcbf4512f9f4fd18a20d5fc7e23d3ef",
-			"preview_id": "28ee7c8f6b504387b6eab6d2ffde4ed9"
-		}
-	],
-	"workflows": [
-		{
-			"name": "exploration-workflow",
-			"binding": "EXPLORATION_WORKFLOW",
-			"class_name": "ExplorationWorkflow"
-		}
-	]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "idea-explorer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "GITHUB_REPO": "nbbaier/idea-explorer",
+    "GITHUB_BRANCH": "main"
+  },
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      "instance_type": "basic"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Sandbox",
+        "name": "Sandbox"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["Sandbox"],
+      "tag": "v1"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "IDEA_EXPLORER_JOBS",
+      "id": "dbcbf4512f9f4fd18a20d5fc7e23d3ef",
+      "preview_id": "28ee7c8f6b504387b6eab6d2ffde4ed9"
+    }
+  ],
+  "workflows": [
+    {
+      "name": "exploration-workflow",
+      "binding": "EXPLORATION_WORKFLOW",
+      "class_name": "ExplorationWorkflow"
+    }
+  ]
 }
