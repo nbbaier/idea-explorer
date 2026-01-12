@@ -163,7 +163,7 @@ Check the status of an exploration job.
 |-------|------|-------------|
 | `current_step` | string | Name of the current workflow step |
 | `current_step_label` | string | Human-readable description of current step |
-| `steps_completed` | number | Number of steps completed (0-based index) |
+| `steps_completed` | number | Number of steps completed so far (0 = no steps completed yet) |
 | `steps_total` | number | Total number of steps in the workflow (6) |
 | `step_started_at` | number | Unix timestamp (ms) when current step started |
 | `step_durations` | object | Map of completed step names to duration (ms) |
