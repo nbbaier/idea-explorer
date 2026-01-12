@@ -131,7 +131,7 @@ curl "https://idea-explorer.your-domain.workers.dev/api/jobs?status=completed&mo
 
 | Query Param | Type                            | Description                              |
 | ----------- | ------------------------------- | ---------------------------------------- |
-| `status`    | `"pending"` \| `"completed"` \| `"failed"` | Filter by job status          |
+| `status`    | `"pending"` \| `"running"` \| `"completed"` \| `"failed"` | Filter by job status          |
 | `mode`      | `"business"` \| `"exploration"` | Filter by analysis mode                  |
 | `limit`     | number                          | Max results to return (1-100, default 20)|
 | `offset`    | number                          | Pagination offset (default 0)            |

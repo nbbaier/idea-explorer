@@ -1,7 +1,14 @@
 import { Sandbox } from "@cloudflare/sandbox";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { createJob, ExploreRequestSchema, getJob, type Job } from "./jobs";
+import {
+	createJob,
+	ExploreModeSchema,
+	ExploreRequestSchema,
+	getJob,
+	type Job,
+	JobStatusSchema,
+} from "./jobs";
 import { requireAuth } from "./middleware/auth";
 import { logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
@@ -53,21 +60,44 @@ app.get("/api/jobs", async (c) => {
 	// For personal use scale (dozens to hundreds of explorations), this is acceptable.
 	// If scaling beyond personal use, consider using KV metadata for filtering
 	// or migrating to a database with proper indexing.
-	const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-	const jobs = await Promise.all(
-		keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
-	);
+	let jobs: (Job | null)[];
+	try {
+		const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
+		jobs = await Promise.all(
+			keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
+		);
+	} catch {
+		return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+	}
 
 	// Apply filters
 	let filtered = jobs.filter((j) => j != null) as Job[];
 
 	const statusFilter = c.req.query("status");
 	if (statusFilter) {
+		const statusValidation = JobStatusSchema.safeParse(statusFilter);
+		if (!statusValidation.success) {
+			return c.json(
+				{
+					error: `Invalid status value. Must be one of: ${JobStatusSchema.options.join(", ")}`,
+				},
+				400,
+			);
+		}
 		filtered = filtered.filter((j) => j.status === statusFilter);
 	}
 
 	const modeFilter = c.req.query("mode");
 	if (modeFilter) {
+		const modeValidation = ExploreModeSchema.safeParse(modeFilter);
+		if (!modeValidation.success) {
+			return c.json(
+				{
+					error: `Invalid mode value. Must be one of: ${ExploreModeSchema.options.join(", ")}`,
+				},
+				400,
+			);
+		}
 		filtered = filtered.filter((j) => j.mode === modeFilter);
 	}
 
