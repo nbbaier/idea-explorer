@@ -1,7 +1,14 @@
 import { Sandbox } from "@cloudflare/sandbox";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
-import { createJob, ExploreRequestSchema, getJob, type Job } from "./jobs";
+import {
+	createJob,
+	ExploreModeSchema,
+	ExploreRequestSchema,
+	getJob,
+	type Job,
+	JobStatusSchema,
+} from "./jobs";
 import { requireAuth } from "./middleware/auth";
 import { logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
@@ -47,6 +54,73 @@ app.post(
 		return c.json({ job_id: job.id, status: "pending" }, 202);
 	},
 );
+
+app.get("/api/jobs", async (c) => {
+	// Note: This implementation loads all jobs into memory for filtering.
+	// For personal use scale (dozens to hundreds of explorations), this is acceptable.
+	// If scaling beyond personal use, consider using KV metadata for filtering
+	// or migrating to a database with proper indexing.
+	let jobs: (Job | null)[];
+	try {
+		const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
+		jobs = await Promise.all(
+			keys.map((k) => c.env.IDEA_EXPLORER_JOBS.get(k.name, "json")),
+		);
+	} catch {
+		return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+	}
+
+	// Apply filters
+	let filtered = jobs.filter((j) => j != null) as Job[];
+
+	const statusFilter = c.req.query("status");
+	if (statusFilter) {
+		const statusValidation = JobStatusSchema.safeParse(statusFilter);
+		if (!statusValidation.success) {
+			return c.json(
+				{
+					error: `Invalid status value. Must be one of: ${JobStatusSchema.options.join(", ")}`,
+				},
+				400,
+			);
+		}
+		filtered = filtered.filter((j) => j.status === statusFilter);
+	}
+
+	const modeFilter = c.req.query("mode");
+	if (modeFilter) {
+		const modeValidation = ExploreModeSchema.safeParse(modeFilter);
+		if (!modeValidation.success) {
+			return c.json(
+				{
+					error: `Invalid mode value. Must be one of: ${ExploreModeSchema.options.join(", ")}`,
+				},
+				400,
+			);
+		}
+		filtered = filtered.filter((j) => j.mode === modeFilter);
+	}
+
+	// Sort by created_at descending
+	filtered.sort((a, b) => b.created_at - a.created_at);
+
+	// Paginate
+	const limitParam = c.req.query("limit") || "20";
+	const offsetParam = c.req.query("offset") || "0";
+
+	const limit = Math.max(
+		1,
+		Math.min(100, Number.parseInt(limitParam, 10) || 20),
+	);
+	const offset = Math.max(0, Number.parseInt(offsetParam, 10) || 0);
+
+	return c.json({
+		jobs: filtered.slice(offset, offset + limit),
+		total: filtered.length,
+		limit,
+		offset,
+	});
+});
 
 app.get("/api/status/:id", async (c) => {
 	const jobId = c.req.param("id");
@@ -111,6 +185,7 @@ app.get("/", async (c) => {
     </p>
     <h3>API</h3>
     <p>POST /api/explore</p>
+    <p>GET /api/jobs</p>
     <p>GET /api/status/:id</p>
     <p>GET /api/health</p>
     <p>GET /api/test-webhook</p>
