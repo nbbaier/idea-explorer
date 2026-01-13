@@ -253,29 +253,30 @@ In `worker-configuration.d.ts`:
 
 ### 4.1 Delete Files
 
-- [ ] `src/utils/git.ts` (sandbox git operations)
-- [ ] `src/utils/shell.ts` (shell escaping)
-- [ ] `src/utils/claude-log.ts` (raw JSONL parsing)
-- [ ] `Dockerfile` (container image)
-- [ ] `prompts/` directory (now embedded)
+- [x] `src/utils/git.ts` (sandbox git operations)
+- [x] `src/utils/shell.ts` (shell escaping)
+- [x] `src/utils/claude-log.ts` (raw JSONL parsing)
+- [x] `Dockerfile` (container image)
+- [x] `prompts/` directory (now embedded)
 
 ### 4.2 Update Dependencies
 
 In `package.json`, remove:
-- `@cloudflare/sandbox`
-- `shescape` (shell escaping library)
+- [x] `@cloudflare/sandbox` (not present - never added)
+- [x] `shescape` (not present - never added)
+- [x] Updated package name and description
 
 ### 4.3 Simplify Logger
 
 In `src/utils/logger.ts`:
-- Remove sandbox-specific log events (`logContainerStarted`, `logCloneComplete`, etc.)
-- Add new events for HTTP operations
+- [x] Remove sandbox-specific log events (`logContainerStarted`, `logCloneComplete`, `logCommitPushed`)
+- [x] HTTP operation events handled via generic `logInfo`
 
 ### 4.4 Update Documentation
 
-- [ ] Update `README.md` to reflect new architecture
-- [ ] Update `SPEC.md` if API behavior changes
-- [ ] Archive `ARCHITECTURE-REVIEW.md` or mark as implemented
+- [x] Update `README.md` to reflect new architecture
+- [x] Update `SPEC.md` if API behavior changes
+- [x] Archive `ARCHITECTURE-REVIEW.md` or mark as implemented
 
 ---
 
