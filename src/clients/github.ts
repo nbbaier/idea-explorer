@@ -38,7 +38,7 @@ export class GitHubClient {
   constructor(config: GitHubConfig, octokit?: unknown) {
     this.octokit =
       (octokit as OctokitInstance) ?? new Octokit({ auth: config.pat });
-    const [owner, repo] = config.repo.split("/");
+    const [owner = "", repo = ""] = config.repo.split("/");
     this.owner = owner;
     this.repo = repo;
     this.branch = config.branch;

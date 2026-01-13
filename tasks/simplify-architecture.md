@@ -210,7 +210,7 @@ interface ExplorationLog {
 ```
 
 ### Files to modify:
-- [ ] `src/workflows/exploration.ts`
+- [x] `src/workflows/exploration.ts`
 
 ### Tests to add:
 - [ ] `src/workflows/exploration.test.ts`

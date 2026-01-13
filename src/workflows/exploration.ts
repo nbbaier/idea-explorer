@@ -3,25 +3,11 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
-import { getSandbox } from "@cloudflare/sandbox";
+import { AnthropicClient } from "../clients/anthropic";
+import { GitHubClient } from "../clients/github";
 import { getJob, updateJob } from "../jobs";
-import { createExplorationLog, formatAsJsonl } from "../utils/claude-log";
-import {
-  cloneWithRetry,
-  commitAndPush,
-  commitPartialWork,
-  moveToPartial,
-  squashWipCommits,
-} from "../utils/git";
-import {
-  logClaudeStarted,
-  logCloneComplete,
-  logContainerStarted,
-  logError,
-  logInfo,
-  logJobComplete,
-} from "../utils/logger";
-import { escapeShell } from "../utils/shell";
+import { buildSystemPrompt, buildUserPrompt } from "../prompts";
+import { logError, logInfo, logJobComplete } from "../utils/logger";
 import { generateSlug } from "../utils/slug";
 import { sendWebhook } from "../utils/webhook";
 
@@ -45,13 +31,9 @@ const WORKFLOW_STEPS: {
   label: string;
 }[] = [
   { name: "initialize", label: "Initializing job..." },
-  {
-    name: "setup_sandbox",
-    label: "Setting up sandbox and cloning repository...",
-  },
   { name: "check_existing", label: "Checking for existing research..." },
-  { name: "run_claude", label: "Running Claude analysis..." },
-  { name: "commit_push", label: "Committing and pushing results..." },
+  { name: "generate_research", label: "Generating research with Claude..." },
+  { name: "write_github", label: "Writing results to GitHub..." },
   { name: "notify", label: "Sending completion notification..." },
 ];
 
@@ -133,88 +115,22 @@ async function completeJobAndNotify({
   }
 }
 
-async function findExistingIdeaFolder(
-  sandbox: ReturnType<typeof getSandbox>,
-  slug: string
-): Promise<string | null> {
-  try {
-    const result = await sandbox.exec(
-      "ls /workspace/ideas/ 2>/dev/null || true",
-      { cwd: "/workspace" }
-    );
-    const stdout = typeof result === "string" ? result : (result?.stdout ?? "");
-    const matchingFolder = stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .find((folder) => folder.endsWith(`-${slug}`));
-    return matchingFolder ?? null;
-  } catch {
-    return null;
-  }
-}
-
-interface BuildPromptParams {
+interface ExplorationLog {
+  jobId: string;
   idea: string;
-  context?: string;
-  isUpdate: boolean;
-  datePrefix: string;
-  promptFile: string;
-  outputPath: string;
   mode: "business" | "exploration";
   model: "sonnet" | "opus";
-  jobId: string;
-}
-
-function buildMetadataBlock(params: BuildPromptParams): string {
-  const lines = [
-    "---",
-    `idea: "${params.idea.replace(/"/g, '\\"')}"`,
-    `mode: ${params.mode}`,
-    `model: ${params.model}`,
-    `date: ${params.datePrefix}`,
-    `job_id: ${params.jobId}`,
-  ];
-
-  if (params.context) {
-    lines.push(`context: "${params.context.replace(/"/g, '\\"')}"`);
-  }
-
-  lines.push("---", "");
-  return lines.join("\n");
-}
-
-function buildPrompt(params: BuildPromptParams): string {
-  const { idea, context, isUpdate, datePrefix, promptFile, outputPath } =
-    params;
-  const contextPart = context ? `\n\nAdditional context: ${context}` : "";
-  const metadataBlock = buildMetadataBlock(params);
-
-  if (isUpdate) {
-    return `Read the prompt template at ${promptFile} and the existing research at /workspace/${outputPath}.
-
-Analyze the following idea with fresh perspective. Append a new section to the existing research file with the header:
-
-## Update - ${datePrefix}
-
-Include new insights, updated analysis, or changed recommendations based on current thinking.
-
-Idea: ${idea}${contextPart}
-
-Make sure to preserve all existing content and append the new update section at the end of /workspace/${outputPath}.`;
-  }
-
-  return `Read the prompt template at ${promptFile} and use it to analyze the following idea. Write your complete analysis to /workspace/${outputPath}
-
-IMPORTANT: Start the file with this exact YAML frontmatter metadata block:
-
-${metadataBlock}
-
-Then follow with your analysis content.
-
-Idea: ${idea}${contextPart}
-
-After completing your analysis, make sure the file /workspace/${outputPath} contains your full research output starting with the metadata block.`;
+  context?: string;
+  isUpdate: boolean;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  tokens: {
+    input: number;
+    output: number;
+    total: number;
+  };
+  outputPath: string;
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<
@@ -225,9 +141,28 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GITHUB_BRANCH || "main";
-    const repoUrl = `https://x-access-token:${this.env.GITHUB_PAT}@github.com/${this.env.GITHUB_REPO}.git`;
     const slug = generateSlug(idea);
     const datePrefix = getDatePrefix();
+
+    const github = new GitHubClient({
+      pat: this.env.GITHUB_PAT,
+      repo: this.env.GITHUB_REPO,
+      branch,
+    });
+
+    const anthropic = new AnthropicClient({
+      apiKey: this.env.ANTHROPIC_API_KEY,
+      model,
+    });
+
+    const researchPath = `ideas/${datePrefix}-${slug}/research.md`;
+    const logPath = `ideas/${datePrefix}-${slug}/exploration-log.json`;
+
+    let existingContent: string | undefined;
+    let existingSha: string | undefined;
+    let researchContent = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
 
     try {
       // Step 1: Initialize job
@@ -240,11 +175,11 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
             status: "running",
           });
-          logContainerStarted(jobId);
+          logInfo("job_started", { mode, model }, jobId);
         }
       );
 
-      // Step 2: Setup sandbox and clone repo
+      // Step 2: Check for existing research (for update mode)
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -253,22 +188,38 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       );
       stepStartTime = Date.now();
       await step.do(
-        "setup-sandbox",
-        { retries: { limit: 2, delay: "30 seconds" }, timeout: "5 minutes" },
+        "check-existing",
+        { retries: { limit: 3, delay: "10 seconds" }, timeout: "1 minute" },
         async () => {
-          const sandbox = getSandbox(this.env.Sandbox, jobId);
-          await sandbox.setEnvVars({
-            ANTHROPIC_API_KEY: this.env.ANTHROPIC_API_KEY,
-            GITHUB_PAT: this.env.GITHUB_PAT,
-          });
+          if (update) {
+            const directories = await github.listDirectory("ideas");
+            const matchingDir = directories.find(
+              (dir) => dir.type === "dir" && dir.name.endsWith(`-${slug}`)
+            );
 
-          const cloneStartTime = Date.now();
-          await cloneWithRetry(sandbox, repoUrl, branch, jobId);
-          logCloneComplete(jobId, Date.now() - cloneStartTime);
+            if (matchingDir) {
+              const existingResearchPath = `${matchingDir.path}/research.md`;
+              const existing = await github.getFile(existingResearchPath);
+              if (existing) {
+                existingContent = existing.content;
+                existingSha = existing.sha;
+                logInfo(
+                  "existing_research_found",
+                  { path: existingResearchPath },
+                  jobId
+                );
+              }
+            }
+          }
+          logInfo(
+            "check_existing_complete",
+            { hasExisting: !!existingContent },
+            jobId
+          );
         }
       );
 
-      // Step 3: Check for existing idea folder
+      // Step 3: Generate research with Claude
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -276,53 +227,50 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
-      const existingCheck = await step.do(
-        "check-existing",
-        { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
+      await step.do(
+        "generate-research",
+        { retries: { limit: 2, delay: "30 seconds" }, timeout: "10 minutes" },
         async () => {
-          const sandbox = getSandbox(this.env.Sandbox, jobId);
-          const existingFolder = await findExistingIdeaFolder(sandbox, slug);
-          return { existingFolder };
+          logInfo("claude_started", { model }, jobId);
+
+          const systemPrompt = buildSystemPrompt(mode);
+          const userPrompt = buildUserPrompt({
+            idea,
+            context,
+            existingContent,
+            datePrefix,
+            jobId,
+            mode,
+            model,
+          });
+
+          const result = await anthropic.generateResearch({
+            idea,
+            mode,
+            context,
+            existingContent,
+            datePrefix,
+            jobId,
+            systemPrompt,
+            userPrompt,
+          });
+
+          researchContent = result.content;
+          inputTokens = result.inputTokens;
+          outputTokens = result.outputTokens;
+
+          logInfo(
+            "claude_complete",
+            {
+              input_tokens: inputTokens,
+              output_tokens: outputTokens,
+            },
+            jobId
+          );
         }
       );
 
-      // Handle existing idea (no update requested)
-      if (existingCheck.existingFolder && !update) {
-        const existingFolder = existingCheck.existingFolder;
-        await updateStepProgress(
-          this.env.IDEA_EXPLORER_JOBS,
-          jobId,
-          3,
-          stepStartTime
-        );
-        await step.do(
-          "handle-existing",
-          { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
-          async () => {
-            const outputPath = `ideas/${existingFolder}/research.md`;
-            const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
-            logInfo("existing_idea_found", undefined, jobId);
-
-            await completeJobAndNotify({
-              kv: this.env.IDEA_EXPLORER_JOBS,
-              jobId,
-              status: "completed",
-              githubUrl,
-              githubRepo: this.env.GITHUB_REPO,
-              branch,
-              jobStartTime,
-            });
-          }
-        );
-        return;
-      }
-
-      const folderName =
-        existingCheck.existingFolder || `${datePrefix}-${slug}`;
-      const outputPath = `ideas/${folderName}/research.md`;
-      const isUpdate = !!(existingCheck.existingFolder && update);
-
-      // Step 4: Run Claude Code exploration (no retries - re-running can produce different results)
+      // Step 4: Write results to GitHub
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -330,108 +278,75 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
-      const logPath = `ideas/${folderName}/exploration-log.jsonl`;
-      const folderPath = `ideas/${folderName}`;
-
-      const checkpointConfig = {
-        folderPath,
-        branch,
-        repoUrl,
-        jobId,
-      };
-
-      const rawLogPath = `${folderPath}/exploration-log.raw.jsonl`;
-
       await step.do(
-        "run-claude",
-        { timeout: "15 minutes", retries: { limit: 0, delay: "1 second" } },
+        "write-github",
+        { retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
         async () => {
-          const sandbox = getSandbox(this.env.Sandbox, jobId);
-          await sandbox.exec(`mkdir -p "/workspace/${folderPath}"`);
+          const commitMessage = update
+            ? `idea: ${slug} - research updated`
+            : `idea: ${slug} - research complete`;
 
-          const promptFile =
-            mode === "business"
-              ? "/prompts/business.md"
-              : "/prompts/exploration.md";
+          const finalContent = existingContent
+            ? `${existingContent}\n\n${researchContent}`
+            : researchContent;
 
-          const prompt = buildPrompt({
-            idea,
-            context,
-            isUpdate,
-            datePrefix,
-            promptFile,
-            outputPath,
-            mode,
-            model,
-            jobId,
-          });
-
-          const promptPath = `/workspace/${folderPath}/.prompt.txt`;
-          await sandbox.exec(
-            `cat > "${promptPath}" << 'PROMPT_EOF'
-${prompt}
-PROMPT_EOF`,
-            { cwd: "/workspace" }
-          );
-
-          const claudeCmd = `bash -lc "set -o pipefail; claude --model ${model} -p \\"\\$(cat ${promptPath})\\" --permission-mode acceptEdits --output-format stream-json --verbose 2>&1 | tee /workspace/${rawLogPath}"`;
-
-          logClaudeStarted(jobId, model);
-          const claudeStartTime = Date.now();
-          let checkpointCount = 0;
-
-          const CHECKPOINT_INTERVAL_MS = 5 * 60 * 1000;
-          const checkpointInterval = setInterval(async () => {
-            checkpointCount++;
-            logInfo("checkpoint_starting", undefined, jobId);
-            await commitPartialWork(sandbox, {
-              ...checkpointConfig,
-              message: `WIP: checkpoint ${checkpointCount} for ${slug}`,
-            });
-          }, CHECKPOINT_INTERVAL_MS);
-
-          try {
-            await sandbox.exec(claudeCmd, { cwd: "/workspace" });
-          } catch (claudeError) {
-            logError("claude_execution", claudeError, undefined, jobId);
-            const claudeErrorMsg =
-              claudeError instanceof Error
-                ? claudeError.message
-                : "Claude execution failed";
-            throw new Error(`Claude Code error: ${claudeErrorMsg}`);
-          } finally {
-            clearInterval(checkpointInterval);
+          if (existingSha) {
+            const existingResearchPath = `ideas/${
+              (await github.listDirectory("ideas")).find(
+                (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
+              )?.name
+            }/research.md`;
+            await github.updateFile(
+              existingResearchPath,
+              finalContent,
+              existingSha,
+              commitMessage
+            );
+          } else {
+            await github.createFile(researchPath, finalContent, commitMessage);
           }
 
-          const rawResult = await sandbox.exec(
-            `cat "/workspace/${rawLogPath}" || true`,
-            { cwd: "/workspace" }
-          );
-          const rawOutput =
-            typeof rawResult === "string"
-              ? rawResult
-              : (rawResult?.stdout ?? "");
-
-          const { entries, summary } = createExplorationLog(rawOutput, {
+          const explorationLog: ExplorationLog = {
             jobId,
-            model,
             idea,
-            startTime: claudeStartTime,
-          });
+            mode,
+            model,
+            context,
+            isUpdate: !!update,
+            startedAt: new Date(jobStartTime).toISOString(),
+            completedAt: new Date().toISOString(),
+            durationMs: Date.now() - jobStartTime,
+            tokens: {
+              input: inputTokens,
+              output: outputTokens,
+              total: inputTokens + outputTokens,
+            },
+            outputPath: existingSha
+              ? `ideas/${
+                  (await github.listDirectory("ideas")).find(
+                    (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
+                  )?.name
+                }/research.md`
+              : researchPath,
+          };
 
-          const logContent = formatAsJsonl(entries, summary);
-          await sandbox.exec(
-            `cat > "/workspace/${logPath}" << 'EXPLORATION_LOG_EOF'
-${logContent}
-EXPLORATION_LOG_EOF`,
-            { cwd: "/workspace" }
+          await github.createFile(
+            existingSha
+              ? `ideas/${
+                  (await github.listDirectory("ideas")).find(
+                    (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
+                  )?.name
+                }/exploration-log.json`
+              : logPath,
+            JSON.stringify(explorationLog, null, 2),
+            `log: ${slug}`
           );
 
-          logInfo("claude_complete", undefined, jobId);
+          logInfo("github_write_complete", { path: researchPath }, jobId);
         }
       );
 
-      // Step 5: Commit and push results (squash any WIP checkpoint commits)
+      // Step 5: Notify completion
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -440,43 +355,16 @@ EXPLORATION_LOG_EOF`,
       );
       stepStartTime = Date.now();
       await step.do(
-        "commit-push",
-        { retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
-        async () => {
-          const sandbox = getSandbox(this.env.Sandbox, jobId);
-          const commitMessage = isUpdate
-            ? `idea: ${slug} - research updated`
-            : `idea: ${slug} - research complete`;
-
-          await squashWipCommits(sandbox, {
-            slug,
-            finalMessage: escapeShell(commitMessage),
-            jobId,
-          });
-
-          await commitAndPush(sandbox, {
-            outputPath,
-            additionalPaths: [logPath],
-            message: escapeShell(commitMessage),
-            branch,
-            repoUrl,
-            jobId,
-          });
-        }
-      );
-
-      // Step 6: Notify completion
-      await updateStepProgress(
-        this.env.IDEA_EXPLORER_JOBS,
-        jobId,
-        5,
-        stepStartTime
-      );
-      stepStartTime = Date.now();
-      await step.do(
         "notify",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
         async () => {
+          const outputPath = existingSha
+            ? `ideas/${
+                (await github.listDirectory("ideas")).find(
+                  (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
+                )?.name
+              }/research.md`
+            : researchPath;
           const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
           await completeJobAndNotify({
             kv: this.env.IDEA_EXPLORER_JOBS,
@@ -500,17 +388,11 @@ EXPLORATION_LOG_EOF`,
         });
       }
     } catch (error) {
-      // Update job status to failed, attempt to salvage partial work
       await this.handleFailure({
         jobId,
         error,
         branch,
-        repoUrl,
-        folderName: `${datePrefix}-${slug}`,
-        slug,
         jobStartTime,
-        idea,
-        model,
       });
       throw error;
     }
@@ -520,158 +402,26 @@ EXPLORATION_LOG_EOF`,
     jobId,
     error,
     branch,
-    repoUrl,
-    folderName,
-    slug,
     jobStartTime,
-    idea,
-    model,
   }: {
     jobId: string;
     error: unknown;
     branch: string;
-    repoUrl: string;
-    folderName: string;
-    slug: string;
     jobStartTime: number;
-    idea: string;
-    model: "sonnet" | "opus";
   }): Promise<void> {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    const isTimeout =
-      errorMessage.includes("timeout") ||
-      errorMessage.includes("TIMEOUT") ||
-      errorMessage.includes("timed out");
 
-    const finalError = isTimeout
-      ? "Container execution timed out (15 minute limit exceeded)"
-      : errorMessage;
-
-    logError("exploration_failed", new Error(finalError), undefined, jobId);
-
-    let salvageSucceeded = false;
-    let debugLogPath: string | null = null;
-    const folderPath = `ideas/${folderName}`;
-
-    try {
-      const sandbox = getSandbox(this.env.Sandbox, jobId);
-
-      const hasPartialWork = await sandbox
-        .exec(
-          `test -d "/workspace/${folderPath}" && ls -A "/workspace/${folderPath}"`
-        )
-        .then((result) => {
-          const output =
-            typeof result === "string" ? result : (result?.stdout ?? "");
-          return output.trim().length > 0;
-        })
-        .catch(() => false);
-
-      if (hasPartialWork) {
-        logInfo("salvage_attempting", undefined, jobId);
-
-        await this.generateDebugLogFromRaw({
-          sandbox,
-          rawLogPath: `${folderPath}/exploration-log.raw.jsonl`,
-          finalLogPath: `${folderPath}/exploration-log.jsonl`,
-          jobId,
-          model,
-          idea,
-          claudeStartTimeGuess: jobStartTime,
-        });
-
-        await moveToPartial(sandbox, { folderName, jobId });
-
-        salvageSucceeded = await commitPartialWork(sandbox, {
-          folderPath: "ideas/.partial",
-          message: `partial: ${slug} - salvaged after ${isTimeout ? "timeout" : "failure"}`,
-          branch,
-          repoUrl,
-          jobId,
-        });
-
-        if (salvageSucceeded) {
-          logInfo("salvage_succeeded", undefined, jobId);
-          debugLogPath = `ideas/.partial/${folderName}/exploration-log.jsonl`;
-        }
-      }
-    } catch (salvageError) {
-      logError("salvage_failed", salvageError, undefined, jobId);
-    }
-
-    await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
-      debug_log_path: debugLogPath,
-    });
+    logError("exploration_failed", new Error(errorMessage), undefined, jobId);
 
     await completeJobAndNotify({
       kv: this.env.IDEA_EXPLORER_JOBS,
       jobId,
       status: "failed",
-      error: salvageSucceeded
-        ? `${finalError} (partial work and debug log saved to .partial/)`
-        : finalError,
+      error: errorMessage,
       githubRepo: this.env.GITHUB_REPO,
       branch,
       jobStartTime,
     });
-  }
-
-  private async generateDebugLogFromRaw({
-    sandbox,
-    rawLogPath,
-    finalLogPath,
-    jobId,
-    model,
-    idea,
-    claudeStartTimeGuess,
-  }: {
-    sandbox: ReturnType<typeof getSandbox>;
-    rawLogPath: string;
-    finalLogPath: string;
-    jobId: string;
-    model: string;
-    idea: string;
-    claudeStartTimeGuess: number;
-  }): Promise<void> {
-    try {
-      const rawResult = await sandbox.exec(
-        `if [ -f "/workspace/${rawLogPath}" ]; then cat "/workspace/${rawLogPath}"; fi`,
-        { cwd: "/workspace" }
-      );
-      const rawOutput =
-        typeof rawResult === "string" ? rawResult : (rawResult?.stdout ?? "");
-
-      if (!rawOutput.trim()) {
-        logInfo("debug_log_no_raw_output", undefined, jobId);
-        return;
-      }
-
-      const { entries, summary } = createExplorationLog(rawOutput, {
-        jobId,
-        model,
-        idea,
-        startTime: claudeStartTimeGuess,
-      });
-
-      const logContent = formatAsJsonl(entries, summary);
-      const logDir = finalLogPath.substring(0, finalLogPath.lastIndexOf("/"));
-
-      await sandbox.exec(
-        `mkdir -p "/workspace/${logDir}" && cat > "/workspace/${finalLogPath}" << 'EXPLORATION_LOG_EOF'
-${logContent}
-EXPLORATION_LOG_EOF`,
-        { cwd: "/workspace" }
-      );
-
-      logInfo("debug_log_generated", { path: finalLogPath }, jobId);
-    } catch (e) {
-      logError(
-        "debug_log_generation_failed",
-        e,
-        { rawLogPath, finalLogPath },
-        jobId
-      );
-    }
   }
 }
