@@ -12,7 +12,37 @@ const ModelSchema = z.enum(["sonnet", "opus"]);
 
 export const ExploreRequestSchema = z.object({
   idea: z.string(),
-  webhook_url: z.string().optional(),
+  webhook_url: z
+    .string()
+    .url()
+    .refine(
+      (url) => {
+        try {
+          const parsed = new URL(url);
+          const blockedHosts = [
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+            "169.254.169.254",
+          ];
+          const blockedPatterns = [
+            /^10\./,
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+            /^192\.168\./,
+          ];
+
+          if (blockedHosts.includes(parsed.hostname)) return false;
+          if (blockedPatterns.some((p) => p.test(parsed.hostname)))
+            return false;
+          if (!["http:", "https:"].includes(parsed.protocol)) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "Invalid webhook URL" }
+    )
+    .optional(),
   mode: ModeSchema.optional(),
   model: ModelSchema.optional(),
   callback_secret: z.string().optional(),
@@ -26,7 +56,37 @@ const JobSchema = z.object({
   mode: ModeSchema,
   model: ModelSchema,
   status: JobStatusSchema,
-  webhook_url: z.string().optional(),
+  webhook_url: z
+    .string()
+    .url()
+    .refine(
+      (url) => {
+        try {
+          const parsed = new URL(url);
+          const blockedHosts = [
+            "localhost",
+            "127.0.0.1",
+            "0.0.0.0",
+            "169.254.169.254",
+          ];
+          const blockedPatterns = [
+            /^10\./,
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+            /^192\.168\./,
+          ];
+
+          if (blockedHosts.includes(parsed.hostname)) return false;
+          if (blockedPatterns.some((p) => p.test(parsed.hostname)))
+            return false;
+          if (!["http:", "https:"].includes(parsed.protocol)) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "Invalid webhook URL" }
+    )
+    .optional(),
   callback_secret: z.string().optional(),
   context: z.string().optional(),
   update: z.boolean().optional(),
@@ -40,7 +100,6 @@ const JobSchema = z.object({
   steps_total: z.number().optional(),
   step_started_at: z.number().optional(),
   step_durations: z.record(z.string(), z.number()).optional(),
-  debug_log_path: z.string().nullable().optional(),
 });
 
 export type Mode = z.infer<typeof ModeSchema>;
@@ -77,7 +136,12 @@ export async function getJob(
   if (!data) {
     return;
   }
-  return JSON.parse(data) as Job;
+  try {
+    const parsed = JSON.parse(data);
+    return JobSchema.parse(parsed);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function updateJob(

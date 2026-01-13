@@ -176,10 +176,7 @@ function isHttpError(error: unknown, status: number): boolean {
 function encodeBase64(str: string): string {
   const encoder = new TextEncoder();
   const data = encoder.encode(str);
-  let binary = "";
-  for (const byte of data) {
-    binary += String.fromCharCode(byte);
-  }
+  const binary = Array.from(data, (byte) => String.fromCharCode(byte)).join("");
   return btoa(binary);
 }
 

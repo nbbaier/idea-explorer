@@ -132,6 +132,17 @@ describe("GitHubClient", () => {
     });
 
     it("should update existing file if it exists", async () => {
+      const mockCreateOrUpdate = vi
+        .fn()
+        .mockRejectedValueOnce({ status: 409 })
+        .mockResolvedValue({
+          data: {
+            content: {
+              html_url: "https://github.com/owner/repo/blob/main/existing.txt",
+            },
+          },
+        });
+
       const mockOctokit = createMockOctokit({
         getContent: vi.fn().mockResolvedValue({
           data: {
@@ -141,13 +152,7 @@ describe("GitHubClient", () => {
             path: "existing.txt",
           },
         }),
-        createOrUpdateFileContents: vi.fn().mockResolvedValue({
-          data: {
-            content: {
-              html_url: "https://github.com/owner/repo/blob/main/existing.txt",
-            },
-          },
-        }),
+        createOrUpdateFileContents: mockCreateOrUpdate,
       });
 
       const client = new GitHubClient(defaultConfig, mockOctokit);
@@ -160,9 +165,19 @@ describe("GitHubClient", () => {
       expect(result).toBe(
         "https://github.com/owner/repo/blob/main/existing.txt"
       );
-      expect(
-        mockOctokit.rest.repos.createOrUpdateFileContents
-      ).toHaveBeenCalledWith({
+      
+      // First call fails (no sha)
+      expect(mockCreateOrUpdate).toHaveBeenNthCalledWith(1, {
+        owner: "owner",
+        repo: "repo",
+        path: "existing.txt",
+        message: "Update existing.txt",
+        content: encodeToBase64("New content"),
+        branch: "main",
+      });
+
+      // Second call succeeds (with sha)
+      expect(mockCreateOrUpdate).toHaveBeenNthCalledWith(2, {
         owner: "owner",
         repo: "repo",
         path: "existing.txt",

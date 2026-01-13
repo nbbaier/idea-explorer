@@ -7,6 +7,7 @@ import {
   type Job,
   JobStatusSchema,
   ModeSchema,
+  updateJob,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
 import { logError, logJobCreated } from "./utils/logger";
@@ -59,6 +60,22 @@ function parsePaginationParams(
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
+app.use("/api/*", async (c, next) => {
+  if (c.env.RATE_LIMITER) {
+    const ip = c.req.header("CF-Connecting-IP") || "unknown";
+    try {
+      const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+      if (!success) {
+        return c.json({ error: "Rate limit exceeded" }, 429);
+      }
+    } catch (error) {
+      console.error("Rate limiter error:", error);
+      // Fail open if rate limiter errors
+    }
+  }
+  await next();
+});
+
 app.use("/api/*", requireAuth());
 
 app.get("/", (c) => {
@@ -97,19 +114,28 @@ app.post(
 
     logJobCreated(job.id, job.idea, job.mode);
 
-    await c.env.EXPLORATION_WORKFLOW.create({
-      id: job.id,
-      params: {
-        jobId: job.id,
-        idea: job.idea,
-        mode: job.mode,
-        model: job.model,
-        context: job.context,
-        update: job.update,
-        webhook_url: job.webhook_url,
-        callback_secret: job.callback_secret,
-      },
-    });
+    try {
+      await c.env.EXPLORATION_WORKFLOW.create({
+        id: job.id,
+        params: {
+          jobId: job.id,
+          idea: job.idea,
+          mode: job.mode,
+          model: job.model,
+          context: job.context,
+          update: job.update,
+          webhook_url: job.webhook_url,
+          callback_secret: job.callback_secret,
+        },
+      });
+    } catch (error) {
+      await updateJob(c.env.IDEA_EXPLORER_JOBS, job.id, {
+        status: "failed",
+        error: "Workflow creation failed",
+      });
+      logError("workflow_creation_failed", error, undefined, job.id);
+      return c.json({ error: "Failed to start exploration" }, 500);
+    }
 
     return c.json({ job_id: job.id, status: "pending" }, 202);
   }
@@ -123,12 +149,17 @@ app.get("/api/jobs", async (c) => {
   let jobs: (Job | null)[];
   try {
     const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-    jobs = await Promise.all(
+    const results = await Promise.allSettled(
       keys.map(
         (k) =>
           c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
       )
     );
+    jobs = results
+      .filter(
+        (r): r is PromiseFulfilledResult<Job | null> => r.status === "fulfilled"
+      )
+      .map((r) => r.value);
   } catch (error) {
     logError(
       "jobs_list_failed",
@@ -243,7 +274,7 @@ app.get("/api/workflow-status/:id", async (c) => {
 
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-app.get("/api/test-webhook", async (c) => {
+app.get("/api/test-webhook", requireAuth(), async (c) => {
   const webhookUrl =
     c.req.query("webhook_url") || c.env.IDEA_EXPLORER_WEBHOOK_URL;
   const status = c.req.query("status") === "failed" ? "failed" : "completed";
