@@ -12,8 +12,10 @@ beforeAll(() => {
       const bView = new Uint8Array(b);
       let result = 0;
       for (let i = 0; i < aView.length; i++) {
+        const aByte = aView[i] ?? 0;
+        const bByte = bView[i] ?? 0;
         // biome-ignore lint/suspicious/noBitwiseOperators: timing-safe comparison requires bitwise ops
-        result |= aView[i] ^ bView[i];
+        result |= aByte ^ bByte;
       }
       return result === 0;
     };

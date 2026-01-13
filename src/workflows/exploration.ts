@@ -63,8 +63,8 @@ async function updateStepProgress(
 ): Promise<void> {
   const currentStep = WORKFLOW_STEPS[stepIndex];
   const updates: Record<string, unknown> = {
-    current_step: currentStep.name,
-    current_step_label: currentStep.label,
+    current_step: currentStep?.name,
+    current_step_label: currentStep?.label,
     steps_completed: stepIndex,
     steps_total: WORKFLOW_STEPS.length,
     step_started_at: Date.now(),
@@ -77,7 +77,7 @@ async function updateStepProgress(
     const stepDurations = job?.step_durations ?? {};
     updates.step_durations = {
       ...stepDurations,
-      [previousStep.name]: duration,
+      [previousStep?.name ?? ""]: duration,
     };
   }
 
@@ -221,7 +221,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
   ExplorationEnv,
   JobParams
 > {
-  async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
+  override async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GITHUB_BRANCH || "main";

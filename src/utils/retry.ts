@@ -45,7 +45,7 @@ export async function retryWithBackoff<T>(
     }
 
     if (attempt < options.maxAttempts) {
-      await sleep(options.delaysMs[attempt - 1]);
+      await sleep((options.delaysMs[attempt - 1] ?? 0) * 1000);
     }
   }
 
