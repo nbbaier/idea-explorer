@@ -1,7 +1,7 @@
 # Task: Simplify Architecture to Direct HTTP Calls
 
-**Status:** Not Started  
-**Estimated Effort:** ~1 day  
+**Status:** Not Started
+**Estimated Effort:** ~1 day
 **Reference:** [ARCHITECTURE-REVIEW.md](../ARCHITECTURE-REVIEW.md)
 
 ---
@@ -112,14 +112,14 @@ export function buildUserPrompt(params: {
 - Build YAML frontmatter programmatically
 
 ### Files to create:
-- [ ] `src/clients/anthropic.ts`
-- [ ] `src/clients/github.ts`
-- [ ] `src/prompts/index.ts`
+- [x] `src/clients/anthropic.ts`
+- [x] `src/clients/github.ts`
+- [x] `src/prompts/index.ts`
 
 ### Tests to add:
-- [ ] `src/clients/anthropic.test.ts` (mock fetch)
-- [ ] `src/clients/github.test.ts` (mock fetch)
-- [ ] `src/prompts/index.test.ts` (prompt building)
+- [x] `src/clients/anthropic.test.ts` (mock fetch)
+- [x] `src/clients/github.test.ts` (mock fetch)
+- [x] `src/prompts/index.test.ts` (prompt building)
 
 ---
 
@@ -131,7 +131,7 @@ export function buildUserPrompt(params: {
 
 Rewrite `src/workflows/exploration.ts`:
 
-```
+```typescript
 WORKFLOW_STEPS = [
   { name: "initialize", label: "Initializing job..." },
   { name: "check_existing", label: "Checking for existing research..." },

@@ -33,8 +33,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@hono/zod-validator": "^0.7.6",
     "hono": "^4.11.3",
+    "octokit": "^5.0.5",
     "shescape": "^2.1.7",
     "zod": "^4.3.5"
   }
