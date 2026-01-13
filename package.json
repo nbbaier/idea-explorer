@@ -16,7 +16,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "status": "bun run scripts/idea-status.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.11",
@@ -35,6 +36,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@hono/zod-validator": "^0.7.6",
+    "cloudflare": "^5.2.0",
     "hono": "^4.11.3",
     "octokit": "^5.0.5",
     "shescape": "^2.1.7",
