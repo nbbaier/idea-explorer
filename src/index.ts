@@ -13,7 +13,7 @@ import { logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
 
 type ExploreEnv = Env & {
-  WEBHOOK_URL?: string;
+  IDEA_EXPLORER_WEBHOOK_URL?: string;
   IDEA_EXPLORER_JOBS: KVNamespace;
 };
 
@@ -66,7 +66,7 @@ app.post(
   zValidator("json", ExploreRequestSchema),
   async (c) => {
     const body = c.req.valid("json");
-    const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
+    const webhookUrl = body.webhook_url || c.env.IDEA_EXPLORER_WEBHOOK_URL;
     const job = await createJob(c.env.IDEA_EXPLORER_JOBS, {
       ...body,
       webhook_url: webhookUrl,
@@ -242,7 +242,8 @@ app.get("/", (c) => {
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/test-webhook", async (c) => {
-  const webhookUrl = c.req.query("webhook_url") || c.env.WEBHOOK_URL;
+  const webhookUrl =
+    c.req.query("webhook_url") || c.env.IDEA_EXPLORER_WEBHOOK_URL;
   const status = c.req.query("status") === "failed" ? "failed" : "completed";
   const callbackSecret = c.req.query("callback_secret");
 

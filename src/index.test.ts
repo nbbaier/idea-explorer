@@ -67,7 +67,7 @@ describe("GET /api/jobs", () => {
   };
 
   const createMockEnv = (jobs: Record<string, string>) => ({
-    API_BEARER_TOKEN: "test-token",
+    IDEA_EXPLORER_API_TOKEN: "test-token",
     IDEA_EXPLORER_JOBS: createMockKV(jobs),
     GITHUB_REPO: "test/repo",
     GITHUB_BRANCH: "main",
