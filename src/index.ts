@@ -16,6 +16,7 @@ import { sendWebhook } from "./utils/webhook";
 type ExploreEnv = Env & {
   IDEA_EXPLORER_WEBHOOK_URL?: string;
   IDEA_EXPLORER_JOBS: KVNamespace;
+  RATE_LIMITER?: RateLimit;
 };
 
 interface EnumSchema {

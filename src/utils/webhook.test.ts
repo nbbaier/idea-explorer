@@ -50,9 +50,8 @@ describe("webhook utility", () => {
       })
     );
 
-    const callBody = JSON.parse(
-      vi.mocked(fetch).mock.calls[0][1]?.body as string
-    );
+    const completedCallArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const callBody = JSON.parse(completedCallArgs?.body as string);
     expect(callBody).toMatchObject({
       event: "idea_explored",
       status: "completed",
@@ -76,10 +75,8 @@ describe("webhook utility", () => {
     const result = await sendWebhook(jobWithSecret, githubRepo, branch);
 
     expect(result.success).toBe(true);
-    const headers = vi.mocked(fetch).mock.calls[0][1]?.headers as Record<
-      string,
-      string
-    >;
+    const callArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const headers = callArgs?.headers as Record<string, string>;
     expect(headers["X-Signature"]).toBeDefined();
     expect(headers["X-Signature"]).toMatch(/^sha256=[a-f0-9]{64}$/);
   });
@@ -99,10 +96,9 @@ describe("webhook utility", () => {
     const result = await sendWebhook(failedJob, githubRepo, branch);
 
     expect(result.success).toBe(true);
-    const callBody = JSON.parse(
-      vi.mocked(fetch).mock.calls[0][1]?.body as string
-    );
-    expect(callBody).toMatchObject({
+    const failedCallArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const failedCallBody = JSON.parse(failedCallArgs?.body as string);
+    expect(failedCallBody).toMatchObject({
       event: "idea_explored",
       status: "failed",
       job_id: failedJob.id,

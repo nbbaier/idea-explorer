@@ -7,22 +7,29 @@ describe("requireAuth middleware", () => {
   const env = { IDEA_EXPLORER_API_TOKEN: token };
 
   beforeAll(() => {
-    if (!global.crypto.subtle) {
-      Object.defineProperty(global.crypto, "subtle", {
+    type CryptoWithTimingSafe = Crypto & {
+      subtle: SubtleCrypto & {
+        timingSafeEqual?: (a: BufferSource, b: BufferSource) => boolean;
+      };
+    };
+    const cryptoObj = crypto as CryptoWithTimingSafe;
+    if (!cryptoObj.subtle) {
+      Object.defineProperty(cryptoObj, "subtle", {
         value: {},
         writable: true,
       });
     }
-    if (!global.crypto.subtle.timingSafeEqual) {
-      global.crypto.subtle.timingSafeEqual = (
-        a: BufferSource,
-        b: BufferSource
-      ) => {
+    if (!cryptoObj.subtle.timingSafeEqual) {
+      cryptoObj.subtle.timingSafeEqual = (a: BufferSource, b: BufferSource) => {
         const bufA = new Uint8Array(a as ArrayBuffer);
         const bufB = new Uint8Array(b as ArrayBuffer);
-        if (bufA.length !== bufB.length) return false;
+        if (bufA.length !== bufB.length) {
+          return false;
+        }
         for (let i = 0; i < bufA.length; i++) {
-          if (bufA[i] !== bufB[i]) return false;
+          if (bufA[i] !== bufB[i]) {
+            return false;
+          }
         }
         return true;
       };

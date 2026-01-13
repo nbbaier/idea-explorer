@@ -31,10 +31,15 @@ export const ExploreRequestSchema = z.object({
             /^192\.168\./,
           ];
 
-          if (blockedHosts.includes(parsed.hostname)) return false;
-          if (blockedPatterns.some((p) => p.test(parsed.hostname)))
+          if (blockedHosts.includes(parsed.hostname)) {
             return false;
-          if (!["http:", "https:"].includes(parsed.protocol)) return false;
+          }
+          if (blockedPatterns.some((p) => p.test(parsed.hostname))) {
+            return false;
+          }
+          if (!["http:", "https:"].includes(parsed.protocol)) {
+            return false;
+          }
           return true;
         } catch {
           return false;
@@ -75,10 +80,15 @@ const JobSchema = z.object({
             /^192\.168\./,
           ];
 
-          if (blockedHosts.includes(parsed.hostname)) return false;
-          if (blockedPatterns.some((p) => p.test(parsed.hostname)))
+          if (blockedHosts.includes(parsed.hostname)) {
             return false;
-          if (!["http:", "https:"].includes(parsed.protocol)) return false;
+          }
+          if (blockedPatterns.some((p) => p.test(parsed.hostname))) {
+            return false;
+          }
+          if (!["http:", "https:"].includes(parsed.protocol)) {
+            return false;
+          }
           return true;
         } catch {
           return false;

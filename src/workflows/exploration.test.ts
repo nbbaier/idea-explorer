@@ -53,7 +53,7 @@ describe("ExplorationWorkflow", () => {
   };
 
   const mockStep = {
-    do: vi.fn(async (name, config, fn) => await fn()),
+    do: vi.fn(async (_name, _config, fn) => await fn()),
   };
 
   beforeEach(() => {
