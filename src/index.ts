@@ -2,11 +2,11 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
   createJob,
-  ExploreModeSchema,
   ExploreRequestSchema,
   getJob,
   type Job,
   JobStatusSchema,
+  ModeSchema,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
 import { logError, logJobCreated } from "./utils/logger";
@@ -130,7 +130,7 @@ app.get("/api/jobs", async (c) => {
 
   const modeValidation = validateEnumFilter(
     c.req.query("mode"),
-    ExploreModeSchema,
+    ModeSchema,
     "mode"
   );
   if (modeValidation?.valid === false) {

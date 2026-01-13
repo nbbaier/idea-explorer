@@ -27,8 +27,8 @@ const WebhookPayloadSchema = z.discriminatedUnion("status", [
   WebhookFailurePayloadSchema,
 ]);
 
-export type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
-export type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
+type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
+type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
 export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 
 async function generateSignature(

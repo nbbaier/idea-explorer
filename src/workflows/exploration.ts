@@ -11,7 +11,7 @@ import { logError, logInfo, logJobComplete } from "../utils/logger";
 import { generateSlug } from "../utils/slug";
 import { sendWebhook } from "../utils/webhook";
 
-export interface JobParams {
+interface JobParams {
   jobId: string;
   idea: string;
   mode: "business" | "exploration";

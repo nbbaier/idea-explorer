@@ -6,14 +6,14 @@ export const JobStatusSchema = z.enum([
   "completed",
   "failed",
 ]);
-export const ExploreModeSchema = z.enum(["business", "exploration"]);
+export const ModeSchema = z.enum(["business", "exploration"]);
 
 const ModelTypeSchema = z.enum(["sonnet", "opus"]);
 
 export const ExploreRequestSchema = z.object({
   idea: z.string(),
   webhook_url: z.string().optional(),
-  mode: ExploreModeSchema.optional(),
+  mode: ModeSchema.optional(),
   model: ModelTypeSchema.optional(),
   callback_secret: z.string().optional(),
   context: z.string().optional(),
@@ -23,7 +23,7 @@ export const ExploreRequestSchema = z.object({
 const JobSchema = z.object({
   id: z.string(),
   idea: z.string(),
-  mode: ExploreModeSchema,
+  mode: ModeSchema,
   model: ModelTypeSchema,
   status: JobStatusSchema,
   webhook_url: z.string().optional(),
@@ -43,9 +43,8 @@ const JobSchema = z.object({
   debug_log_path: z.string().nullable().optional(),
 });
 
-export type JobStatus = z.infer<typeof JobStatusSchema>;
-export type ExploreMode = z.infer<typeof ExploreModeSchema>;
-export type ModelType = z.infer<typeof ModelTypeSchema>;
+export type Mode = z.infer<typeof ModeSchema>;
+export type Model = z.infer<typeof ModelTypeSchema>;
 
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;

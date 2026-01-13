@@ -1,5 +1,4 @@
-export type ExploreMode = "business" | "exploration";
-export type ModelType = "sonnet" | "opus";
+import type { Mode, Model } from "../jobs";
 
 export interface BuildUserPromptParams {
   idea: string;
@@ -8,8 +7,8 @@ export interface BuildUserPromptParams {
   existingResearchList?: string[];
   datePrefix: string;
   jobId: string;
-  mode: ExploreMode;
-  model: ModelType;
+  mode: Mode;
+  model: Model;
 }
 
 export const PROMPTS = {
@@ -125,7 +124,7 @@ You are exploring an idea with divergent thinking. Use the framework below to pr
 \`\`\``,
 } as const;
 
-export function buildSystemPrompt(mode: ExploreMode): string {
+export function buildSystemPrompt(mode: Mode): string {
   return PROMPTS[mode];
 }
 
@@ -181,8 +180,8 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
 
 interface FrontmatterParams {
   idea: string;
-  mode: ExploreMode;
-  model: ModelType;
+  mode: Mode;
+  model: Model;
   datePrefix: string;
   jobId: string;
   isUpdate: boolean;
