@@ -73,7 +73,7 @@ wrangler secret put IDEA_EXPLORER_API_TOKEN
 | `ANTHROPIC_API_KEY`        | API key for Claude (get from console.anthropic.com)                         |
 | `GITHUB_PAT`               | Personal access token with `repo` scope for writing to the ideas repository |
 | `IDEA_EXPLORER_API_TOKEN`  | Token used to authenticate API requests (generate a strong random string)   |
-| `WEBHOOK_URL`              | (Optional) Default webhook URL for job completion notifications             |
+| `IDEA_EXPLORER_WEBHOOK_URL`| (Optional) Default webhook URL for job completion notifications             |
 
 ### 4. Deploy
 

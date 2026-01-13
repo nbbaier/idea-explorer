@@ -81,7 +81,7 @@ Start an idea exploration job.
 ```typescript
 {
   idea: string;           // Required: The idea to explore
-  webhook_url?: string;   // Optional: URL to receive completion callback (falls back to WEBHOOK_URL env var)
+  webhook_url?: string;   // Optional: URL to receive completion callback (falls back to IDEA_EXPLORER_WEBHOOK_URL env var)
   mode?: 'business' | 'exploration';  // Default: 'business'
   model?: 'sonnet' | 'opus';          // Default: 'sonnet'
   callback_secret?: string;           // Optional: Secret for HMAC-SHA256 webhook signature verification
@@ -269,7 +269,7 @@ Test webhook delivery without running an exploration.
 
 | Parameter         | Required | Description                                           |
 | ----------------- | -------- | ----------------------------------------------------- |
-| `webhook_url`     | No       | Target URL (falls back to `WEBHOOK_URL` env var)      |
+| `webhook_url`     | No       | Target URL (falls back to `IDEA_EXPLORER_WEBHOOK_URL` env var) |
 | `status`          | No       | `completed` or `failed` (default: `completed`)        |
 | `callback_secret` | No       | Secret for HMAC signature                             |
 
@@ -461,7 +461,7 @@ All file operations use the GitHub Contents API:
 | --------------- | --------------------------------------------------- |
 | `GITHUB_REPO`   | Target repository (e.g., `user/ideas`)              |
 | `GITHUB_BRANCH` | Branch to commit to (default: `main`)               |
-| `WEBHOOK_URL`   | Optional default webhook URL when request omits one |
+| `IDEA_EXPLORER_WEBHOOK_URL` | Optional default webhook URL when request omits one |
 
 ### Job Storage
 

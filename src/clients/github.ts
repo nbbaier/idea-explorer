@@ -38,7 +38,15 @@ export class GitHubClient {
   constructor(config: GitHubConfig, octokit?: unknown) {
     this.octokit =
       (octokit as OctokitInstance) ?? new Octokit({ auth: config.pat });
-    const [owner = "", repo = ""] = config.repo.split("/");
+
+    const parts = config.repo.split("/");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new Error(
+        `Invalid repo format: "${config.repo}". Expected "owner/repo"`
+      );
+    }
+    const [owner, repo] = parts;
+
     this.owner = owner;
     this.repo = repo;
     this.branch = config.branch;
@@ -77,21 +85,28 @@ export class GitHubClient {
     content: string,
     message: string
   ): Promise<string> {
-    const existingFile = await this.getFile(path);
-    if (existingFile) {
-      return this.updateFile(path, content, existingFile.sha, message);
+    try {
+      const { data } = await this.octokit.rest.repos.createOrUpdateFileContents(
+        {
+          owner: this.owner,
+          repo: this.repo,
+          path,
+          message,
+          content: encodeBase64(content),
+          branch: this.branch,
+        }
+      );
+
+      return data.content?.html_url ?? "";
+    } catch (error) {
+      if (isConflictError(error)) {
+        const existingFile = await this.getFile(path);
+        if (existingFile) {
+          return this.updateFile(path, content, existingFile.sha, message);
+        }
+      }
+      throw error;
     }
-
-    const { data } = await this.octokit.rest.repos.createOrUpdateFileContents({
-      owner: this.owner,
-      repo: this.repo,
-      path,
-      message,
-      content: encodeBase64(content),
-      branch: this.branch,
-    });
-
-    return data.content?.html_url ?? "";
   }
 
   async updateFile(
@@ -142,11 +157,19 @@ export class GitHubClient {
 }
 
 function isNotFoundError(error: unknown): boolean {
+  return isHttpError(error, 404);
+}
+
+function isConflictError(error: unknown): boolean {
+  return isHttpError(error, 409);
+}
+
+function isHttpError(error: unknown, status: number): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "status" in error &&
-    error.status === 404
+    error.status === status
   );
 }
 

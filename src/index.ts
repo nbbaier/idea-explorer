@@ -249,7 +249,10 @@ app.get("/api/test-webhook", async (c) => {
 
   if (!webhookUrl) {
     return c.json(
-      { error: "webhook_url query parameter or WEBHOOK_URL env var required" },
+      {
+        error:
+          "webhook_url query parameter or IDEA_EXPLORER_WEBHOOK_URL env var required",
+      },
       400
     );
   }

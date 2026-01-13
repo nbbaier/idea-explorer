@@ -5,6 +5,7 @@ export interface BuildUserPromptParams {
   idea: string;
   context?: string;
   existingContent?: string;
+  existingResearchList?: string[];
   datePrefix: string;
   jobId: string;
   mode: ExploreMode;
@@ -129,8 +130,16 @@ export function buildSystemPrompt(mode: ExploreMode): string {
 }
 
 export function buildUserPrompt(params: BuildUserPromptParams): string {
-  const { idea, context, existingContent, datePrefix, jobId, mode, model } =
-    params;
+  const {
+    idea,
+    context,
+    existingContent,
+    existingResearchList,
+    datePrefix,
+    jobId,
+    mode,
+    model,
+  } = params;
 
   const frontmatter = buildFrontmatter({
     idea,
@@ -147,6 +156,15 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
 
   if (context) {
     parts.push(`## Additional Context\n\n${context}`);
+  }
+
+  if (existingResearchList && existingResearchList.length > 0) {
+    const researchListMd = existingResearchList
+      .map((name) => `- ${name}`)
+      .join("\n");
+    parts.push(
+      `## Related Research\n\nThe following research documents already exist in this repository. Consider referencing or building upon any relevant prior work:\n\n${researchListMd}`
+    );
   }
 
   if (existingContent) {

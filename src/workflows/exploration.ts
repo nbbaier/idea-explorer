@@ -161,6 +161,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     let existingContent: string | undefined;
     let existingSha: string | undefined;
     let existingDirPath: string | undefined;
+    let existingResearchList: string[] = [];
     let researchContent = "";
     let inputTokens = 0;
     let outputTokens = 0;
@@ -192,8 +193,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         "check-existing",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "1 minute" },
         async () => {
+          const directories = await github.listDirectory("ideas");
+
+          // Collect all existing research directories for context
+          existingResearchList = directories
+            .filter((dir) => dir.type === "dir")
+            .map((dir) => dir.name);
+
           if (update) {
-            const directories = await github.listDirectory("ideas");
             const matchingDir = directories.find(
               (dir) => dir.type === "dir" && dir.name.endsWith(`-${slug}`)
             );
@@ -215,7 +222,10 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           }
           logInfo(
             "check_existing_complete",
-            { hasExisting: !!existingContent },
+            {
+              hasExisting: !!existingContent,
+              existingCount: existingResearchList.length,
+            },
             jobId
           );
         }
@@ -240,6 +250,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             idea,
             context,
             existingContent,
+            existingResearchList,
             datePrefix,
             jobId,
             mode,
@@ -285,9 +296,21 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       let finalResearchPath = researchPath;
       let finalLogPath = logPath;
 
-      if (existingSha && existingDirPath) {
+      // Only use existing paths if we have both content and SHA (consistent state)
+      const isValidUpdate = existingSha && existingContent && existingDirPath;
+      if (isValidUpdate) {
         finalResearchPath = `${existingDirPath}/research.md`;
         finalLogPath = `${existingDirPath}/exploration-log.json`;
+      } else if (existingDirPath && !existingContent) {
+        logInfo(
+          "update_missing_research",
+          {
+            path: existingDirPath,
+            message:
+              "Directory exists but research.md not found, creating new file",
+          },
+          jobId
+        );
       }
 
       await step.do(
@@ -302,13 +325,23 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             ? `${existingContent}\n\n${researchContent}`
             : researchContent;
 
-          if (existingSha) {
-            await github.updateFile(
-              finalResearchPath,
-              finalContent,
-              existingSha,
-              commitMessage
-            );
+          if (isValidUpdate) {
+            // Re-fetch SHA to avoid stale SHA conflicts
+            const currentFile = await github.getFile(finalResearchPath);
+            if (currentFile) {
+              await github.updateFile(
+                finalResearchPath,
+                finalContent,
+                currentFile.sha,
+                commitMessage
+              );
+            } else {
+              await github.createFile(
+                finalResearchPath,
+                finalContent,
+                commitMessage
+              );
+            }
           } else {
             await github.createFile(
               finalResearchPath,
@@ -335,11 +368,36 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             outputPath: finalResearchPath,
           };
 
-          await github.createFile(
-            finalLogPath,
-            JSON.stringify(explorationLog, null, 2),
-            `log: ${slug}`
-          );
+          // Append to existing log file if it exists, otherwise create new
+          const existingLog = await github.getFile(finalLogPath);
+          if (existingLog) {
+            try {
+              const existingLogs = JSON.parse(existingLog.content);
+              const logs = Array.isArray(existingLogs)
+                ? [...existingLogs, explorationLog]
+                : [existingLogs, explorationLog];
+              await github.updateFile(
+                finalLogPath,
+                JSON.stringify(logs, null, 2),
+                existingLog.sha,
+                `log: ${slug} - updated`
+              );
+            } catch {
+              // If parsing fails, overwrite with new log
+              await github.updateFile(
+                finalLogPath,
+                JSON.stringify([explorationLog], null, 2),
+                existingLog.sha,
+                `log: ${slug}`
+              );
+            }
+          } else {
+            await github.createFile(
+              finalLogPath,
+              JSON.stringify([explorationLog], null, 2),
+              `log: ${slug}`
+            );
+          }
 
           logInfo("github_write_complete", { path: finalResearchPath }, jobId);
         }
