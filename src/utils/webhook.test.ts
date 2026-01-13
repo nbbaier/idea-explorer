@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Job } from "../jobs";
 import { sendWebhook } from "./webhook";
 
+const SIGNATURE_PATTERN = /^sha256=[a-f0-9]{64}$/;
+
 describe("webhook utility", () => {
   const mockJob: Job = {
     id: "test-job",
@@ -78,7 +80,7 @@ describe("webhook utility", () => {
     const callArgs = vi.mocked(fetch).mock.calls[0]?.[1];
     const headers = callArgs?.headers as Record<string, string>;
     expect(headers["X-Signature"]).toBeDefined();
-    expect(headers["X-Signature"]).toMatch(/^sha256=[a-f0-9]{64}$/);
+    expect(headers["X-Signature"]).toMatch(SIGNATURE_PATTERN);
   });
 
   it("should send a failure webhook", async () => {
