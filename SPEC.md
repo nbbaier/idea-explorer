@@ -312,15 +312,14 @@ When an exploration job completes (success or failure), the service delivers a w
 | Header | Description |
 |--------|-------------|
 | `Content-Type` | `application/json` |
-| `X-Idea-Explorer-Event` | `idea_explored` |
-| `X-Idea-Explorer-Signature` | HMAC-SHA256 signature (if `callback_secret` provided) |
+| `X-Signature` | HMAC-SHA256 signature (if `callback_secret` provided) |
 
 ### Signature Verification
 
 If `callback_secret` was provided in the original request:
 
 ```
-X-Idea-Explorer-Signature: sha256=<hex-encoded-hmac>
+X-Signature: sha256=<hex-encoded-hmac>
 ```
 
 **Verification (Node.js example):**

@@ -27,6 +27,8 @@ const MODEL_MAP = {
   opus: "claude-opus-4-5-20251101",
 } as const;
 
+const MAX_OUTPUT_TOKENS = 16_384;
+
 type AnthropicInstance = InstanceType<typeof Anthropic>;
 
 export class AnthropicClient {
@@ -44,15 +46,15 @@ export class AnthropicClient {
   ): Promise<GenerateResearchResult> {
     const stream = this.client.messages.stream({
       model: this.model,
-      max_tokens: 16_384,
+      max_tokens: MAX_OUTPUT_TOKENS,
       system: params.systemPrompt,
       messages: [{ role: "user", content: params.userPrompt }],
     });
 
     const message = await stream.finalMessage();
 
-    const textContent = message.content.find((block) => block.type === "text");
-    const content = textContent?.type === "text" ? textContent.text : "";
+    const textBlock = message.content.find((block) => block.type === "text");
+    const content = textBlock && "text" in textBlock ? textBlock.text : "";
 
     return {
       content,

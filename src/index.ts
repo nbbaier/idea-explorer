@@ -9,7 +9,7 @@ import {
   JobStatusSchema,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
-import { logJobCreated } from "./utils/logger";
+import { logError, logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
 
 type ExploreEnv = Env & {
@@ -106,7 +106,11 @@ app.get("/api/jobs", async (c) => {
           c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
       )
     );
-  } catch {
+  } catch (error) {
+    logError(
+      "jobs_list_failed",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
 
@@ -159,45 +163,42 @@ app.get("/api/status/:id", async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
-  const baseResponse = {
+  const response: Record<string, unknown> = {
     status: job.status,
     idea: job.idea,
     mode: job.mode,
   };
 
-  if (job.status === "completed") {
-    return c.json({
-      ...baseResponse,
-      ...(job.github_url && { github_url: job.github_url }),
-    });
+  if (job.status === "completed" && job.github_url) {
+    response.github_url = job.github_url;
   }
 
-  if (job.status === "failed") {
-    return c.json({
-      ...baseResponse,
-      ...(job.error && { error: job.error }),
-    });
+  if (job.status === "failed" && job.error) {
+    response.error = job.error;
   }
 
   if (job.status === "running") {
-    return c.json({
-      ...baseResponse,
-      ...(job.current_step && { current_step: job.current_step }),
-      ...(job.current_step_label && {
-        current_step_label: job.current_step_label,
-      }),
-      ...(job.steps_completed !== undefined && {
-        steps_completed: job.steps_completed,
-      }),
-      ...(job.steps_total !== undefined && { steps_total: job.steps_total }),
-      ...(job.step_started_at !== undefined && {
-        step_started_at: job.step_started_at,
-      }),
-      ...(job.step_durations && { step_durations: job.step_durations }),
-    });
+    if (job.current_step) {
+      response.current_step = job.current_step;
+    }
+    if (job.current_step_label) {
+      response.current_step_label = job.current_step_label;
+    }
+    if (job.steps_completed !== undefined) {
+      response.steps_completed = job.steps_completed;
+    }
+    if (job.steps_total !== undefined) {
+      response.steps_total = job.steps_total;
+    }
+    if (job.step_started_at !== undefined) {
+      response.step_started_at = job.step_started_at;
+    }
+    if (job.step_durations) {
+      response.step_durations = job.step_durations;
+    }
   }
 
-  return c.json(baseResponse);
+  return c.json(response);
 });
 
 app.get("/api/workflow-status/:id", async (c) => {
@@ -221,9 +222,8 @@ app.get("/", (c) => {
   <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
     <h2>Idea Explorer</h2>
     <p>
-      A Cloudflare Container-based service that runs autonomous Claude Code
-      sessions to explore and analyze ideas, committing results to a GitHub
-      repository.
+      A Cloudflare Worker that explores and analyzes ideas using Claude,
+      committing research results to a GitHub repository.
     </p>
     <h3>API</h3>
     <p>POST /api/explore</p>

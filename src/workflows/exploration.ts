@@ -160,6 +160,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
 
     let existingContent: string | undefined;
     let existingSha: string | undefined;
+    let existingDirPath: string | undefined;
     let researchContent = "";
     let inputTokens = 0;
     let outputTokens = 0;
@@ -198,6 +199,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             );
 
             if (matchingDir) {
+              existingDirPath = matchingDir.path;
               const existingResearchPath = `${matchingDir.path}/research.md`;
               const existing = await github.getFile(existingResearchPath);
               if (existing) {
@@ -278,6 +280,16 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
+
+      // Determine paths - reuse existingDirPath from step 2 if updating
+      let finalResearchPath = researchPath;
+      let finalLogPath = logPath;
+
+      if (existingSha && existingDirPath) {
+        finalResearchPath = `${existingDirPath}/research.md`;
+        finalLogPath = `${existingDirPath}/exploration-log.json`;
+      }
+
       await step.do(
         "write-github",
         { retries: { limit: 3, delay: "15 seconds" }, timeout: "2 minutes" },
@@ -291,19 +303,18 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             : researchContent;
 
           if (existingSha) {
-            const existingResearchPath = `ideas/${
-              (await github.listDirectory("ideas")).find(
-                (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
-              )?.name
-            }/research.md`;
             await github.updateFile(
-              existingResearchPath,
+              finalResearchPath,
               finalContent,
               existingSha,
               commitMessage
             );
           } else {
-            await github.createFile(researchPath, finalContent, commitMessage);
+            await github.createFile(
+              finalResearchPath,
+              finalContent,
+              commitMessage
+            );
           }
 
           const explorationLog: ExplorationLog = {
@@ -321,28 +332,16 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
               output: outputTokens,
               total: inputTokens + outputTokens,
             },
-            outputPath: existingSha
-              ? `ideas/${
-                  (await github.listDirectory("ideas")).find(
-                    (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
-                  )?.name
-                }/research.md`
-              : researchPath,
+            outputPath: finalResearchPath,
           };
 
           await github.createFile(
-            existingSha
-              ? `ideas/${
-                  (await github.listDirectory("ideas")).find(
-                    (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
-                  )?.name
-                }/exploration-log.json`
-              : logPath,
+            finalLogPath,
             JSON.stringify(explorationLog, null, 2),
             `log: ${slug}`
           );
 
-          logInfo("github_write_complete", { path: researchPath }, jobId);
+          logInfo("github_write_complete", { path: finalResearchPath }, jobId);
         }
       );
 
@@ -358,14 +357,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         "notify",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
         async () => {
-          const outputPath = existingSha
-            ? `ideas/${
-                (await github.listDirectory("ideas")).find(
-                  (d) => d.type === "dir" && d.name.endsWith(`-${slug}`)
-                )?.name
-              }/research.md`
-            : researchPath;
-          const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${outputPath}`;
+          const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${finalResearchPath}`;
           await completeJobAndNotify({
             kv: this.env.IDEA_EXPLORER_JOBS,
             jobId,

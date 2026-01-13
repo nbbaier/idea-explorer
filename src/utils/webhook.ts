@@ -4,6 +4,7 @@ import { logError, logWebhookSent } from "./logger";
 import { retryWithBackoff } from "./retry";
 
 const WebhookSuccessPayloadSchema = z.object({
+  event: z.literal("idea_explored"),
   status: z.literal("completed"),
   job_id: z.string(),
   idea: z.string(),
@@ -13,6 +14,7 @@ const WebhookSuccessPayloadSchema = z.object({
 });
 
 const WebhookFailurePayloadSchema = z.object({
+  event: z.literal("idea_explored"),
   status: z.literal("failed"),
   job_id: z.string(),
   idea: z.string(),
@@ -61,6 +63,7 @@ function buildSuccessPayload(
     : "";
 
   return {
+    event: "idea_explored",
     status: "completed",
     job_id: job.id,
     idea: job.idea,
@@ -72,6 +75,7 @@ function buildSuccessPayload(
 
 function buildFailurePayload(job: Job): WebhookFailurePayload {
   return {
+    event: "idea_explored",
     status: "failed",
     job_id: job.id,
     idea: job.idea,

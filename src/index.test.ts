@@ -22,11 +22,6 @@ beforeAll(() => {
   }
 });
 
-// Mock the Sandbox import
-vi.mock("@cloudflare/sandbox", () => ({
-  Sandbox: class MockSandbox {},
-}));
-
 // Mock the workflows
 vi.mock("./workflows/exploration", () => ({
   ExplorationWorkflow: class MockWorkflow {},
