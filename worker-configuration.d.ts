@@ -15,7 +15,6 @@ declare namespace Cloudflare {
 		IDEA_EXPLORER_API_URL: string;
 		IDEA_EXPLORER_WEBHOOK_URL: string;
 		EXPLORATION_WORKFLOW: Workflow<Parameters<import("./src/index").ExplorationWorkflow['run']>[0]['payload']>;
-		RATE_LIMITER?: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
 	}
 }
 interface Env extends Cloudflare.Env {}

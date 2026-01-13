@@ -29,13 +29,14 @@ const WebhookPayloadSchema = z.discriminatedUnion("status", [
 
 type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
 type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
-export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+
+const encoder = new TextEncoder();
 
 async function generateSignature(
   secret: string,
   body: string
 ): Promise<string> {
-  const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),

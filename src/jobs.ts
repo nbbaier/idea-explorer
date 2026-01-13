@@ -147,9 +147,10 @@ export async function getJob(
 export async function updateJob(
   kv: KVNamespace,
   id: string,
-  updates: Partial<Omit<Job, "id" | "created_at">>
+  updates: Partial<Omit<Job, "id" | "created_at">>,
+  existingJob?: Job
 ): Promise<Job | undefined> {
-  const job = await getJob(kv, id);
+  const job = existingJob ?? (await getJob(kv, id));
   if (!job) {
     return;
   }

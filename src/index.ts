@@ -60,6 +60,14 @@ function parsePaginationParams(
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("X-XSS-Protection", "1; mode=block");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+});
+
 app.use("/api/*", async (c, next) => {
   if (c.env.RATE_LIMITER) {
     const ip = c.req.header("CF-Connecting-IP") || "unknown";
@@ -168,8 +176,6 @@ app.get("/api/jobs", async (c) => {
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
 
-  let filtered = jobs.filter((j): j is Job => j != null);
-
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
     JobStatusSchema,
@@ -178,23 +184,29 @@ app.get("/api/jobs", async (c) => {
   if (statusValidation?.valid === false) {
     return c.json({ error: statusValidation.error }, 400);
   }
-  if (statusValidation?.valid) {
-    filtered = filtered.filter((j) => j.status === statusValidation.value);
-  }
 
   const modeValidation = validateEnumFilter(
     c.req.query("mode"),
     ModeSchema,
     "mode"
   );
-
   if (modeValidation?.valid === false) {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  if (modeValidation?.valid) {
-    filtered = filtered.filter((j) => j.mode === modeValidation.value);
-  }
+  // Single-pass filter for null check and optional status/mode filters
+  const filtered = jobs.filter((j): j is Job => {
+    if (j == null) {
+      return false;
+    }
+    if (statusValidation?.valid && j.status !== statusValidation.value) {
+      return false;
+    }
+    if (modeValidation?.valid && j.mode !== modeValidation.value) {
+      return false;
+    }
+    return true;
+  });
 
   filtered.sort((a, b) => b.created_at - a.created_at);
 

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
 import { Hono } from "hono";
+import { beforeAll, describe, expect, it } from "vitest";
 import { requireAuth } from "./auth";
 
 describe("requireAuth middleware", () => {
@@ -14,7 +14,10 @@ describe("requireAuth middleware", () => {
       });
     }
     if (!global.crypto.subtle.timingSafeEqual) {
-      global.crypto.subtle.timingSafeEqual = (a: BufferSource, b: BufferSource) => {
+      global.crypto.subtle.timingSafeEqual = (
+        a: BufferSource,
+        b: BufferSource
+      ) => {
         const bufA = new Uint8Array(a as ArrayBuffer);
         const bufB = new Uint8Array(b as ArrayBuffer);
         if (bufA.length !== bufB.length) return false;
@@ -31,11 +34,15 @@ describe("requireAuth middleware", () => {
     app.use("/protected", requireAuth());
     app.get("/protected", (c) => c.json({ message: "success" }));
 
-    const res = await app.request("/protected", {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const res = await app.request(
+      "/protected",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    }, env);
+      env
+    );
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ message: "success" });
@@ -49,7 +56,9 @@ describe("requireAuth middleware", () => {
     const res = await app.request("/protected", {}, env);
 
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: "Unauthorized: Missing Authorization header" });
+    expect(await res.json()).toEqual({
+      error: "Unauthorized: Missing Authorization header",
+    });
   });
 
   it("should reject invalid Authorization header format", async () => {
@@ -57,14 +66,20 @@ describe("requireAuth middleware", () => {
     app.use("/protected", requireAuth());
     app.get("/protected", (c) => c.json({ message: "success" }));
 
-    const res = await app.request("/protected", {
-      headers: {
-        Authorization: `Basic ${token}`,
+    const res = await app.request(
+      "/protected",
+      {
+        headers: {
+          Authorization: `Basic ${token}`,
+        },
       },
-    }, env);
+      env
+    );
 
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: "Unauthorized: Invalid Authorization header format" });
+    expect(await res.json()).toEqual({
+      error: "Unauthorized: Invalid Authorization header format",
+    });
   });
 
   it("should reject invalid token", async () => {
@@ -72,26 +87,34 @@ describe("requireAuth middleware", () => {
     app.use("/protected", requireAuth());
     app.get("/protected", (c) => c.json({ message: "success" }));
 
-    const res = await app.request("/protected", {
-      headers: {
-        Authorization: "Bearer invalid-token",
+    const res = await app.request(
+      "/protected",
+      {
+        headers: {
+          Authorization: "Bearer invalid-token",
+        },
       },
-    }, env);
+      env
+    );
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Unauthorized: Invalid token" });
   });
 
   it("should reject token with different length", async () => {
-     const app = new Hono<{ Bindings: typeof env }>();
+    const app = new Hono<{ Bindings: typeof env }>();
     app.use("/protected", requireAuth());
     app.get("/protected", (c) => c.json({ message: "success" }));
 
-    const res = await app.request("/protected", {
-      headers: {
-        Authorization: "Bearer short",
+    const res = await app.request(
+      "/protected",
+      {
+        headers: {
+          Authorization: "Bearer short",
+        },
       },
-    }, env);
+      env
+    );
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Unauthorized: Invalid token" });

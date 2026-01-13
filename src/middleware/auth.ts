@@ -4,6 +4,8 @@ interface AuthEnv {
   IDEA_EXPLORER_API_TOKEN: string;
 }
 
+const encoder = new TextEncoder();
+
 export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
   return async (c: Context<{ Bindings: AuthEnv }>, next) => {
     const authHeader = c.req.header("Authorization");
@@ -24,7 +26,6 @@ export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
 
     const token = authHeader.slice(7);
 
-    const encoder = new TextEncoder();
     const tokenBuffer = encoder.encode(token);
     const secretBuffer = encoder.encode(c.env.IDEA_EXPLORER_API_TOKEN);
 

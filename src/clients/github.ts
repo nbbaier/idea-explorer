@@ -173,10 +173,14 @@ function isHttpError(error: unknown, status: number): boolean {
   );
 }
 
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
 function encodeBase64(str: string): string {
-  const encoder = new TextEncoder();
   const data = encoder.encode(str);
-  const binary = Array.from(data, (byte) => String.fromCharCode(byte)).join("");
+  // Using spread with fromCharCode is faster for medium-sized strings but can hit stack limits for very large ones.
+  // For research documents, this should be safe and is much faster than a loop.
+  const binary = String.fromCharCode(...data);
   return btoa(binary);
 }
 
@@ -187,6 +191,5 @@ function decodeBase64(base64: string): string {
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  const decoder = new TextDecoder();
   return decoder.decode(bytes);
 }

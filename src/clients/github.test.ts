@@ -165,7 +165,7 @@ describe("GitHubClient", () => {
       expect(result).toBe(
         "https://github.com/owner/repo/blob/main/existing.txt"
       );
-      
+
       // First call fails (no sha)
       expect(mockCreateOrUpdate).toHaveBeenNthCalledWith(1, {
         owner: "owner",

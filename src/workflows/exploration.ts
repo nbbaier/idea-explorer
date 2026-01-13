@@ -5,7 +5,7 @@ import {
 } from "cloudflare:workers";
 import { AnthropicClient } from "../clients/anthropic";
 import { GitHubClient } from "../clients/github";
-import { getJob, updateJob } from "../jobs";
+import { getJob, type Job, updateJob } from "../jobs";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts";
 import { logError, logInfo, logJobComplete } from "../utils/logger";
 import { generateSlug } from "../utils/slug";
@@ -69,7 +69,8 @@ async function updateStepProgress(
   kv: KVNamespace,
   jobId: string,
   stepIndex: number,
-  stepStartTime?: number
+  stepStartTime?: number,
+  existingJob?: Job
 ): Promise<void> {
   const currentStep = WORKFLOW_STEPS[stepIndex];
   const updates: Record<string, unknown> = {
@@ -80,10 +81,14 @@ async function updateStepProgress(
     step_started_at: Date.now(),
   };
 
+  // Only fetch job once if we need step_durations and don't have existingJob
+  let job = existingJob;
   if (stepStartTime !== undefined && stepIndex > 0) {
     const previousStep = WORKFLOW_STEPS[stepIndex - 1];
     const duration = Date.now() - stepStartTime;
-    const job = await getJob(kv, jobId);
+    if (!job) {
+      job = await getJob(kv, jobId);
+    }
     const stepDurations = job?.step_durations ?? {};
     updates.step_durations = {
       ...stepDurations,
@@ -91,7 +96,7 @@ async function updateStepProgress(
     };
   }
 
-  await updateJob(kv, jobId, updates);
+  await updateJob(kv, jobId, updates, job);
 }
 
 function getDatePrefix(): string {
@@ -381,8 +386,16 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
                 existingLog.sha,
                 `log: ${slug} - updated`
               );
-            } catch {
-              // If parsing fails, overwrite with new log
+            } catch (parseError) {
+              // If parsing fails, log a warning and overwrite with new log
+              logError(
+                "log_parse_failed",
+                parseError instanceof Error
+                  ? parseError
+                  : new Error("Unknown JSON parse error"),
+                undefined,
+                jobId
+              );
               await github.updateFile(
                 finalLogPath,
                 JSON.stringify([explorationLog], null, 2),
