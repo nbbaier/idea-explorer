@@ -7,7 +7,8 @@ export const JobStatusSchema = z.enum([
   "failed",
 ]);
 export const ExploreModeSchema = z.enum(["business", "exploration"]);
-export const ModelTypeSchema = z.enum(["sonnet", "opus"]);
+
+const ModelTypeSchema = z.enum(["sonnet", "opus"]);
 
 export const ExploreRequestSchema = z.object({
   idea: z.string(),
@@ -19,7 +20,7 @@ export const ExploreRequestSchema = z.object({
   update: z.boolean().optional(),
 });
 
-export const JobSchema = z.object({
+const JobSchema = z.object({
   id: z.string(),
   idea: z.string(),
   mode: ExploreModeSchema,
