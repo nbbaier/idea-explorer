@@ -22,6 +22,34 @@ interface JobParams {
   callback_secret?: string;
 }
 
+interface CompleteJobParams {
+  kv: KVNamespace;
+  jobId: string;
+  status: "completed" | "failed";
+  githubUrl?: string;
+  error?: string;
+  githubRepo: string;
+  branch: string;
+  jobStartTime: number;
+}
+
+interface ExplorationLog {
+  jobId: string;
+  idea: string;
+  mode: "business" | "exploration";
+  model: "sonnet" | "opus";
+  context?: string;
+  isUpdate: boolean;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  tokens: {
+    input: number;
+    output: number;
+    total: number;
+  };
+  outputPath: string;
+}
 type ExplorationEnv = Env & {
   IDEA_EXPLORER_JOBS: KVNamespace;
 };
@@ -74,17 +102,6 @@ function getDatePrefix(): string {
   return `${year}-${month}-${day}`;
 }
 
-interface CompleteJobParams {
-  kv: KVNamespace;
-  jobId: string;
-  status: "completed" | "failed";
-  githubUrl?: string;
-  error?: string;
-  githubRepo: string;
-  branch: string;
-  jobStartTime: number;
-}
-
 async function completeJobAndNotify({
   kv,
   jobId,
@@ -113,24 +130,6 @@ async function completeJobAndNotify({
   if (updatedJob) {
     await sendWebhook(updatedJob, githubRepo, branch);
   }
-}
-
-interface ExplorationLog {
-  jobId: string;
-  idea: string;
-  mode: "business" | "exploration";
-  model: "sonnet" | "opus";
-  context?: string;
-  isUpdate: boolean;
-  startedAt: string;
-  completedAt: string;
-  durationMs: number;
-  tokens: {
-    input: number;
-    output: number;
-    total: number;
-  };
-  outputPath: string;
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<

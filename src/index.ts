@@ -61,6 +61,29 @@ const app = new Hono<{ Bindings: ExploreEnv }>();
 
 app.use("/api/*", requireAuth());
 
+app.get("/", (c) => {
+  const docs = `
+<html>
+  <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
+    <h2>Idea Explorer</h2>
+    <p>
+      A Cloudflare Worker that explores and analyzes ideas using Claude,
+      committing research results to a GitHub repository.
+    </p>
+    <h3>API</h3>
+    <p>POST /api/explore</p>
+    <p>GET /api/jobs</p>
+    <p>GET /api/status/:id</p>
+    <p>GET /api/health</p>
+    <p>GET /api/test-webhook</p>
+    <h3>Documentation</h3>
+    <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
+  </body>
+</html>
+   `;
+  return c.html(docs);
+});
+
 app.post(
   "/api/explore",
   zValidator("json", ExploreRequestSchema),
@@ -133,9 +156,11 @@ app.get("/api/jobs", async (c) => {
     ModeSchema,
     "mode"
   );
+
   if (modeValidation?.valid === false) {
     return c.json({ error: modeValidation.error }, 400);
   }
+
   if (modeValidation?.valid) {
     filtered = filtered.filter((j) => j.mode === modeValidation.value);
   }
@@ -216,29 +241,6 @@ app.get("/api/workflow-status/:id", async (c) => {
   }
 });
 
-app.get("/", (c) => {
-  const docs = `
-<html>
-  <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
-    <h2>Idea Explorer</h2>
-    <p>
-      A Cloudflare Worker that explores and analyzes ideas using Claude,
-      committing research results to a GitHub repository.
-    </p>
-    <h3>API</h3>
-    <p>POST /api/explore</p>
-    <p>GET /api/jobs</p>
-    <p>GET /api/status/:id</p>
-    <p>GET /api/health</p>
-    <p>GET /api/test-webhook</p>
-    <h3>Documentation</h3>
-    <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
-  </body>
-</html>
-   `;
-  return c.html(docs);
-});
-
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/test-webhook", async (c) => {
@@ -291,5 +293,6 @@ app.get("/api/test-webhook", async (c) => {
 app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
 export default app;
-// biome-ignore lint/performance/noBarrelFile: needed for cloudflare
+
+// biome-ignore lint/performance/noBarrelFile: neededed for cloudflare
 export { ExplorationWorkflow } from "./workflows/exploration";
