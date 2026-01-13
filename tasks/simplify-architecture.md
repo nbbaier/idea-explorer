@@ -213,7 +213,7 @@ interface ExplorationLog {
 - [x] `src/workflows/exploration.ts`
 
 ### Tests to add:
-- [ ] `src/workflows/exploration.test.ts`
+- [ ] `src/workflows/exploration.test.ts` (deferred - Cloudflare Workflow primitives require wrangler test runner)
 
 ---
 
@@ -241,9 +241,9 @@ In `worker-configuration.d.ts`:
 - Add `ANTHROPIC_API_KEY` to env interface (if not already present)
 
 ### Files to modify:
-- [ ] `src/index.ts`
-- [ ] `wrangler.jsonc`
-- [ ] `worker-configuration.d.ts`
+- [x] `src/index.ts`
+- [x] `wrangler.jsonc`
+- [x] `worker-configuration.d.ts`
 
 ---
 
@@ -283,9 +283,9 @@ In `src/utils/logger.ts`:
 
 ### 5.1 Unit Tests
 
-- [ ] All new clients have tests with mocked fetch
-- [ ] Prompt building tests cover all modes and update scenarios
-- [ ] Workflow tests mock both Anthropic and GitHub clients
+- [x] All new clients have tests with mocked fetch
+- [x] Prompt building tests cover all modes and update scenarios
+- [ ] Workflow tests mock both Anthropic and GitHub clients (deferred - requires wrangler test runner)
 
 ### 5.2 Integration Tests
 

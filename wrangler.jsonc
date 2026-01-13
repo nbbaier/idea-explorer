@@ -13,27 +13,6 @@
     "GITHUB_REPO": "nbbaier/idea-explorer",
     "GITHUB_BRANCH": "main"
   },
-  "containers": [
-    {
-      "class_name": "Sandbox",
-      "image": "./Dockerfile",
-      "instance_type": "basic"
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "Sandbox",
-        "name": "Sandbox"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "new_sqlite_classes": ["Sandbox"],
-      "tag": "v1"
-    }
-  ],
   "kv_namespaces": [
     {
       "binding": "IDEA_EXPLORER_JOBS",

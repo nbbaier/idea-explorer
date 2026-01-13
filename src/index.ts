@@ -1,5 +1,3 @@
-// biome-ignore lint/style/noExportedImports: needed for cloudflare
-import { Sandbox } from "@cloudflare/sandbox";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
@@ -289,6 +287,5 @@ app.get("/api/test-webhook", async (c) => {
 app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
 export default app;
-export { Sandbox };
 // biome-ignore lint/performance/noBarrelFile: needed for cloudflare
 export { ExplorationWorkflow } from "./workflows/exploration";
