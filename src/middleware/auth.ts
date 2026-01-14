@@ -1,8 +1,10 @@
 import type { Context, MiddlewareHandler } from "hono";
 
 interface AuthEnv {
-  API_BEARER_TOKEN: string;
+  IDEA_EXPLORER_API_TOKEN: string;
 }
+
+const encoder = new TextEncoder();
 
 export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
   return async (c: Context<{ Bindings: AuthEnv }>, next) => {
@@ -24,9 +26,8 @@ export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
 
     const token = authHeader.slice(7);
 
-    const encoder = new TextEncoder();
     const tokenBuffer = encoder.encode(token);
-    const secretBuffer = encoder.encode(c.env.API_BEARER_TOKEN);
+    const secretBuffer = encoder.encode(c.env.IDEA_EXPLORER_API_TOKEN);
 
     if (tokenBuffer.byteLength !== secretBuffer.byteLength) {
       return c.json({ error: "Unauthorized: Invalid token" }, 401);

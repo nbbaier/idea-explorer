@@ -4,6 +4,7 @@ import { logError, logWebhookSent } from "./logger";
 import { retryWithBackoff } from "./retry";
 
 const WebhookSuccessPayloadSchema = z.object({
+  event: z.literal("idea_explored"),
   status: z.literal("completed"),
   job_id: z.string(),
   idea: z.string(),
@@ -13,6 +14,7 @@ const WebhookSuccessPayloadSchema = z.object({
 });
 
 const WebhookFailurePayloadSchema = z.object({
+  event: z.literal("idea_explored"),
   status: z.literal("failed"),
   job_id: z.string(),
   idea: z.string(),
@@ -25,15 +27,16 @@ const WebhookPayloadSchema = z.discriminatedUnion("status", [
   WebhookFailurePayloadSchema,
 ]);
 
-export type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
-export type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
-export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+type WebhookSuccessPayload = z.infer<typeof WebhookSuccessPayloadSchema>;
+type WebhookFailurePayload = z.infer<typeof WebhookFailurePayloadSchema>;
+type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+
+const encoder = new TextEncoder();
 
 async function generateSignature(
   secret: string,
   body: string
 ): Promise<string> {
-  const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -61,6 +64,7 @@ function buildSuccessPayload(
     : "";
 
   return {
+    event: "idea_explored",
     status: "completed",
     job_id: job.id,
     idea: job.idea,
@@ -72,6 +76,7 @@ function buildSuccessPayload(
 
 function buildFailurePayload(job: Job): WebhookFailurePayload {
   return {
+    event: "idea_explored",
     status: "failed",
     job_id: job.id,
     idea: job.idea,
@@ -139,6 +144,19 @@ export async function sendWebhook(
       logWebhookSent(job.id, response.status, attempt);
     }
   );
+
+  if (!result.success) {
+    logError(
+      "webhook_delivery_failed",
+      new Error("Webhook delivery failed"),
+      {
+        status_code: result.result?.status ?? 0,
+        attempts: result.attempts,
+        url: webhookUrl,
+      },
+      job.id
+    );
+  }
 
   return {
     success: result.success,

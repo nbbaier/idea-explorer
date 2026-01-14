@@ -43,7 +43,7 @@ function extractJobId(comments: Comment[]): string | null {
   for (const comment of comments) {
     const match = comment.body.match(JOB_ID_REGEX);
     if (match) {
-      return match[1];
+      return match[1] ?? null;
     }
   }
   return null;

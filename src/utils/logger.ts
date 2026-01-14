@@ -24,22 +24,6 @@ export function logJobCreated(jobId: string, idea: string, mode: string): void {
   log("info", "job_created", { idea, mode }, jobId);
 }
 
-export function logContainerStarted(jobId: string): void {
-  log("info", "container_started", undefined, jobId);
-}
-
-export function logCloneComplete(jobId: string, durationMs: number): void {
-  log("info", "clone_complete", { duration_ms: durationMs }, jobId);
-}
-
-export function logClaudeStarted(jobId: string, model: string): void {
-  log("info", "claude_started", { model }, jobId);
-}
-
-export function logCommitPushed(jobId: string): void {
-  log("info", "commit_pushed", undefined, jobId);
-}
-
 export function logWebhookSent(
   jobId: string,
   statusCode: number,

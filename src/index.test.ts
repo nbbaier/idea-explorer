@@ -12,18 +12,15 @@ beforeAll(() => {
       const bView = new Uint8Array(b);
       let result = 0;
       for (let i = 0; i < aView.length; i++) {
+        const aByte = aView[i] ?? 0;
+        const bByte = bView[i] ?? 0;
         // biome-ignore lint/suspicious/noBitwiseOperators: timing-safe comparison requires bitwise ops
-        result |= aView[i] ^ bView[i];
+        result |= aByte ^ bByte;
       }
       return result === 0;
     };
   }
 });
-
-// Mock the Sandbox import
-vi.mock("@cloudflare/sandbox", () => ({
-  Sandbox: class MockSandbox {},
-}));
 
 // Mock the workflows
 vi.mock("./workflows/exploration", () => ({
@@ -65,7 +62,7 @@ describe("GET /api/jobs", () => {
   };
 
   const createMockEnv = (jobs: Record<string, string>) => ({
-    API_BEARER_TOKEN: "test-token",
+    IDEA_EXPLORER_API_TOKEN: "test-token",
     IDEA_EXPLORER_JOBS: createMockKV(jobs),
     GITHUB_REPO: "test/repo",
     GITHUB_BRANCH: "main",

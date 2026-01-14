@@ -1,16 +1,16 @@
-# Idea Explorer - Cloudflare Sandbox Specification
+# Idea Explorer - API Specification
 
-A Cloudflare Container-based service that runs autonomous Claude Code sessions to explore and analyze ideas, committing results to a GitHub repository.
+A Cloudflare Worker that explores and analyzes ideas using Claude, committing research results to a GitHub repository.
 
 ## Overview
 
-The service accepts ideas via API, spins up a Claude Code session in a sandboxed container, runs analysis using one of two frameworks (business or exploration), and commits the research output to a GitHub repository. Results are delivered via webhook with HMAC signature verification.
+The service accepts ideas via API, calls the Anthropic Messages API to generate research using one of two frameworks (business or exploration), and commits the output to a GitHub repository via the GitHub Contents API. Results are delivered via webhook with HMAC signature verification.
 
 ---
 
 ## Architecture
 
-The service uses **Cloudflare Workflows** for durable execution of long-running exploration jobs. Workflows provide automatic retries, state persistence between steps, and survive IoContext timeouts.
+The service uses **Cloudflare Workflows** for durable execution of exploration jobs. Workflows provide automatic retries, state persistence between steps, and survive IoContext timeouts.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -33,44 +33,36 @@ The service uses **Cloudflare Workflows** for durable execution of long-running 
 │                      (ExplorationWorkflow)                                   │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  Step 1: initialize ────► Update job status to "running"                     │
+│  Step 1: initialize ────────► Update job status to "running"                 │
 │              │                                                               │
 │              ▼                                                               │
-│  Step 2: setup-sandbox ─► Get sandbox, set env vars, clone repo              │
+│  Step 2: check-existing ────► Check for existing idea via GitHub API         │
+│              │                  ├─ exists & update=false → use existing      │
+│              │                  └─ exists & update=true → load content       │
+│              ▼                                                               │
+│  Step 3: generate-research ─► Call Anthropic Messages API (streaming)        │
 │              │                                                               │
 │              ▼                                                               │
-│  Step 3: check-existing ► Check for existing idea folder                     │
-│              │              ├─ exists & update=false → complete early        │
-│              │              └─ exists & update=true → continue               │
-│              ▼                                                               │
-│  Step 4: run-claude ────► Execute Claude Code (15 min timeout)               │
+│  Step 4: write-github ──────► Write files via GitHub Contents API            │
 │              │                                                               │
 │              ▼                                                               │
-│  Step 5: commit-push ───► Git commit + push to GitHub                        │
-│              │                                                               │
-│              ▼                                                               │
-│  Step 6: notify ────────► Update KV status, send webhook                     │
+│  Step 5: notify ────────────► Update KV status, send webhook                 │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
                                          │
-                                         ▼
-                  ┌───────────────────────────────────────────────────────┐
-                  │              Sandbox Container                        │
-                  │                                                       │
-                  │  - Clone ideas repo (sparse checkout)                 │
-                  │  - Run Claude Code with analysis prompt               │
-                  │  - Write research.md                                  │
-                  │  - Git commit + push                                  │
-                  │                                                       │
-                  └───────────────────────────────────────────────────────┘
+                         ┌───────────────┴───────────────┐
+                         ▼                               ▼
+               Anthropic Messages API          GitHub Contents API
+                   (fetch call)                    (fetch call)
 ```
 
 ### Workflow Benefits
 
 - **Durable execution**: Steps survive IoContext timeouts and Worker restarts
-- **Automatic retries**: Each step can be configured with retry policies
+- **Automatic retries**: Each step configured with retry policies
 - **State persistence**: Data returned from each step is persisted automatically
 - **Observability**: Native workflow status tracking via dashboard and API
+- **No containers**: Direct HTTP calls eliminate cold starts and Docker image management
 
 ---
 
@@ -89,7 +81,7 @@ Start an idea exploration job.
 ```typescript
 {
   idea: string;           // Required: The idea to explore
-  webhook_url?: string;   // Optional: URL to receive completion callback (falls back to WEBHOOK_URL env var)
+  webhook_url?: string;   // Optional: URL to receive completion callback (falls back to IDEA_EXPLORER_WEBHOOK_URL env var)
   mode?: 'business' | 'exploration';  // Default: 'business'
   model?: 'sonnet' | 'opus';          // Default: 'sonnet'
   callback_secret?: string;           // Optional: Secret for HMAC-SHA256 webhook signature verification
@@ -144,14 +136,13 @@ Check the status of an exploration job.
   "status": "running",
   "idea": "AI calendar assistant",
   "mode": "business",
-  "current_step": "run_claude",
-  "current_step_label": "Running Claude analysis...",
-  "steps_completed": 3,
-  "steps_total": 6,
+  "current_step": "generate_research",
+  "current_step_label": "Generating research with Claude...",
+  "steps_completed": 2,
+  "steps_total": 5,
   "step_started_at": 1704816000000,
   "step_durations": {
     "initialize": 245,
-    "setup_sandbox": 1820,
     "check_existing": 312
   }
 }
@@ -164,18 +155,17 @@ Check the status of an exploration job.
 | `current_step` | string | Name of the current workflow step |
 | `current_step_label` | string | Human-readable description of current step |
 | `steps_completed` | number | Number of steps completed so far (0 = no steps completed yet) |
-| `steps_total` | number | Total number of steps in the workflow (6) |
+| `steps_total` | number | Total number of steps in the workflow (5) |
 | `step_started_at` | number | Unix timestamp (ms) when current step started |
 | `step_durations` | object | Map of completed step names to duration (ms) |
 
 **Workflow Steps:**
 
 1. `initialize` - Initializing job...
-2. `setup_sandbox` - Setting up sandbox and cloning repository...
-3. `check_existing` - Checking for existing research...
-4. `run_claude` - Running Claude analysis...
-5. `commit_push` - Committing and pushing results...
-6. `notify` - Sending completion notification...
+2. `check_existing` - Checking for existing research...
+3. `generate_research` - Generating research with Claude...
+4. `write_github` - Writing results to GitHub...
+5. `notify` - Sending completion notification...
 
 **Error Response (404 Not Found):**
 
@@ -225,6 +215,34 @@ Check the native Cloudflare Workflow execution status for a job. Provides more g
 
 ---
 
+### GET /api/jobs
+
+List exploration jobs with optional filtering and pagination.
+
+**Authentication:** Bearer token in `Authorization` header
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | `pending` \| `running` \| `completed` \| `failed` | Filter by job status |
+| `mode` | `business` \| `exploration` | Filter by analysis mode |
+| `limit` | number | Max results (1-100, default 20) |
+| `offset` | number | Pagination offset (default 0) |
+
+**Success Response (200 OK):**
+
+```json
+{
+  "jobs": [...],
+  "total": 42,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+---
+
 ### GET /api/health
 
 Simple health check endpoint.
@@ -249,249 +267,107 @@ Test webhook delivery without running an exploration.
 
 **Query Parameters:**
 
-| Parameter         | Description                                              |
-| ----------------- | -------------------------------------------------------- |
-| `webhook_url`     | Optional: Target URL (defaults to `WEBHOOK_URL` env)     |
-| `status`          | Optional: `completed` or `failed` (default: `completed`) |
-| `callback_secret` | Optional: Secret for HMAC signature                      |
+| Parameter         | Required | Description                                           |
+| ----------------- | -------- | ----------------------------------------------------- |
+| `webhook_url`     | No       | Target URL (falls back to `IDEA_EXPLORER_WEBHOOK_URL` env var) |
+| `status`          | No       | `completed` or `failed` (default: `completed`)        |
+| `callback_secret` | No       | Secret for HMAC signature                             |
 
-**Response:**
+**Response (200 OK):**
 
 ```json
 {
-   "message": "Webhook test sent",
+   "message": "Mock webhook sent",
    "webhook_url": "https://...",
    "status": "completed",
-   "result": { "success": true, "attempts": 1, "statusCode": 200 }
+   "result": { ... }
 }
 ```
-
-Note: Test webhooks include an `X-Test-Webhook: true` header.
 
 ---
 
 ## Webhook Specification
 
-Webhooks are sent when a job completes (success or failure), **only if** a webhook URL is available (from the request `webhook_url` field or the `WEBHOOK_URL` environment variable).
+When an exploration job completes (success or failure), the service delivers a webhook to the configured URL.
 
-**Headers:**
+### Payload
 
-```
-Content-Type: application/json
-X-Signature: sha256=<HMAC-SHA256 of body using callback_secret>  (only if callback_secret was provided)
-```
-
-**Success Payload:**
-
-```json
+```typescript
 {
-   "status": "completed",
-   "job_id": "abc123",
-   "idea": "AI calendar assistant",
-   "github_url": "https://github.com/user/ideas/blob/main/ideas/2025-01-07-ai-calendar/research.md",
-   "github_raw_url": "https://raw.githubusercontent.com/user/ideas/main/ideas/2025-01-07-ai-calendar/research.md",
-   "step_durations": {
-      "initialize": 245,
-      "setup_sandbox": 1820,
-      "check_existing": 312,
-      "run_claude": 450000,
-      "commit_push": 3200,
-      "notify": 150
-   }
+  event: 'idea_explored';
+  job_id: string;
+  idea: string;
+  mode: 'business' | 'exploration';
+  status: 'completed' | 'failed';
+  github_url?: string;    // Present on success
+  error?: string;         // Present on failure
+  repo: string;           // e.g., 'user/ideas'
+  branch: string;         // e.g., 'main'
+  timestamp: string;      // ISO 8601 format
 }
 ```
 
-**Failure Payload:**
+### Headers
 
-```json
-{
-   "status": "failed",
-   "job_id": "abc123",
-   "idea": "AI calendar assistant",
-   "error": "Timeout exceeded",
-   "step_durations": {
-      "initialize": 245,
-      "setup_sandbox": 1820,
-      "check_existing": 312
-   }
-}
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Signature` | HMAC-SHA256 signature (if `callback_secret` provided) |
+
+### Signature Verification
+
+If `callback_secret` was provided in the original request:
+
+```
+X-Signature: sha256=<hex-encoded-hmac>
 ```
 
-**Note:** The optional `step_durations` field provides timing breakdown (in milliseconds) for each completed workflow step, useful for performance monitoring and debugging.
-
-**Retry Logic:**
-
--  3 attempts with exponential backoff: 1s, 5s, 30s
--  Webhook considered delivered if response status is 2xx or 3xx (`response.ok`)
-
-### Webhook Signature Verification
-
-When you provide a `callback_secret` in your explore request, the service signs the webhook payload using HMAC-SHA256. This allows you to verify that webhooks are authentic and haven't been tampered with.
-
-**How it works:**
-
-1. You provide a `callback_secret` when creating an exploration job
-2. When the job completes, the service computes an HMAC-SHA256 signature of the JSON body using your secret
-3. The signature is sent in the `X-Signature` header with format: `sha256=<hex_encoded_signature>`
-4. Your webhook endpoint verifies the signature by computing the same HMAC and comparing
-
-**Example verification (Node.js):**
+**Verification (Node.js example):**
 
 ```javascript
-// Example verification (Node.js/Express):
-// To verify the signature, you MUST use the raw request body.
-// If using express.json(), you can capture the raw body like this:
-// app.use(express.json({
-//   verify: (req, res, buf) => { req.rawBody = buf }
-// }));
+const crypto = require('crypto');
 
-const crypto = require("crypto");
-
-function verifyWebhookSignature(rawBody, signature, secret) {
-   const expectedSignature =
-      "sha256=" +
-      crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-
-   return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-   );
+function verifySignature(payload, signature, secret) {
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
 }
-
-// In your webhook handler:
-app.post("/webhook", (req, res) => {
-   const signature = req.headers["x-signature"];
-   const rawBody = req.rawBody; // Use the captured raw Buffer
-
-   if (
-      !rawBody ||
-      !verifyWebhookSignature(rawBody, signature, process.env.CALLBACK_SECRET)
-   ) {
-      return res.status(401).send("Invalid signature");
-   }
-
-   const payload = req.body; // The already parsed body
-   // Process the webhook...
-});
 ```
 
-**Example verification (Python/Flask):**
+### Delivery
 
-```python
-import hmac
-import hashlib
-from flask import Flask, request
-
-def verify_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
-    expected = 'sha256=' + hmac.new(
-        secret.encode('utf-8'),
-        body,
-        hashlib.sha256
-    ).hexdigest()
-
-    return hmac.compare_digest(signature, expected)
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    signature = request.headers.get('X-Signature')
-    # Use request.get_data() to get the raw request body as bytes
-    body = request.get_data()
-
-    if not verify_webhook_signature(body, signature, 'your-secret'):
-        return 'Invalid signature', 401
-
-    payload = request.get_json()
-    # Process the webhook...
-    return 'OK', 200
-```
-
-**Security recommendations:**
-
--  Use a cryptographically random secret (minimum 32 characters)
--  Always use constant-time comparison to prevent timing attacks
--  Verify the signature before processing the webhook payload
--  Store the secret securely (environment variable or secrets manager)
+- **Retries**: 3 attempts with exponential backoff (1s, 2s, 4s delays)
+- **Timeout**: 10 seconds per attempt
+- **Success**: HTTP 2xx response
+- **Failure**: Logged, job status remains queryable via API
 
 ---
 
 ## Analysis Frameworks
 
-### Business Mode (default)
+### Business Mode
 
-Focused analysis for evaluating business viability:
+Structured analysis for evaluating commercial viability:
 
-```markdown
-# [Idea Title]
-
-## 1. Problem Analysis
-
--  What problem does this solve?
--  Who has this problem?
--  How painful is the problem?
-
-## 2. Market Analysis
-
--  Market size and dynamics
--  Existing solutions and competitors
--  Differentiation opportunities
-
-## 3. Technical Feasibility
-
--  Build vs buy decisions
--  MVP scope and complexity
--  Major technical risks
-
-## 4. Verdict
-
-**Recommendation:** STRONG YES | CONDITIONAL YES | PIVOT | PASS
-
-[2-3 paragraph reasoning]
-
-**If pursuing, first steps:**
-
-1. [Immediate action]
-2. [Validation experiment]
-3. [Key decision to make]
-```
+1. **Problem Analysis** - Pain points, frequency, current solutions
+2. **Market Assessment** - TAM/SAM/SOM, competitors, differentiation
+3. **Use Cases & Personas** - Primary users and value propositions
+4. **Technical Feasibility** - Requirements, MVP scope, risks
+5. **Verdict** - STRONG YES / CONDITIONAL YES / PIVOT / PASS with reasoning
 
 ### Exploration Mode
 
-Divergent thinking for creative exploration:
+Creative divergent thinking:
 
-```markdown
-# [Idea Title] - Exploration
-
-## Core Insight Deconstruction
-
-[First principles breakdown of the underlying insight]
-
-## Directions to Explore
-
-### Direction 1: [Name]
-
--  **Description:** [What this direction looks like]
--  **Why it could work:** [Key advantages]
--  **Risks:** [What could go wrong]
--  **First step:** [How to start exploring this]
-
-### Direction 2: [Name]
-
-...
-
-### Direction 3: [Name]
-
-...
-
-[Continue for 5-10 directions]
-
-## Unexpected Connections
-
-[Adjacent ideas, unusual combinations, what-if scenarios]
-
-## Questions Worth Answering
-
-[Key unknowns that would unlock clarity]
-```
+1. **Core Insight Deconstruction** - First principles breakdown
+2. **Directions to Explore** - 5-10 distinct paths with pros/cons
+3. **Unexpected Connections** - Adjacent ideas and combinations
+4. **Questions Worth Answering** - Key unknowns to investigate
 
 ### Update Mode
 
@@ -512,63 +388,60 @@ When `update: true` is set and an existing idea folder is found, a new section i
 ```
 ideas/
 ├── 2025-01-07-ai-calendar/
-│   └── research.md
+│   ├── research.md
+│   └── exploration-log.json
 ├── 2025-01-08-code-review-bot/
-│   └── research.md
+│   ├── research.md
+│   └── exploration-log.json
 └── ...
 ```
 
 **Naming Convention:** `ideas/YYYY-MM-DD-<slug>/research.md`
 
+### Exploration Log
+
+Each exploration creates a JSON log file alongside the research:
+
+```json
+{
+  "jobId": "abc123",
+  "idea": "AI calendar assistant",
+  "mode": "business",
+  "model": "sonnet",
+  "context": "Optional context provided",
+  "isUpdate": false,
+  "startedAt": "2025-01-07T10:00:00.000Z",
+  "completedAt": "2025-01-07T10:02:30.000Z",
+  "durationMs": 150000,
+  "tokens": {
+    "input": 1500,
+    "output": 4200,
+    "total": 5700
+  },
+  "outputPath": "ideas/2025-01-07-ai-calendar/research.md"
+}
+```
+
 ### Duplicate Detection
 
-After cloning the repository:
+Via GitHub Contents API:
 
-1. Check local folder names for any matching `*-<slug>` pattern (any date prefix)
-2. If found and `update: false`: Complete job immediately with existing `github_url`
-3. If found and `update: true`: Append update section to existing research
-4. If not found: Proceed with new exploration
+1. List `ideas/` directory contents
+2. Check folder names for any matching `*-<slug>` pattern (any date prefix)
+3. If found and `update: false`: Complete job immediately with existing `github_url`
+4. If found and `update: true`: Load existing content and append update section
+5. If not found: Proceed with new exploration
 
-### Git Operations
+### File Operations
 
-1. Clone ideas repo with sparse checkout of `ideas/` directory
-2. Create directory: `ideas/YYYY-MM-DD-<slug>/` (or reuse existing folder for updates)
-3. Write `research.md`
-4. Commit with message:
-   -  New: `idea: <slug> - research complete`
-   -  Update: `idea: <slug> - research updated`
-5. Push to configured branch (with retry on failure)
+All file operations use the GitHub Contents API:
+
+- **Read**: `GET /repos/{owner}/{repo}/contents/{path}`
+- **Create**: `PUT /repos/{owner}/{repo}/contents/{path}` (without SHA)
+- **Update**: `PUT /repos/{owner}/{repo}/contents/{path}` (with SHA)
+- **List**: `GET /repos/{owner}/{repo}/contents/{path}` (for directories)
 
 **Authentication:** GitHub PAT stored in Cloudflare secrets
-
----
-
-## Container Configuration
-
-### Dockerfile
-
-```dockerfile
-FROM docker.io/cloudflare/sandbox:0.6.10
-
-# Install Claude Code
-RUN npm install -g @anthropic-ai/claude-code
-
-# Bake in analysis prompts
-COPY prompts/ /prompts/
-
-# 15 minute timeout
-ENV COMMAND_TIMEOUT_MS=900000
-
-EXPOSE 3000
-```
-
-### Prompts Directory
-
-```
-prompts/
-├── business.md    # Business analysis framework
-└── exploration.md # Exploration framework
-```
 
 ---
 
@@ -576,11 +449,11 @@ prompts/
 
 ### Cloudflare Secrets (via wrangler secret put)
 
-| Name                | Description                                  |
-| ------------------- | -------------------------------------------- |
-| `ANTHROPIC_API_KEY` | API key for Claude                           |
-| `GITHUB_PAT`        | Personal access token with repo write access |
-| `API_BEARER_TOKEN`  | Token for authenticating API requests        |
+| Name                       | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| `ANTHROPIC_API_KEY`        | API key for Claude                           |
+| `GITHUB_PAT`               | Personal access token with repo write access |
+| `IDEA_EXPLORER_API_TOKEN`  | Token for authenticating API requests        |
 
 ### Worker Environment
 
@@ -588,7 +461,7 @@ prompts/
 | --------------- | --------------------------------------------------- |
 | `GITHUB_REPO`   | Target repository (e.g., `user/ideas`)              |
 | `GITHUB_BRANCH` | Branch to commit to (default: `main`)               |
-| `WEBHOOK_URL`   | Optional default webhook URL when request omits one |
+| `IDEA_EXPLORER_WEBHOOK_URL` | Optional default webhook URL when request omits one |
 
 ### Job Storage
 
@@ -598,19 +471,19 @@ Jobs are persisted in Cloudflare KV. The KV namespace binding is configured in `
 
 ## Observability
 
-### Logging (Standard Level)
+### Logging
 
-Log the following events:
+Log events:
 
 -  `job_created`: `{job_id, idea, mode, timestamp}`
--  `container_started`: `{job_id}`
--  `clone_complete`: `{job_id, duration_ms}`
+-  `job_started`: `{job_id, mode, model}`
+-  `existing_research_found`: `{job_id, path}`
+-  `check_existing_complete`: `{job_id, hasExisting}`
 -  `claude_started`: `{job_id, model}`
--  `claude_complete`: `{job_id}`
--  `commit_pushed`: `{job_id}`
+-  `claude_complete`: `{job_id, input_tokens, output_tokens}`
+-  `github_write_complete`: `{job_id, path}`
 -  `webhook_sent`: `{job_id, status_code, attempt}`
 -  `job_complete`: `{job_id, status, total_duration_ms}`
--  `existing_idea_found`: `{job_id, folder}`
 -  `exploration_failed`: `{job_id, error}`
 
 ### Cloudflare Analytics
@@ -621,12 +494,17 @@ Enable observability in wrangler.jsonc for built-in metrics.
 
 ## Error Handling
 
-### Container Failures
+### Anthropic API Errors
 
--  Timeout (15 min): Mark job as failed with message "Container execution timed out (15 minute limit exceeded)"
--  Clone failure: Retry once, then fail
--  Push failure: Retry once with fresh pull, then fail
--  Claude error: Capture error message, include in failure webhook
+- **Rate limits**: Retry with exponential backoff
+- **Context too long**: Return clear error to user
+- **API down**: Fail job with error message
+
+### GitHub API Errors
+
+- **File exists (409)**: Fetch SHA and update instead
+- **Rate limits**: Retry with backoff
+- **Auth failure**: Fail with clear message
 
 ### Webhook Failures
 
@@ -642,41 +520,7 @@ After 3 failed delivery attempts:
 1. **API Authentication:** Bearer token required for all `/api/*` endpoints
 2. **Webhook Signing:** HMAC-SHA256 signature for payload verification
 3. **GitHub Access:** Fine-grained PAT scoped to ideas repo only
-4. **Container Isolation:** Each exploration runs in fresh container
-5. **Secrets Management:** All sensitive values in Cloudflare secrets
-
----
-
-## Implementation Checklist
-
-### Core Features
--  [x] Update Dockerfile with 15min timeout and prompts
--  [x] Create business.md and exploration.md prompt templates
--  [x] Implement POST /api/explore endpoint
--  [x] Implement GET /api/status/{id} endpoint
--  [x] Implement GET /api/health endpoint
--  [x] Implement GET /api/test-webhook endpoint
--  [x] Add bearer token authentication
--  [x] Implement duplicate detection (via repo contents)
--  [x] Implement update mode for re-running existing ideas
--  [x] Implement git clone/commit/push workflow with retries
--  [x] Implement webhook delivery with HMAC signing
--  [x] Implement retry logic for webhooks
--  [x] Add Cloudflare secrets for API keys
--  [x] Add KV-based job storage
-
-### Cloudflare Workflows Migration
--  [ ] Create ExplorationWorkflow class (`src/workflows/exploration.ts`)
--  [ ] Add workflow binding to wrangler.jsonc
--  [ ] Replace waitUntil() with workflow trigger in POST /api/explore
--  [ ] Implement GET /api/workflow-status/{id} endpoint
--  [ ] Update type definitions with workflow bindings
--  [ ] Export workflow class from index.ts
-
-### Testing & Deployment
--  [ ] Test end-to-end flow with workflows
--  [ ] Verify workflow retry behavior
--  [ ] Deploy to Cloudflare
+4. **Secrets Management:** All sensitive values in Cloudflare secrets
 
 ---
 
@@ -734,3 +578,4 @@ curl "https://idea-explorer.your-domain.workers.dev/api/test-webhook?webhook_url
 -  Telegram/Slack direct notifications
 -  Batch exploration of multiple ideas
 -  Export to other formats (PDF, Notion, etc.)
+-  Interactive/conversational exploration via Cloudflare Agents SDK

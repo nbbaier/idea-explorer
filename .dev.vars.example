@@ -1,7 +1,6 @@
 ANTHROPIC_API_KEY=<YOUR-KEY-HERE>
 GITHUB_PAT=<YOUR-GITHUB-PAT-HERE>
-API_BEARER_TOKEN=<YOUR-BEARER-TOKEN-HERE>
-# WEBHOOK_URL=https://your-server.com/webhook  # Optional: default webhook URL for job notifications
-
-# Note: GITHUB_REPO is set to nbbaier/idea-explorer in wrangler.jsonc
-# Ideas are stored in the ideas/ subdirectory of this repository using sparse checkout
+IDEA_EXPLORER_API_TOKEN=<YOUR-BEARER-TOKEN-HERE>
+GITHUB_REPO=owner/repo
+GITHUB_BRANCH=main
+# IDEA_EXPLORER_WEBHOOK_URL=https://your-server.com/webhook

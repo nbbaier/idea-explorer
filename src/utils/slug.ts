@@ -1,5 +1,5 @@
 const MAX_SLUG_LENGTH = 50;
-const DASH_REGEX = /-+$/;
+const TRAILING_DASHES = /-+$/;
 
 export function generateSlug(text: string): string {
   if (!text || typeof text !== "string") {
@@ -29,5 +29,5 @@ export function generateSlug(text: string): string {
     return truncated.slice(0, lastDash);
   }
 
-  return truncated.replace(DASH_REGEX, "");
+  return truncated.replace(TRAILING_DASHES, "");
 }

@@ -1,22 +1,22 @@
-// biome-ignore lint/style/noExportedImports: needed for cloudflare
-import { Sandbox } from "@cloudflare/sandbox";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
   createJob,
-  ExploreModeSchema,
   ExploreRequestSchema,
   getJob,
   type Job,
   JobStatusSchema,
+  ModeSchema,
+  updateJob,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
-import { logJobCreated } from "./utils/logger";
+import { logError, logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
 
 type ExploreEnv = Env & {
-  WEBHOOK_URL?: string;
+  IDEA_EXPLORER_WEBHOOK_URL?: string;
   IDEA_EXPLORER_JOBS: KVNamespace;
+  RATE_LIMITER?: RateLimit;
 };
 
 interface EnumSchema {
@@ -61,14 +61,61 @@ function parsePaginationParams(
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("X-XSS-Protection", "1; mode=block");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+});
+
 app.use("/api/*", requireAuth());
+
+app.use("/api/*", async (c, next) => {
+  if (c.env.RATE_LIMITER) {
+    const ip = c.req.header("CF-Connecting-IP") || "unknown";
+    try {
+      const { success } = await c.env.RATE_LIMITER.limit({ key: ip });
+      if (!success) {
+        return c.json({ error: "Rate limit exceeded" }, 429);
+      }
+    } catch (error) {
+      console.error("Rate limiter error:", error);
+      // Fail open if rate limiter errors
+    }
+  }
+  await next();
+});
+
+app.get("/", (c) => {
+  const docs = `
+<html>
+  <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
+    <h2>Idea Explorer</h2>
+    <p>
+      A Cloudflare Worker that explores and analyzes ideas using Claude,
+      committing research results to a GitHub repository.
+    </p>
+    <h3>API</h3>
+    <p>POST /api/explore</p>
+    <p>GET /api/jobs</p>
+    <p>GET /api/status/:id</p>
+    <p>GET /api/health</p>
+    <p>GET /api/test-webhook</p>
+    <h3>Documentation</h3>
+    <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
+  </body>
+</html>
+   `;
+  return c.html(docs);
+});
 
 app.post(
   "/api/explore",
   zValidator("json", ExploreRequestSchema),
   async (c) => {
     const body = c.req.valid("json");
-    const webhookUrl = body.webhook_url || c.env.WEBHOOK_URL;
+    const webhookUrl = body.webhook_url || c.env.IDEA_EXPLORER_WEBHOOK_URL;
     const job = await createJob(c.env.IDEA_EXPLORER_JOBS, {
       ...body,
       webhook_url: webhookUrl,
@@ -76,19 +123,28 @@ app.post(
 
     logJobCreated(job.id, job.idea, job.mode);
 
-    await c.env.EXPLORATION_WORKFLOW.create({
-      id: job.id,
-      params: {
-        jobId: job.id,
-        idea: job.idea,
-        mode: job.mode,
-        model: job.model,
-        context: job.context,
-        update: job.update,
-        webhook_url: job.webhook_url,
-        callback_secret: job.callback_secret,
-      },
-    });
+    try {
+      await c.env.EXPLORATION_WORKFLOW.create({
+        id: job.id,
+        params: {
+          jobId: job.id,
+          idea: job.idea,
+          mode: job.mode,
+          model: job.model,
+          context: job.context,
+          update: job.update,
+          webhook_url: job.webhook_url,
+          callback_secret: job.callback_secret,
+        },
+      });
+    } catch (error) {
+      await updateJob(c.env.IDEA_EXPLORER_JOBS, job.id, {
+        status: "failed",
+        error: "Workflow creation failed",
+      });
+      logError("workflow_creation_failed", error, undefined, job.id);
+      return c.json({ error: "Failed to start exploration" }, 500);
+    }
 
     return c.json({ job_id: job.id, status: "pending" }, 202);
   }
@@ -102,17 +158,24 @@ app.get("/api/jobs", async (c) => {
   let jobs: (Job | null)[];
   try {
     const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-    jobs = await Promise.all(
+    const results = await Promise.allSettled(
       keys.map(
         (k) =>
           c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
       )
     );
-  } catch {
+    jobs = results
+      .filter(
+        (r): r is PromiseFulfilledResult<Job | null> => r.status === "fulfilled"
+      )
+      .map((r) => r.value);
+  } catch (error) {
+    logError(
+      "jobs_list_failed",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
-
-  let filtered = jobs.filter((j): j is Job => j != null);
 
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
@@ -122,21 +185,29 @@ app.get("/api/jobs", async (c) => {
   if (statusValidation?.valid === false) {
     return c.json({ error: statusValidation.error }, 400);
   }
-  if (statusValidation?.valid) {
-    filtered = filtered.filter((j) => j.status === statusValidation.value);
-  }
 
   const modeValidation = validateEnumFilter(
     c.req.query("mode"),
-    ExploreModeSchema,
+    ModeSchema,
     "mode"
   );
   if (modeValidation?.valid === false) {
     return c.json({ error: modeValidation.error }, 400);
   }
-  if (modeValidation?.valid) {
-    filtered = filtered.filter((j) => j.mode === modeValidation.value);
-  }
+
+  // Single-pass filter for null check and optional status/mode filters
+  const filtered = jobs.filter((j): j is Job => {
+    if (j == null) {
+      return false;
+    }
+    if (statusValidation?.valid && j.status !== statusValidation.value) {
+      return false;
+    }
+    if (modeValidation?.valid && j.mode !== modeValidation.value) {
+      return false;
+    }
+    return true;
+  });
 
   filtered.sort((a, b) => b.created_at - a.created_at);
 
@@ -161,45 +232,42 @@ app.get("/api/status/:id", async (c) => {
     return c.json({ error: "Job not found" }, 404);
   }
 
-  const baseResponse = {
+  const response: Record<string, unknown> = {
     status: job.status,
     idea: job.idea,
     mode: job.mode,
   };
 
-  if (job.status === "completed") {
-    return c.json({
-      ...baseResponse,
-      ...(job.github_url && { github_url: job.github_url }),
-    });
+  if (job.status === "completed" && job.github_url) {
+    response.github_url = job.github_url;
   }
 
-  if (job.status === "failed") {
-    return c.json({
-      ...baseResponse,
-      ...(job.error && { error: job.error }),
-    });
+  if (job.status === "failed" && job.error) {
+    response.error = job.error;
   }
 
   if (job.status === "running") {
-    return c.json({
-      ...baseResponse,
-      ...(job.current_step && { current_step: job.current_step }),
-      ...(job.current_step_label && {
-        current_step_label: job.current_step_label,
-      }),
-      ...(job.steps_completed !== undefined && {
-        steps_completed: job.steps_completed,
-      }),
-      ...(job.steps_total !== undefined && { steps_total: job.steps_total }),
-      ...(job.step_started_at !== undefined && {
-        step_started_at: job.step_started_at,
-      }),
-      ...(job.step_durations && { step_durations: job.step_durations }),
-    });
+    if (job.current_step) {
+      response.current_step = job.current_step;
+    }
+    if (job.current_step_label) {
+      response.current_step_label = job.current_step_label;
+    }
+    if (job.steps_completed !== undefined) {
+      response.steps_completed = job.steps_completed;
+    }
+    if (job.steps_total !== undefined) {
+      response.steps_total = job.steps_total;
+    }
+    if (job.step_started_at !== undefined) {
+      response.step_started_at = job.step_started_at;
+    }
+    if (job.step_durations) {
+      response.step_durations = job.step_durations;
+    }
   }
 
-  return c.json(baseResponse);
+  return c.json(response);
 });
 
 app.get("/api/workflow-status/:id", async (c) => {
@@ -217,40 +285,20 @@ app.get("/api/workflow-status/:id", async (c) => {
   }
 });
 
-app.get("/", (c) => {
-  const docs = `
-<html>
-  <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
-    <h2>Idea Explorer</h2>
-    <p>
-      A Cloudflare Container-based service that runs autonomous Claude Code
-      sessions to explore and analyze ideas, committing results to a GitHub
-      repository.
-    </p>
-    <h3>API</h3>
-    <p>POST /api/explore</p>
-    <p>GET /api/jobs</p>
-    <p>GET /api/status/:id</p>
-    <p>GET /api/health</p>
-    <p>GET /api/test-webhook</p>
-    <h3>Documentation</h3>
-    <a href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md" target="_blank">https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md</a>
-  </body>
-</html>
-   `;
-  return c.html(docs);
-});
-
 app.get("/api/health", (c) => c.json({ status: "ok" }));
 
-app.get("/api/test-webhook", async (c) => {
-  const webhookUrl = c.req.query("webhook_url") || c.env.WEBHOOK_URL;
+app.get("/api/test-webhook", requireAuth(), async (c) => {
+  const webhookUrl =
+    c.req.query("webhook_url") || c.env.IDEA_EXPLORER_WEBHOOK_URL;
   const status = c.req.query("status") === "failed" ? "failed" : "completed";
   const callbackSecret = c.req.query("callback_secret");
 
   if (!webhookUrl) {
     return c.json(
-      { error: "webhook_url query parameter or WEBHOOK_URL env var required" },
+      {
+        error:
+          "webhook_url query parameter or IDEA_EXPLORER_WEBHOOK_URL env var required",
+      },
       400
     );
   }
@@ -289,6 +337,6 @@ app.get("/api/test-webhook", async (c) => {
 app.all("*", (c) => c.json({ error: "Not found" }, 404));
 
 export default app;
-export { Sandbox };
-// biome-ignore lint/performance/noBarrelFile: needed for cloudflare
+
+// biome-ignore lint/performance/noBarrelFile: neededed for cloudflare
 export { ExplorationWorkflow } from "./workflows/exploration";
