@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "0fabdfbd",
+    "idea": "I find the recutils format from GNU really fascinating, and think it could be fun to reimplement in another language. Rust seems like a good target",
+    "mode": "exploration",
+    "model": "sonnet",
+    "context": "GNU Recutils manual = gnu.org/software/recutils/manual",
+    "isUpdate": false,
+    "startedAt": "2026-01-14T04:46:12.587Z",
+    "completedAt": "2026-01-14T04:47:32.417Z",
+    "durationMs": 79830,
+    "tokens": {
+      "input": 648,
+      "output": 3269,
+      "total": 3917
+    },
+    "outputPath": "ideas/2026-01-14-i-find-the-recutils-format-from-gnu-really/research.md"
+  }
+]
