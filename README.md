@@ -42,7 +42,7 @@ The service uses direct HTTP API calls for simplicity and performance:
 
 ### 1. Configure Environment Variables
 
-Edit `wrangler.jsonc` to set your GitHub repository and branch:
+Edit `wrangler.jsonc` to set your production GitHub repository and branch:
 
 ```jsonc
 "vars": {
@@ -50,6 +50,8 @@ Edit `wrangler.jsonc` to set your GitHub repository and branch:
   "GITHUB_BRANCH": "main"
 }
 ```
+
+For local development, set these in `.dev.vars` instead (see [Local Development](#local-development)).
 
 ### 2. Configure KV Namespace
 
@@ -66,14 +68,16 @@ wrangler kv namespace create IDEA_EXPLORER_JOBS --preview
 wrangler secret put ANTHROPIC_API_KEY
 wrangler secret put GITHUB_PAT
 wrangler secret put IDEA_EXPLORER_API_TOKEN
+# Optional: Set a default webhook URL
+wrangler secret put IDEA_EXPLORER_WEBHOOK_URL
 ```
 
-| Secret                     | Description                                                                 |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`        | API key for Claude (get from console.anthropic.com)                         |
-| `GITHUB_PAT`               | Personal access token with `repo` scope for writing to the ideas repository |
-| `IDEA_EXPLORER_API_TOKEN`  | Token used to authenticate API requests (generate a strong random string)   |
-| `IDEA_EXPLORER_WEBHOOK_URL`| (Optional) Default webhook URL for job completion notifications             |
+| Secret                      | Description                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`         | API key for Claude (get from console.anthropic.com)                          |
+| `GITHUB_PAT`                | Personal access token with `repo` scope for writing to the ideas repository  |
+| `IDEA_EXPLORER_API_TOKEN`   | Token used to authenticate API requests (generate a strong random string)    |
+| `IDEA_EXPLORER_WEBHOOK_URL` | (Optional) Default webhook URL for job completion notifications              |
 
 ### 4. Deploy
 
@@ -177,7 +181,9 @@ Returns the underlying Cloudflare Workflow instance status, output, and any erro
 idea-explorer/
 ├── src/
 │   ├── index.ts              # Main Hono app with API endpoints
+│   ├── index.test.ts         # API endpoint tests
 │   ├── jobs.ts               # Job types and KV storage functions
+│   ├── jobs.test.ts          # Job storage tests
 │   ├── clients/
 │   │   ├── anthropic.ts      # Anthropic Messages API client
 │   │   └── github.ts         # GitHub Contents API client
@@ -200,17 +206,26 @@ See [SPEC.md](./SPEC.md) for full API documentation including webhook specificat
 # Copy example env file
 cp .dev.vars.example .dev.vars
 
-# Edit .dev.vars with your secrets
+# Edit .dev.vars with your local config:
+# - ANTHROPIC_API_KEY
+# - GITHUB_PAT
+# - IDEA_EXPLORER_API_TOKEN
+# - GITHUB_REPO
+# - GITHUB_BRANCH
+
 # Then run the dev server
 bun run dev
 ```
 
 ## Scripts
 
-| Command             | Description                    |
-| ------------------- | ------------------------------ |
-| `bun run dev`       | Start local development server |
-| `bun run deploy`    | Deploy to Cloudflare           |
-| `bun run check`     | Run Biome linter               |
-| `bun run typecheck` | Run TypeScript type checking   |
-| `bun run test`      | Run tests                      |
+| Command              | Description                        |
+| -------------------- | ---------------------------------- |
+| `bun run dev`        | Start local development server     |
+| `bun run deploy`     | Deploy to Cloudflare               |
+| `bun run typecheck`  | Run TypeScript type checking       |
+| `bun run check`      | Run Biome linter                   |
+| `bun run fix`        | Auto-fix linting/formatting issues |
+| `bun run test`       | Run tests (watch mode)             |
+| `bun run test:run`   | Run tests once                     |
+| `bun run status`     | Check idea exploration status      |
