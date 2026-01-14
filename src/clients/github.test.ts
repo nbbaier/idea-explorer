@@ -87,6 +87,26 @@ describe("GitHubClient", () => {
       expect(result).toBeNull();
     });
 
+    it("should decode base64 content with embedded newlines", async () => {
+      const encoded = encodeToBase64("Hello, multiline!");
+      const withNewlines = encoded.match(/.{1,40}/g)?.join("\n") ?? encoded;
+      const mockOctokit = createMockOctokit({
+        getContent: vi.fn().mockResolvedValue({
+          data: {
+            type: "file",
+            content: withNewlines,
+            sha: "abc123",
+            path: "test.txt",
+          },
+        }),
+      });
+
+      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const result = await client.getFile("test.txt");
+
+      expect(result?.content).toBe("Hello, multiline!");
+    });
+
     it("should throw on other errors", async () => {
       const mockOctokit = createMockOctokit({
         getContent: vi.fn().mockRejectedValue({ status: 500 }),
@@ -184,6 +204,40 @@ describe("GitHubClient", () => {
         message: "Update existing.txt",
         content: encodeToBase64("New content"),
         sha: "existing-sha",
+        branch: "main",
+      });
+    });
+
+    it("should encode large content without stack overflow", async () => {
+      const largeContent = "A".repeat(200_000);
+      const expected = encodeToBase64(largeContent);
+      const mockOctokit = createMockOctokit({
+        getContent: vi.fn().mockRejectedValue({ status: 404 }),
+        createOrUpdateFileContents: vi.fn().mockResolvedValue({
+          data: {
+            content: {
+              html_url: "https://github.com/owner/repo/blob/main/large.txt",
+            },
+          },
+        }),
+      });
+
+      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const result = await client.createFile(
+        "large.txt",
+        largeContent,
+        "Add large file"
+      );
+
+      expect(result).toBe("https://github.com/owner/repo/blob/main/large.txt");
+      expect(
+        mockOctokit.rest.repos.createOrUpdateFileContents
+      ).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        path: "large.txt",
+        message: "Add large file",
+        content: expected,
         branch: "main",
       });
     });

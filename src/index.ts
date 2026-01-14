@@ -69,6 +69,8 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
 });
 
+app.use("/api/*", requireAuth());
+
 app.use("/api/*", async (c, next) => {
   if (c.env.RATE_LIMITER) {
     const ip = c.req.header("CF-Connecting-IP") || "unknown";
@@ -84,8 +86,6 @@ app.use("/api/*", async (c, next) => {
   }
   await next();
 });
-
-app.use("/api/*", requireAuth());
 
 app.get("/", (c) => {
   const docs = `

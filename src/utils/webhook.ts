@@ -145,6 +145,19 @@ export async function sendWebhook(
     }
   );
 
+  if (!result.success) {
+    logError(
+      "webhook_delivery_failed",
+      new Error("Webhook delivery failed"),
+      {
+        status_code: result.result?.status ?? 0,
+        attempts: result.attempts,
+        url: webhookUrl,
+      },
+      job.id
+    );
+  }
+
   return {
     success: result.success,
     statusCode: result.result?.status,

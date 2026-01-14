@@ -178,9 +178,10 @@ const decoder = new TextDecoder();
 
 function encodeBase64(str: string): string {
   const data = encoder.encode(str);
-  // Using spread with fromCharCode is faster for medium-sized strings but can hit stack limits for very large ones.
-  // For research documents, this should be safe and is much faster than a loop.
-  const binary = String.fromCharCode(...data);
+  let binary = "";
+  for (const byte of data) {
+    binary += String.fromCharCode(byte);
+  }
   return btoa(binary);
 }
 

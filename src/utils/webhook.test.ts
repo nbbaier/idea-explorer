@@ -1,6 +1,10 @@
+import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Job } from "../jobs";
+import { logError } from "./logger";
 import { sendWebhook } from "./webhook";
+
+vi.mock("./logger", () => ({ logError: vi.fn(), logWebhookSent: vi.fn() }));
 
 const SIGNATURE_PATTERN = /^sha256=[a-f0-9]{64}$/;
 
@@ -20,18 +24,29 @@ describe("webhook utility", () => {
 
   const githubRepo = "owner/repo";
   const branch = "main";
+  const originalFetch = globalThis.fetch;
+  let fetchMock: Mock;
+  const flushTimers = async () => {
+    // Run timers multiple times to handle sequential retries
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+  };
 
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.clearAllMocks();
+    fetchMock = vi.fn();
+    (globalThis as any).fetch = fetchMock;
     vi.useFakeTimers();
   });
 
   afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
     vi.useRealTimers();
   });
 
   it("should send a successful webhook", async () => {
-    vi.mocked(fetch).mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
     } as Response);
@@ -52,7 +67,7 @@ describe("webhook utility", () => {
       })
     );
 
-    const completedCallArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const completedCallArgs = fetchMock.mock.calls[0]?.[1];
     const callBody = JSON.parse(completedCallArgs?.body as string);
     expect(callBody).toMatchObject({
       event: "idea_explored",
@@ -64,7 +79,7 @@ describe("webhook utility", () => {
   });
 
   it("should include HMAC signature when callback_secret is provided", async () => {
-    vi.mocked(fetch).mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
     } as Response);
@@ -77,14 +92,14 @@ describe("webhook utility", () => {
     const result = await sendWebhook(jobWithSecret, githubRepo, branch);
 
     expect(result.success).toBe(true);
-    const callArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const callArgs = fetchMock.mock.calls[0]?.[1];
     const headers = callArgs?.headers as Record<string, string>;
     expect(headers["X-Signature"]).toBeDefined();
     expect(headers["X-Signature"]).toMatch(SIGNATURE_PATTERN);
   });
 
   it("should send a failure webhook", async () => {
-    vi.mocked(fetch).mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
     } as Response);
@@ -98,7 +113,7 @@ describe("webhook utility", () => {
     const result = await sendWebhook(failedJob, githubRepo, branch);
 
     expect(result.success).toBe(true);
-    const failedCallArgs = vi.mocked(fetch).mock.calls[0]?.[1];
+    const failedCallArgs = fetchMock.mock.calls[0]?.[1];
     const failedCallBody = JSON.parse(failedCallArgs?.body as string);
     expect(failedCallBody).toMatchObject({
       event: "idea_explored",
@@ -109,14 +124,12 @@ describe("webhook utility", () => {
   });
 
   it("should retry on failure", async () => {
-    vi.mocked(fetch)
+    fetchMock
       .mockResolvedValueOnce({ ok: false, status: 500 } as Response)
       .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
-
-    // First attempt fails, wait for next attempt
-    await vi.advanceTimersByTimeAsync(1000);
+    await flushTimers();
 
     const result = await promise;
 
@@ -126,17 +139,13 @@ describe("webhook utility", () => {
   });
 
   it("should return success false after max retries", async () => {
-    vi.mocked(fetch).mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: false,
       status: 500,
     } as Response);
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
-
-    // Attempt 1 fails, wait for 2
-    await vi.advanceTimersByTimeAsync(1000);
-    // Attempt 2 fails, wait for 3
-    await vi.advanceTimersByTimeAsync(5000);
+    await flushTimers();
 
     const result = await promise;
 
@@ -145,15 +154,35 @@ describe("webhook utility", () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
-  it("should handle fetch exceptions", async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error("Network error"));
+  it("should log when webhook cannot be delivered", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+    } as Response);
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
+    await flushTimers();
 
-    // Attempt 1 fails, wait for 2
-    await vi.advanceTimersByTimeAsync(1000);
-    // Attempt 2 fails, wait for 3
-    await vi.advanceTimersByTimeAsync(5000);
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(logError).toHaveBeenCalledWith(
+      "webhook_delivery_failed",
+      expect.any(Error),
+      expect.objectContaining({
+        status_code: 503,
+        attempts: 3,
+        url: mockJob.webhook_url,
+      }),
+      mockJob.id
+    );
+  });
+
+  it("should handle fetch exceptions", async () => {
+    fetchMock.mockRejectedValue(new Error("Network error"));
+
+    const promise = sendWebhook(mockJob, githubRepo, branch);
+    await flushTimers();
 
     const result = await promise;
 

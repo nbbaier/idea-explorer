@@ -107,6 +107,20 @@ function getDatePrefix(): string {
   return `${year}-${month}-${day}`;
 }
 
+function parseDirDate(name: string): number | null {
+  const [year, month, day] = name.split("-").slice(0, 3);
+  if (
+    !(year && month && day) ||
+    year.length !== 4 ||
+    month.length !== 2 ||
+    day.length !== 2
+  ) {
+    return null;
+  }
+  const parsed = Date.parse(`${year}-${month}-${day}`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 async function completeJobAndNotify({
   kv,
   jobId,
@@ -205,13 +219,27 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             .map((dir) => dir.name);
 
           if (update) {
-            const matchingDir = directories.find(
-              (dir) => dir.type === "dir" && dir.name.endsWith(`-${slug}`)
-            );
+            const matchingDirs = directories
+              .filter(
+                (dir) => dir.type === "dir" && dir.name.endsWith(`-${slug}`)
+              )
+              .map((dir) => ({
+                dir,
+                date: parseDirDate(dir.name),
+              }))
+              .sort((a, b) => {
+                const aDate = a.date ?? Number.NEGATIVE_INFINITY;
+                const bDate = b.date ?? Number.NEGATIVE_INFINITY;
+                if (aDate !== bDate) {
+                  return bDate - aDate;
+                }
+                return b.dir.name.localeCompare(a.dir.name);
+              });
+            const latestMatch = matchingDirs[0]?.dir;
 
-            if (matchingDir) {
-              existingDirPath = matchingDir.path;
-              const existingResearchPath = `${matchingDir.path}/research.md`;
+            if (latestMatch) {
+              existingDirPath = latestMatch.path;
+              const existingResearchPath = `${latestMatch.path}/research.md`;
               const existing = await github.getFile(existingResearchPath);
               if (existing) {
                 existingContent = existing.content;

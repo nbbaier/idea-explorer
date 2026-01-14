@@ -68,7 +68,10 @@ describe("ExplorationWorkflow", () => {
       createFile: vi.fn().mockResolvedValue("https://github.com/url"),
       updateFile: vi.fn().mockResolvedValue("https://github.com/url"),
     };
-    vi.mocked(GitHubClient).mockImplementation(() => mockGithub as any);
+    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
+    vi.mocked(GitHubClient).mockImplementation(function () {
+      return mockGithub;
+    } as unknown as typeof GitHubClient);
 
     // Mock AnthropicClient
     const mockAnthropic = {
@@ -78,7 +81,10 @@ describe("ExplorationWorkflow", () => {
         outputTokens: 200,
       }),
     };
-    vi.mocked(AnthropicClient).mockImplementation(() => mockAnthropic as any);
+    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
+    vi.mocked(AnthropicClient).mockImplementation(function () {
+      return mockAnthropic;
+    } as unknown as typeof AnthropicClient);
 
     // Mock jobs
     vi.mocked(getJob).mockResolvedValue({
@@ -131,14 +137,82 @@ describe("ExplorationWorkflow", () => {
     expect(completedCall?.[1]).toBe("test-job");
   });
 
-  it("should handle failures and update job status", async () => {
-    // Mock GitHubClient to fail at some point
-    vi.mocked(GitHubClient).mockImplementation(
-      () =>
-        ({
-          listDirectory: vi.fn().mockRejectedValue(new Error("Network error")),
-        }) as any
+  it("uses the latest matching directory when updating", async () => {
+    const mockGithub = {
+      listDirectory: vi.fn().mockResolvedValue([
+        {
+          name: "2026-01-01-test-slug",
+          path: "ideas/2026-01-01-test-slug",
+          type: "dir",
+          sha: "old-sha",
+        },
+        {
+          name: "2026-01-05-test-slug",
+          path: "ideas/2026-01-05-test-slug",
+          type: "dir",
+          sha: "new-sha",
+        },
+      ]),
+      getFile: vi.fn((path: string) => {
+        if (path.endsWith("research.md")) {
+          return { content: "Existing content", sha: "latest-sha", path };
+        }
+        return null;
+      }),
+      createFile: vi.fn().mockResolvedValue("https://github.com/url"),
+      updateFile: vi.fn().mockResolvedValue("https://github.com/url"),
+    };
+    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
+    vi.mocked(GitHubClient).mockImplementation(function () {
+      return mockGithub;
+    } as unknown as typeof GitHubClient);
+
+    const mockAnthropic = {
+      generateResearch: vi.fn().mockResolvedValue({
+        content: "New research content",
+        inputTokens: 10,
+        outputTokens: 20,
+      }),
+    };
+    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
+    vi.mocked(AnthropicClient).mockImplementation(function () {
+      return mockAnthropic;
+    } as unknown as typeof AnthropicClient);
+
+    vi.mocked(getJob).mockResolvedValue({
+      id: "test-job",
+      idea: "Test Idea",
+      mode: "exploration",
+      model: "sonnet",
+      status: "running",
+      created_at: Date.now(),
+    } as any);
+
+    const workflow = new ExplorationWorkflow({} as any, mockEnv as any);
+
+    await workflow.run(
+      { payload: { ...mockPayload, update: true } } as any,
+      mockStep as any
     );
+
+    expect(mockGithub.getFile).toHaveBeenCalledWith(
+      "ideas/2026-01-05-test-slug/research.md"
+    );
+    expect(mockGithub.updateFile).toHaveBeenCalledWith(
+      "ideas/2026-01-05-test-slug/research.md",
+      expect.stringContaining("Existing content"),
+      "latest-sha",
+      expect.stringContaining("updated")
+    );
+  });
+
+  it("should handle failures and update job status", async () => {
+    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
+    vi.mocked(GitHubClient).mockImplementation(function () {
+      return {
+        listDirectory: vi.fn().mockRejectedValue(new Error("Network error")),
+      };
+    } as unknown as typeof GitHubClient);
 
     const workflow = new ExplorationWorkflow({} as any, mockEnv as any);
 

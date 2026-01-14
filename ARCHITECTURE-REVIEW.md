@@ -1,7 +1,7 @@
 # Architecture Review: Sandbox Necessity
 
-**Date:** January 2026  
-**Status:** ✅ Implemented  
+**Date:** January 2026
+**Status:** ✅ Implemented
 **Outcome:** Sandbox removed; simplified to direct HTTP calls
 
 > **Note:** This review has been implemented. The codebase now uses direct Anthropic Messages API and GitHub Contents API calls instead of containers. See [tasks/simplify-architecture.md](tasks/simplify-architecture.md) for implementation details.
