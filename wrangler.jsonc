@@ -26,5 +26,11 @@
       "binding": "EXPLORATION_WORKFLOW",
       "class_name": "ExplorationWorkflow"
     }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "deleted_classes": ["Sandbox"]
+    }
   ]
 }
