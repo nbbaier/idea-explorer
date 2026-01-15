@@ -141,14 +141,25 @@ async function completeJobAndNotify({
     status,
     ...(githubUrl && { github_url: githubUrl }),
     ...(error && { error }),
-    webhook_sent_at: Date.now(),
   });
 
   logJobComplete(jobId, status, Date.now() - jobStartTime);
 
-  if (updatedJob) {
-    await sendWebhook(updatedJob, githubRepo, branch);
+  if (!updatedJob) {
+    return;
   }
+
+  const result = await sendWebhook(updatedJob, githubRepo, branch);
+  if (!result.success) {
+    throw new Error("Webhook delivery failed");
+  }
+
+  await updateJob(
+    kv,
+    jobId,
+    { webhook_sent_at: Date.now() },
+    updatedJob
+  );
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<

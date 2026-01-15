@@ -128,8 +128,10 @@ export async function sendWebhook(
           method: "POST",
           headers,
           body,
+          redirect: "manual",
         });
-        return { ok: response.ok, status: response.status };
+        const isRedirect = response.status >= 300 && response.status < 400;
+        return { ok: response.ok && !isRedirect, status: response.status };
       } catch (error) {
         logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
         return { ok: false, status: 0 };

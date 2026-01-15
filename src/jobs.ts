@@ -150,7 +150,7 @@ function isValidWebhookUrl(url: string): boolean {
     const isIpv4Private = isIpv4 && isPrivateOrReservedIpv4(hostname);
     const isIpv6Literal = isIpv6(hostname);
 
-    if (!["http:", "https:"].includes(parsed.protocol)) {
+    if (parsed.protocol !== "https:") {
       return false;
     }
     if (isIpv4Private) {
