@@ -1,7 +1,8 @@
+import { Result } from "better-result";
 import { z } from "zod";
+import { WebhookDeliveryError } from "../errors";
 import type { Job } from "../jobs";
 import { logError, logWebhookSent } from "./logger";
-import { retryWithBackoff } from "./retry";
 
 const WebhookSuccessPayloadSchema = z.object({
   event: z.literal("idea_explored"),
@@ -105,14 +106,24 @@ interface WebhookResponse {
   status: number;
 }
 
+export interface WebhookResult {
+  success: boolean;
+  statusCode?: number;
+  attempts: number;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function sendWebhook(
   job: Job,
   githubRepo: string,
   branch: string,
   extraHeaders?: Record<string, string>
-): Promise<{ success: boolean; statusCode?: number; attempts: number }> {
+): Promise<Result<WebhookResult, WebhookDeliveryError>> {
   if (!job.webhook_url) {
-    return { success: true, attempts: 0 };
+    return Result.ok({ success: true, attempts: 0 });
   }
 
   const webhookUrl = job.webhook_url;
@@ -135,7 +146,9 @@ export async function sendWebhook(
     headers["X-Signature"] = await generateSignature(job.callback_secret, body);
   }
 
-  async function attemptWebhook(attempt: number): Promise<WebhookResponse> {
+  let lastResponse: WebhookResponse | undefined;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const response = await fetch(webhookUrl, {
         method: "POST",
@@ -144,47 +157,46 @@ export async function sendWebhook(
         redirect: "manual",
       });
       const isRedirect = response.status >= 300 && response.status < 400;
-      return { ok: response.ok && !isRedirect, status: response.status };
+      lastResponse = {
+        ok: response.ok && !isRedirect,
+        status: response.status,
+      };
     } catch (error) {
       logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
-      return { ok: false, status: 0 };
+      lastResponse = { ok: false, status: 0 };
+    }
+
+    logWebhookSent(job.id, lastResponse.status, attempt);
+
+    if (lastResponse.ok) {
+      return Result.ok({
+        success: true,
+        statusCode: lastResponse.status,
+        attempts: attempt,
+      });
+    }
+
+    if (attempt < MAX_ATTEMPTS) {
+      await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 0);
     }
   }
 
-  function shouldRetry(response: WebhookResponse): boolean {
-    return !response.ok;
-  }
-
-  function recordAttempt(attempt: number, response: WebhookResponse): void {
-    logWebhookSent(job.id, response.status, attempt);
-  }
-
-  const result = await retryWithBackoff<WebhookResponse>(
-    attemptWebhook,
-    shouldRetry,
+  logError(
+    "webhook_delivery_failed",
+    new Error("Webhook delivery failed"),
     {
-      maxAttempts: MAX_ATTEMPTS,
-      delaysMs: RETRY_DELAYS_MS,
+      status_code: lastResponse?.status ?? 0,
+      attempts: MAX_ATTEMPTS,
+      url: webhookUrl,
     },
-    recordAttempt
+    job.id
   );
 
-  if (!result.success) {
-    logError(
-      "webhook_delivery_failed",
-      new Error("Webhook delivery failed"),
-      {
-        status_code: result.result?.status ?? 0,
-        attempts: result.attempts,
-        url: webhookUrl,
-      },
-      job.id
-    );
-  }
-
-  return {
-    success: result.success,
-    statusCode: result.result?.status,
-    attempts: result.attempts,
-  };
+  return Result.err(
+    new WebhookDeliveryError({
+      url: webhookUrl,
+      attempts: MAX_ATTEMPTS,
+      lastStatus: lastResponse?.status,
+    })
+  );
 }

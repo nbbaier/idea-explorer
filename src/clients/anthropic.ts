@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { Result } from "better-result";
+import { AnthropicApiError } from "../errors";
 
 export interface AnthropicConfig {
   apiKey: string;
@@ -43,23 +45,31 @@ export class AnthropicClient {
 
   async generateResearch(
     params: GenerateResearchParams
-  ): Promise<GenerateResearchResult> {
-    const stream = this.client.messages.stream({
-      model: this.model,
-      max_tokens: MAX_OUTPUT_TOKENS,
-      system: params.systemPrompt,
-      messages: [{ role: "user", content: params.userPrompt }],
+  ): Promise<Result<GenerateResearchResult, AnthropicApiError>> {
+    return Result.tryPromise({
+      try: async () => {
+        const stream = this.client.messages.stream({
+          model: this.model,
+          max_tokens: MAX_OUTPUT_TOKENS,
+          system: params.systemPrompt,
+          messages: [{ role: "user", content: params.userPrompt }],
+        });
+
+        const message = await stream.finalMessage();
+
+        const textBlock = message.content.find(
+          (block) => block.type === "text"
+        );
+        const content = textBlock && "text" in textBlock ? textBlock.text : "";
+
+        return {
+          content,
+          inputTokens: message.usage.input_tokens,
+          outputTokens: message.usage.output_tokens,
+        };
+      },
+      catch: (error) =>
+        new AnthropicApiError({ operation: "generateResearch", cause: error }),
     });
-
-    const message = await stream.finalMessage();
-
-    const textBlock = message.content.find((block) => block.type === "text");
-    const content = textBlock && "text" in textBlock ? textBlock.text : "";
-
-    return {
-      content,
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-    };
   }
 }

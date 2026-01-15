@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
 
@@ -79,28 +80,37 @@ describe("Job Management", () => {
 
   describe("Step Progress Tracking", () => {
     it("should create a job without step progress fields", async () => {
-      const job = await createJob(mockKV, {
+      const result = await createJob(mockKV, {
         idea: "Test idea",
         mode: "business",
         model: "sonnet",
       });
 
-      expect(job.current_step).toBeUndefined();
-      expect(job.current_step_label).toBeUndefined();
-      expect(job.steps_completed).toBeUndefined();
-      expect(job.steps_total).toBeUndefined();
-      expect(job.step_started_at).toBeUndefined();
-      expect(job.step_durations).toBeUndefined();
+      expect(Result.isOk(result)).toBe(true);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+      expect(result.value.current_step).toBeUndefined();
+      expect(result.value.current_step_label).toBeUndefined();
+      expect(result.value.steps_completed).toBeUndefined();
+      expect(result.value.steps_total).toBeUndefined();
+      expect(result.value.step_started_at).toBeUndefined();
+      expect(result.value.step_durations).toBeUndefined();
     });
 
     it("should update job with step progress", async () => {
-      const job = await createJob(mockKV, {
+      const createResult = await createJob(mockKV, {
         idea: "Test idea",
         mode: "business",
         model: "sonnet",
       });
 
-      const updated = await updateJob(mockKV, job.id, {
+      expect(Result.isOk(createResult)).toBe(true);
+      if (!Result.isOk(createResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const updateResult = await updateJob(mockKV, createResult.value.id, {
         current_step: "initialize",
         current_step_label: "Initializing job...",
         steps_completed: 0,
@@ -108,61 +118,96 @@ describe("Job Management", () => {
         step_started_at: Date.now(),
       });
 
-      expect(updated?.current_step).toBe("initialize");
-      expect(updated?.current_step_label).toBe("Initializing job...");
-      expect(updated?.steps_completed).toBe(0);
-      expect(updated?.steps_total).toBe(5);
-      expect(updated?.step_started_at).toBeDefined();
+      expect(Result.isOk(updateResult)).toBe(true);
+      if (!Result.isOk(updateResult)) {
+        throw new Error("Expected ok result");
+      }
+      expect(updateResult.value.current_step).toBe("initialize");
+      expect(updateResult.value.current_step_label).toBe("Initializing job...");
+      expect(updateResult.value.steps_completed).toBe(0);
+      expect(updateResult.value.steps_total).toBe(5);
+      expect(updateResult.value.step_started_at).toBeDefined();
     });
 
     it("should update job with step durations", async () => {
-      const job = await createJob(mockKV, {
+      const createResult = await createJob(mockKV, {
         idea: "Test idea",
         mode: "business",
         model: "sonnet",
       });
 
-      const updated = await updateJob(mockKV, job.id, {
+      expect(Result.isOk(createResult)).toBe(true);
+      if (!Result.isOk(createResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const updateResult = await updateJob(mockKV, createResult.value.id, {
         step_durations: { initialize: 245, check_existing: 1820 },
       });
 
-      expect(updated?.step_durations).toEqual({
+      expect(Result.isOk(updateResult)).toBe(true);
+      if (!Result.isOk(updateResult)) {
+        throw new Error("Expected ok result");
+      }
+      expect(updateResult.value.step_durations).toEqual({
         initialize: 245,
         check_existing: 1820,
       });
     });
 
     it("should preserve existing step durations when adding new ones", async () => {
-      const job = await createJob(mockKV, {
+      const createResult = await createJob(mockKV, {
         idea: "Test idea",
         mode: "business",
         model: "sonnet",
       });
 
+      expect(Result.isOk(createResult)).toBe(true);
+      if (!Result.isOk(createResult)) {
+        throw new Error("Expected ok result");
+      }
+      const job = createResult.value;
+
       await updateJob(mockKV, job.id, {
         step_durations: { initialize: 245 },
       });
 
-      const existingJob = await getJob(mockKV, job.id);
-      const updated = await updateJob(mockKV, job.id, {
+      const getResult = await getJob(mockKV, job.id);
+      expect(Result.isOk(getResult)).toBe(true);
+      if (!Result.isOk(getResult)) {
+        throw new Error("Expected ok result");
+      }
+      const existingJob = getResult.value;
+
+      const updateResult = await updateJob(mockKV, job.id, {
         step_durations: {
           ...existingJob?.step_durations,
           check_existing: 1820,
         },
       });
 
-      expect(updated?.step_durations).toEqual({
+      expect(Result.isOk(updateResult)).toBe(true);
+      if (!Result.isOk(updateResult)) {
+        throw new Error("Expected ok result");
+      }
+      expect(updateResult.value.step_durations).toEqual({
         initialize: 245,
         check_existing: 1820,
       });
     });
 
     it("should track multiple step updates in sequence", async () => {
-      const job = await createJob(mockKV, {
+      const createResult = await createJob(mockKV, {
         idea: "Test idea",
         mode: "business",
         model: "sonnet",
       });
+
+      expect(Result.isOk(createResult)).toBe(true);
+      if (!Result.isOk(createResult)) {
+        throw new Error("Expected ok result");
+      }
+      const job = createResult.value;
 
       // Step 1: Initialize
       await updateJob(mockKV, job.id, {
@@ -174,7 +219,12 @@ describe("Job Management", () => {
       });
 
       // Step 2: Check existing
-      const job1 = await getJob(mockKV, job.id);
+      const job1Result = await getJob(mockKV, job.id);
+      expect(Result.isOk(job1Result)).toBe(true);
+      if (!Result.isOk(job1Result)) {
+        throw new Error("Expected ok result");
+      }
+      const job1 = job1Result.value;
       await updateJob(mockKV, job.id, {
         current_step: "check_existing",
         current_step_label: "Checking for existing research...",
@@ -184,7 +234,12 @@ describe("Job Management", () => {
       });
 
       // Step 3: Generate research
-      const job2 = await getJob(mockKV, job.id);
+      const job2Result = await getJob(mockKV, job.id);
+      expect(Result.isOk(job2Result)).toBe(true);
+      if (!Result.isOk(job2Result)) {
+        throw new Error("Expected ok result");
+      }
+      const job2 = job2Result.value;
       await updateJob(mockKV, job.id, {
         current_step: "generate_research",
         current_step_label: "Generating research with Claude...",
@@ -193,7 +248,12 @@ describe("Job Management", () => {
         step_durations: { ...job2?.step_durations, check_existing: 1820 },
       });
 
-      const finalJob = await getJob(mockKV, job.id);
+      const finalResult = await getJob(mockKV, job.id);
+      expect(Result.isOk(finalResult)).toBe(true);
+      if (!Result.isOk(finalResult)) {
+        throw new Error("Expected ok result");
+      }
+      const finalJob = finalResult.value;
       expect(finalJob?.current_step).toBe("generate_research");
       expect(finalJob?.steps_completed).toBe(2);
       expect(finalJob?.step_durations).toEqual({

@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import type { Mock } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Job } from "../jobs";
@@ -27,7 +28,6 @@ describe("webhook utility", () => {
   const originalFetch = globalThis.fetch;
   let fetchMock: Mock;
   const flushTimers = async () => {
-    // Run timers multiple times to handle sequential retries
     for (let i = 0; i < 5; i++) {
       await vi.advanceTimersByTimeAsync(10_000);
     }
@@ -36,12 +36,12 @@ describe("webhook utility", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMock = vi.fn();
-    (globalThis as any).fetch = fetchMock;
+    (globalThis as unknown as { fetch: Mock }).fetch = fetchMock;
     vi.useFakeTimers();
   });
 
   afterEach(() => {
-    (globalThis as any).fetch = originalFetch;
+    (globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch;
     vi.useRealTimers();
   });
 
@@ -52,11 +52,13 @@ describe("webhook utility", () => {
     } as Response);
 
     const result = sendWebhook(mockJob, githubRepo, branch);
-
     const finalResult = await result;
 
-    expect(finalResult.success).toBe(true);
-    expect(finalResult.attempts).toBe(1);
+    if (!Result.isOk(finalResult)) {
+      throw new Error("Expected ok result");
+    }
+    expect(finalResult.value.success).toBe(true);
+    expect(finalResult.value.attempts).toBe(1);
     expect(fetch).toHaveBeenCalledWith(
       mockJob.webhook_url,
       expect.objectContaining({
@@ -91,7 +93,10 @@ describe("webhook utility", () => {
 
     const result = await sendWebhook(jobWithSecret, githubRepo, branch);
 
-    expect(result.success).toBe(true);
+    if (!Result.isOk(result)) {
+      throw new Error("Expected ok result");
+    }
+    expect(result.value.success).toBe(true);
     const callArgs = fetchMock.mock.calls[0]?.[1];
     const headers = callArgs?.headers as Record<string, string>;
     expect(headers["X-Signature"]).toBeDefined();
@@ -112,7 +117,10 @@ describe("webhook utility", () => {
 
     const result = await sendWebhook(failedJob, githubRepo, branch);
 
-    expect(result.success).toBe(true);
+    if (!Result.isOk(result)) {
+      throw new Error("Expected ok result");
+    }
+    expect(result.value.success).toBe(true);
     const failedCallArgs = fetchMock.mock.calls[0]?.[1];
     const failedCallBody = JSON.parse(failedCallArgs?.body as string);
     expect(failedCallBody).toMatchObject({
@@ -133,12 +141,15 @@ describe("webhook utility", () => {
 
     const result = await promise;
 
-    expect(result.success).toBe(true);
-    expect(result.attempts).toBe(2);
+    if (!Result.isOk(result)) {
+      throw new Error("Expected ok result");
+    }
+    expect(result.value.success).toBe(true);
+    expect(result.value.attempts).toBe(2);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("should return success false after max retries", async () => {
+  it("should return error after max retries", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 500,
@@ -149,8 +160,10 @@ describe("webhook utility", () => {
 
     const result = await promise;
 
-    expect(result.success).toBe(false);
-    expect(result.attempts).toBe(3);
+    if (!Result.isError(result)) {
+      throw new Error("Expected error result");
+    }
+    expect(result.error.name).toBe("WebhookDeliveryError");
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
@@ -165,7 +178,7 @@ describe("webhook utility", () => {
 
     const result = await promise;
 
-    expect(result.success).toBe(false);
+    expect(Result.isError(result)).toBe(true);
     expect(logError).toHaveBeenCalledWith(
       "webhook_delivery_failed",
       expect.any(Error),
@@ -186,16 +199,21 @@ describe("webhook utility", () => {
 
     const result = await promise;
 
-    expect(result.success).toBe(false);
-    expect(result.attempts).toBe(3);
+    if (!Result.isError(result)) {
+      throw new Error("Expected error result");
+    }
+    expect(result.error.name).toBe("WebhookDeliveryError");
   });
 
   it("should return success true immediately if no webhook_url", async () => {
     const jobNoUrl = { ...mockJob, webhook_url: undefined };
     const result = await sendWebhook(jobNoUrl, githubRepo, branch);
 
-    expect(result.success).toBe(true);
-    expect(result.attempts).toBe(0);
+    if (!Result.isOk(result)) {
+      throw new Error("Expected ok result");
+    }
+    expect(result.value.success).toBe(true);
+    expect(result.value.attempts).toBe(0);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

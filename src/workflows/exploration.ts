@@ -3,8 +3,15 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import { Result } from "better-result";
 import { AnthropicClient } from "../clients/anthropic";
-import { GitHubClient } from "../clients/github";
+import { type FileContent, GitHubClient } from "../clients/github";
+import {
+  ExplorationLogParseError,
+  ExplorationLogUpdateError,
+  type GitHubConfigError,
+  WorkflowStepError,
+} from "../errors";
 import { getJob, type Job, updateJob } from "../jobs";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts";
 import { logError, logInfo, logJobComplete } from "../utils/logger";
@@ -50,6 +57,7 @@ interface ExplorationLog {
   };
   outputPath: string;
 }
+
 type ExplorationEnv = Env & {
   IDEA_EXPLORER_JOBS: KVNamespace;
 };
@@ -81,13 +89,13 @@ async function updateStepProgress(
     step_started_at: Date.now(),
   };
 
-  // Only fetch job once if we need step_durations and don't have existingJob
   let job = existingJob;
   if (stepStartTime !== undefined && stepIndex > 0) {
     const previousStep = WORKFLOW_STEPS[stepIndex - 1];
     const duration = Date.now() - stepStartTime;
     if (!job) {
-      job = await getJob(kv, jobId);
+      const jobResult = await getJob(kv, jobId);
+      job = jobResult.unwrapOr(null) ?? undefined;
     }
     const stepDurations = job?.step_durations ?? {};
     updates.step_durations = {
@@ -96,7 +104,10 @@ async function updateStepProgress(
     };
   }
 
-  await updateJob(kv, jobId, updates, job);
+  const result = await updateJob(kv, jobId, updates, job);
+  if (result.status === "error") {
+    logError("update_step_progress_failed", result.error, undefined, jobId);
+  }
 }
 
 function getDatePrefix(): string {
@@ -131,13 +142,14 @@ async function completeJobAndNotify({
   branch,
   jobStartTime,
 }: CompleteJobParams): Promise<void> {
-  const existingJob = await getJob(kv, jobId);
+  const existingJobResult = await getJob(kv, jobId);
+  const existingJob = existingJobResult.unwrapOr(null);
   if (existingJob?.webhook_sent_at) {
     logInfo("webhook_already_sent", undefined, jobId);
     return;
   }
 
-  const updatedJob = await updateJob(kv, jobId, {
+  const updateResult = await updateJob(kv, jobId, {
     status,
     ...(githubUrl && { github_url: githubUrl }),
     ...(error && { error }),
@@ -145,16 +157,50 @@ async function completeJobAndNotify({
 
   logJobComplete(jobId, status, Date.now() - jobStartTime);
 
-  if (!updatedJob) {
+  if (updateResult.status === "error") {
+    logError(
+      "complete_job_update_failed",
+      updateResult.error,
+      undefined,
+      jobId
+    );
     return;
   }
 
-  const result = await sendWebhook(updatedJob, githubRepo, branch);
-  if (!result.success) {
-    throw new Error("Webhook delivery failed");
+  const updatedJob = updateResult.value;
+
+  const webhookResult = await sendWebhook(updatedJob, githubRepo, branch);
+  if (webhookResult.status === "error") {
+    throw new Error(`Webhook delivery failed: ${webhookResult.error.message}`);
   }
 
-  await updateJob(kv, jobId, { webhook_sent_at: Date.now() }, updatedJob);
+  const timestampResult = await updateJob(
+    kv,
+    jobId,
+    { webhook_sent_at: Date.now() },
+    updatedJob
+  );
+  if (timestampResult.status === "error") {
+    logError(
+      "webhook_timestamp_update_failed",
+      timestampResult.error,
+      undefined,
+      jobId
+    );
+  }
+}
+
+function unwrapGitHubClient(
+  result: Result<GitHubClient, GitHubConfigError>
+): GitHubClient {
+  if (result.status === "error") {
+    throw new WorkflowStepError({
+      step: "initialize",
+      message: result.error.message,
+      cause: result.error,
+    });
+  }
+  return result.value;
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<
@@ -171,11 +217,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     const slug = generateSlug(idea);
     const datePrefix = getDatePrefix();
 
-    const github = new GitHubClient({
-      pat: this.env.GITHUB_PAT,
-      repo: this.env.GITHUB_REPO,
-      branch,
-    });
+    const github = unwrapGitHubClient(
+      GitHubClient.create({
+        pat: this.env.GITHUB_PAT,
+        repo: this.env.GITHUB_REPO,
+        branch,
+      })
+    );
 
     const anthropic = new AnthropicClient({
       apiKey: this.env.ANTHROPIC_API_KEY,
@@ -201,9 +249,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         "initialize",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
         async () => {
-          await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
+          const result = await updateJob(this.env.IDEA_EXPLORER_JOBS, jobId, {
             status: "running",
           });
+          if (result.status === "error") {
+            throw new Error(
+              `Failed to update job status: ${result.error.message}`
+            );
+          }
           logInfo("job_started", { mode, model }, jobId);
         }
       );
@@ -220,9 +273,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         "check-existing",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "1 minute" },
         async () => {
-          const directories = await github.listDirectory("ideas");
+          const dirResult = await github.listDirectory("ideas");
+          if (dirResult.status === "error") {
+            throw new Error(
+              `Failed to list directory: ${dirResult.error.message}`
+            );
+          }
+          const directories = dirResult.value;
 
-          // Collect all existing research directories for context
           existingResearchList = directories
             .filter((dir) => dir.type === "dir")
             .map((dir) => dir.name);
@@ -249,7 +307,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             if (latestMatch) {
               existingDirPath = latestMatch.path;
               const existingResearchPath = `${latestMatch.path}/research.md`;
-              const existing = await github.getFile(existingResearchPath);
+              const fileResult = await github.getFile(existingResearchPath);
+              if (fileResult.status === "error") {
+                throw new Error(
+                  `Failed to get file: ${fileResult.error.message}`
+                );
+              }
+              const existing = fileResult.value;
               if (existing) {
                 existingContent = existing.content;
                 existingSha = existing.sha;
@@ -309,9 +373,15 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             userPrompt,
           });
 
-          researchContent = result.content;
-          inputTokens = result.inputTokens;
-          outputTokens = result.outputTokens;
+          if (result.status === "error") {
+            throw new Error(
+              `Claude generation failed: ${result.error.message}`
+            );
+          }
+
+          researchContent = result.value.content;
+          inputTokens = result.value.inputTokens;
+          outputTokens = result.value.outputTokens;
 
           logInfo(
             "claude_complete",
@@ -333,7 +403,6 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       );
       stepStartTime = Date.now();
 
-      // Determine paths - reuse existingDirPath from step 2 if updating
       let finalResearchPath = researchPath;
       let finalLogPath = logPath;
 
@@ -368,28 +437,48 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             : researchContent;
 
           if (hasExistingResearch) {
-            // Re-fetch SHA to avoid stale SHA conflicts
-            const currentFile = await github.getFile(finalResearchPath);
+            const fileResult = await github.getFile(finalResearchPath);
+            if (fileResult.status === "error") {
+              throw new Error(
+                `Failed to get file: ${fileResult.error.message}`
+              );
+            }
+            const currentFile = fileResult.value;
             if (currentFile) {
-              await github.updateFile(
+              const updateResult = await github.updateFile(
                 finalResearchPath,
                 finalContent,
                 currentFile.sha,
                 commitMessage
               );
+              if (updateResult.status === "error") {
+                throw new Error(
+                  `Failed to update file: ${updateResult.error.message}`
+                );
+              }
             } else {
-              await github.createFile(
+              const createResult = await github.createFile(
                 finalResearchPath,
                 finalContent,
                 commitMessage
               );
+              if (createResult.status === "error") {
+                throw new Error(
+                  `Failed to create file: ${createResult.error.message}`
+                );
+              }
             }
           } else {
-            await github.createFile(
+            const createResult = await github.createFile(
               finalResearchPath,
               finalContent,
               commitMessage
             );
+            if (createResult.status === "error") {
+              throw new Error(
+                `Failed to create file: ${createResult.error.message}`
+              );
+            }
           }
 
           const explorationLog: ExplorationLog = {
@@ -410,43 +499,39 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             outputPath: finalResearchPath,
           };
 
-          // Append to existing log file if it exists, otherwise create new
-          const existingLog = await github.getFile(finalLogPath);
+          const logFileResult = await github.getFile(finalLogPath);
+          if (logFileResult.status === "error") {
+            throw new Error(
+              `Failed to get log file: ${logFileResult.error.message}`
+            );
+          }
+          const existingLog = logFileResult.value;
+
           if (existingLog) {
-            try {
-              const existingLogs = JSON.parse(existingLog.content);
-              const logs = Array.isArray(existingLogs)
-                ? [...existingLogs, explorationLog]
-                : [existingLogs, explorationLog];
-              await github.updateFile(
-                finalLogPath,
-                JSON.stringify(logs, null, 2),
-                existingLog.sha,
-                `log: ${slug} - updated`
-              );
-            } catch (parseError) {
-              // If parsing fails, log a warning and overwrite with new log
-              logError(
-                "log_parse_failed",
-                parseError instanceof Error
-                  ? parseError
-                  : new Error("Unknown JSON parse error"),
-                undefined,
-                jobId
-              );
-              await github.updateFile(
-                finalLogPath,
-                JSON.stringify([explorationLog], null, 2),
-                existingLog.sha,
-                `log: ${slug}`
+            const writeLogResult = await writeExplorationLog(
+              github,
+              finalLogPath,
+              explorationLog,
+              existingLog,
+              slug,
+              jobId
+            );
+            if (writeLogResult.status === "error") {
+              throw new Error(
+                `Failed to write exploration log: ${writeLogResult.error.message}`
               );
             }
           } else {
-            await github.createFile(
+            const createLogResult = await github.createFile(
               finalLogPath,
               JSON.stringify([explorationLog], null, 2),
               `log: ${slug}`
             );
+            if (createLogResult.status === "error") {
+              throw new Error(
+                `Failed to create log file: ${createLogResult.error.message}`
+              );
+            }
           }
 
           logInfo("github_write_complete", { path: finalResearchPath }, jobId);
@@ -479,7 +564,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       );
 
       // Record final step duration
-      const job = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
+      const jobResult = await getJob(this.env.IDEA_EXPLORER_JOBS, jobId);
+      const job = jobResult.unwrapOr(null);
       if (job) {
         const duration = Date.now() - stepStartTime;
         const stepDurations = job.step_durations ?? {};
@@ -524,4 +610,55 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       jobStartTime,
     });
   }
+}
+
+type WriteExplorationLogError =
+  | ExplorationLogParseError
+  | ExplorationLogUpdateError;
+
+async function writeExplorationLog(
+  github: GitHubClient,
+  logPath: string,
+  explorationLog: ExplorationLog,
+  existingLog: FileContent,
+  slug: string,
+  jobId: string
+): Promise<Result<void, WriteExplorationLogError>> {
+  const parseResult = Result.try({
+    try: () => JSON.parse(existingLog.content) as unknown,
+    catch: (cause) => new ExplorationLogParseError({ jobId, logPath, cause }),
+  });
+
+  let logs: unknown[];
+  if (parseResult.status === "error") {
+    logError("log_parse_failed", parseResult.error, undefined, jobId);
+    logs = [explorationLog];
+  } else {
+    const existingLogs = parseResult.value;
+    logs = Array.isArray(existingLogs)
+      ? [...existingLogs, explorationLog]
+      : [existingLogs, explorationLog];
+  }
+
+  const commitMessage =
+    parseResult.status === "ok" ? `log: ${slug} - updated` : `log: ${slug}`;
+
+  const updateResult = await github.updateFile(
+    logPath,
+    JSON.stringify(logs, null, 2),
+    existingLog.sha,
+    commitMessage
+  );
+
+  if (updateResult.status === "error") {
+    return Result.err(
+      new ExplorationLogUpdateError({
+        jobId,
+        logPath,
+        cause: updateResult.error,
+      })
+    );
+  }
+
+  return Result.ok(undefined);
 }

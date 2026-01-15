@@ -1,4 +1,11 @@
+import { Result } from "better-result";
 import { Octokit } from "octokit";
+import {
+  GitHubApiError,
+  GitHubConfigError,
+  GitHubConflictError,
+  type GitHubError,
+} from "../errors";
 
 export interface GitHubConfig {
   pat: string;
@@ -35,24 +42,39 @@ export class GitHubClient {
   private readonly repo: string;
   private readonly branch: string;
 
-  constructor(config: GitHubConfig, octokit?: unknown) {
-    this.octokit =
-      (octokit as OctokitInstance) ?? new Octokit({ auth: config.pat });
+  private constructor(
+    octokit: OctokitInstance,
+    owner: string,
+    repo: string,
+    branch: string
+  ) {
+    this.octokit = octokit;
+    this.owner = owner;
+    this.repo = repo;
+    this.branch = branch;
+  }
 
+  static create(
+    config: GitHubConfig,
+    octokit?: unknown
+  ): Result<GitHubClient, GitHubConfigError> {
     const parts = config.repo.split("/");
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      throw new Error(
-        `Invalid repo format: "${config.repo}". Expected "owner/repo"`
-      );
+      return Result.err(new GitHubConfigError({ repo: config.repo }));
     }
     const [owner, repo] = parts;
 
-    this.owner = owner;
-    this.repo = repo;
-    this.branch = config.branch;
+    const oktokitInstance =
+      (octokit as OctokitInstance) ?? new Octokit({ auth: config.pat });
+
+    return Result.ok(
+      new GitHubClient(oktokitInstance, owner, repo, config.branch)
+    );
   }
 
-  async getFile(path: string): Promise<FileContent | null> {
+  async getFile(
+    path: string
+  ): Promise<Result<FileContent | null, GitHubApiError>> {
     try {
       const { data } = await this.octokit.rest.repos.getContent({
         owner: this.owner,
@@ -64,19 +86,25 @@ export class GitHubClient {
       const file = data as FileResponse;
 
       if (file.type !== "file" || !file.content) {
-        return null;
+        return Result.ok(null);
       }
 
-      return {
+      return Result.ok({
         content: decodeBase64(file.content),
         sha: file.sha,
         path: file.path,
-      };
+      });
     } catch (error) {
       if (isNotFoundError(error)) {
-        return null;
+        return Result.ok(null);
       }
-      throw error;
+      return Result.err(
+        new GitHubApiError({
+          operation: "getFile",
+          status: getErrorStatus(error),
+          cause: error,
+        })
+      );
     }
   }
 
@@ -84,29 +112,56 @@ export class GitHubClient {
     path: string,
     content: string,
     message: string
-  ): Promise<string> {
-    try {
-      const { data } = await this.octokit.rest.repos.createOrUpdateFileContents(
-        {
-          owner: this.owner,
-          repo: this.repo,
-          path,
-          message,
-          content: encodeBase64(content),
-          branch: this.branch,
-        }
-      );
+  ): Promise<Result<string, GitHubError>> {
+    return Result.gen(
+      async function* (this: GitHubClient) {
+        const createResult = await Result.tryPromise({
+          try: async () => {
+            const { data } =
+              await this.octokit.rest.repos.createOrUpdateFileContents({
+                owner: this.owner,
+                repo: this.repo,
+                path,
+                message,
+                content: encodeBase64(content),
+                branch: this.branch,
+              });
 
-      return data.content?.html_url ?? "";
-    } catch (error) {
-      if (isConflictError(error)) {
-        const existingFile = await this.getFile(path);
-        if (existingFile) {
-          return this.updateFile(path, content, existingFile.sha, message);
+            return data.content?.html_url ?? "";
+          },
+          catch: (error) => {
+            if (isConflictError(error)) {
+              return new GitHubConflictError({ path });
+            }
+            return new GitHubApiError({
+              operation: "createFile",
+              status: getErrorStatus(error),
+              cause: error,
+            });
+          },
+        });
+
+        // If conflict, try to update instead
+        if (
+          createResult.status === "error" &&
+          GitHubConflictError.is(createResult.error)
+        ) {
+          const existingFile = yield* Result.await(this.getFile(path));
+          if (existingFile) {
+            const url = yield* Result.await(
+              this.updateFile(path, content, existingFile.sha, message)
+            );
+            return Result.ok(url);
+          }
         }
-      }
-      throw error;
-    }
+
+        // Propagate the original result
+        if (createResult.status === "error") {
+          return Result.err(createResult.error);
+        }
+        return Result.ok(createResult.value);
+      }.bind(this)
+    );
   }
 
   async updateFile(
@@ -114,21 +169,34 @@ export class GitHubClient {
     content: string,
     sha: string,
     message: string
-  ): Promise<string> {
-    const { data } = await this.octokit.rest.repos.createOrUpdateFileContents({
-      owner: this.owner,
-      repo: this.repo,
-      path,
-      message,
-      content: encodeBase64(content),
-      sha,
-      branch: this.branch,
-    });
+  ): Promise<Result<string, GitHubApiError>> {
+    return Result.tryPromise({
+      try: async () => {
+        const { data } =
+          await this.octokit.rest.repos.createOrUpdateFileContents({
+            owner: this.owner,
+            repo: this.repo,
+            path,
+            message,
+            content: encodeBase64(content),
+            sha,
+            branch: this.branch,
+          });
 
-    return data.content?.html_url ?? "";
+        return data.content?.html_url ?? "";
+      },
+      catch: (error) =>
+        new GitHubApiError({
+          operation: "updateFile",
+          status: getErrorStatus(error),
+          cause: error,
+        }),
+    });
   }
 
-  async listDirectory(path: string): Promise<DirectoryEntry[]> {
+  async listDirectory(
+    path: string
+  ): Promise<Result<DirectoryEntry[], GitHubApiError>> {
     try {
       const { data } = await this.octokit.rest.repos.getContent({
         owner: this.owner,
@@ -138,20 +206,28 @@ export class GitHubClient {
       });
 
       if (!Array.isArray(data)) {
-        return [];
+        return Result.ok([]);
       }
 
-      return data.map((entry) => ({
-        name: entry.name,
-        path: entry.path,
-        type: entry.type === "dir" ? "dir" : "file",
-        sha: entry.sha,
-      }));
+      return Result.ok(
+        data.map((entry) => ({
+          name: entry.name,
+          path: entry.path,
+          type: entry.type === "dir" ? ("dir" as const) : ("file" as const),
+          sha: entry.sha,
+        }))
+      );
     } catch (error) {
       if (isNotFoundError(error)) {
-        return [];
+        return Result.ok([]);
       }
-      throw error;
+      return Result.err(
+        new GitHubApiError({
+          operation: "listDirectory",
+          status: getErrorStatus(error),
+          cause: error,
+        })
+      );
     }
   }
 }
@@ -171,6 +247,18 @@ function isHttpError(error: unknown, status: number): boolean {
     "status" in error &&
     error.status === status
   );
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+  return undefined;
 }
 
 const encoder = new TextEncoder();

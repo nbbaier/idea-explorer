@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { describe, expect, it, vi } from "vitest";
 import { AnthropicClient } from "./anthropic";
 
@@ -123,9 +124,12 @@ describe("AnthropicClient", () => {
     );
     const result = await client.generateResearch(defaultParams);
 
-    expect(result.content).toBe("# Research\n\nContent");
-    expect(result.inputTokens).toBe(150);
-    expect(result.outputTokens).toBe(800);
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isOk(result)) {
+      expect(result.value.content).toBe("# Research\n\nContent");
+      expect(result.value.inputTokens).toBe(150);
+      expect(result.value.outputTokens).toBe(800);
+    }
   });
 
   it("should handle empty content blocks", async () => {
@@ -144,6 +148,28 @@ describe("AnthropicClient", () => {
     );
     const result = await client.generateResearch(defaultParams);
 
-    expect(result.content).toBe("");
+    expect(Result.isOk(result)).toBe(true);
+    if (Result.isOk(result)) {
+      expect(result.value.content).toBe("");
+    }
+  });
+
+  it("should return error result on API failure", async () => {
+    const mockClient = createMockAnthropicClient({
+      stream: vi.fn().mockReturnValue({
+        finalMessage: vi.fn().mockRejectedValue(new Error("API error")),
+      }),
+    });
+
+    const client = new AnthropicClient(
+      { apiKey: "key", model: "sonnet" },
+      mockClient
+    );
+    const result = await client.generateResearch(defaultParams);
+
+    expect(Result.isError(result)).toBe(true);
+    if (Result.isError(result)) {
+      expect(result.error.name).toBe("AnthropicApiError");
+    }
   });
 });

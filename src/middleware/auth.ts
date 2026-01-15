@@ -16,7 +16,7 @@ export function requireAuth(): MiddlewareHandler<{ Bindings: AuthEnv }> {
   return async function requireAuthMiddleware(
     c: AuthContext,
     next: Next
-  ): Promise<Response | void> {
+  ): Promise<Response | undefined> {
     const authHeader = c.req.header("Authorization");
 
     if (!authHeader) {

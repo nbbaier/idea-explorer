@@ -1,3 +1,4 @@
+import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock cloudflare:workers
@@ -17,7 +18,9 @@ import { ExplorationWorkflow } from "./exploration";
 
 // Mock dependencies
 vi.mock("../clients/github", () => ({
-  GitHubClient: vi.fn(),
+  GitHubClient: {
+    create: vi.fn(),
+  },
 }));
 vi.mock("../clients/anthropic", () => ({
   AnthropicClient: vi.fn(),
@@ -27,7 +30,11 @@ vi.mock("../jobs", () => ({
   getJob: vi.fn(),
 }));
 vi.mock("../utils/logger");
-vi.mock("../utils/webhook");
+vi.mock("../utils/webhook", () => ({
+  sendWebhook: vi.fn().mockResolvedValue(
+    Result.ok({ success: true, statusCode: 200, attempts: 1 })
+  ),
+}));
 vi.mock("../prompts", () => ({
   buildSystemPrompt: vi.fn(),
   buildUserPrompt: vi.fn(),
@@ -63,23 +70,28 @@ describe("ExplorationWorkflow", () => {
   it("should run the full workflow successfully", async () => {
     // Mock GitHubClient methods
     const mockGithub = {
-      listDirectory: vi.fn().mockResolvedValue([]),
-      getFile: vi.fn().mockResolvedValue(null),
-      createFile: vi.fn().mockResolvedValue("https://github.com/url"),
-      updateFile: vi.fn().mockResolvedValue("https://github.com/url"),
+      listDirectory: vi.fn().mockResolvedValue(Result.ok([])),
+      getFile: vi.fn().mockResolvedValue(Result.ok(null)),
+      createFile: vi
+        .fn()
+        .mockResolvedValue(Result.ok("https://github.com/url")),
+      updateFile: vi
+        .fn()
+        .mockResolvedValue(Result.ok("https://github.com/url")),
     };
-    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-    vi.mocked(GitHubClient).mockImplementation(function () {
-      return mockGithub;
-    } as unknown as typeof GitHubClient);
+    vi.mocked(GitHubClient.create).mockReturnValue(
+      Result.ok(mockGithub) as any
+    );
 
     // Mock AnthropicClient
     const mockAnthropic = {
-      generateResearch: vi.fn().mockResolvedValue({
-        content: "Research content",
-        inputTokens: 100,
-        outputTokens: 200,
-      }),
+      generateResearch: vi.fn().mockResolvedValue(
+        Result.ok({
+          content: "Research content",
+          inputTokens: 100,
+          outputTokens: 200,
+        })
+      ),
     };
     // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
     vi.mocked(AnthropicClient).mockImplementation(function () {
@@ -87,14 +99,26 @@ describe("ExplorationWorkflow", () => {
     } as unknown as typeof AnthropicClient);
 
     // Mock jobs
-    vi.mocked(getJob).mockResolvedValue({
-      id: "test-job",
-      idea: "Test Idea",
-      mode: "exploration",
-      model: "sonnet",
-      status: "running",
-      created_at: Date.now(),
-    } as any);
+    vi.mocked(getJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "running",
+        created_at: Date.now(),
+      }) as any
+    );
+    vi.mocked(updateJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "running",
+        created_at: Date.now(),
+      }) as any
+    );
 
     const workflow = new ExplorationWorkflow({} as any, mockEnv as any);
 
@@ -139,54 +163,75 @@ describe("ExplorationWorkflow", () => {
 
   it("uses the latest matching directory when updating", async () => {
     const mockGithub = {
-      listDirectory: vi.fn().mockResolvedValue([
-        {
-          name: "2026-01-01-test-slug",
-          path: "ideas/2026-01-01-test-slug",
-          type: "dir",
-          sha: "old-sha",
-        },
-        {
-          name: "2026-01-05-test-slug",
-          path: "ideas/2026-01-05-test-slug",
-          type: "dir",
-          sha: "new-sha",
-        },
-      ]),
+      listDirectory: vi.fn().mockResolvedValue(
+        Result.ok([
+          {
+            name: "2026-01-01-test-slug",
+            path: "ideas/2026-01-01-test-slug",
+            type: "dir",
+            sha: "old-sha",
+          },
+          {
+            name: "2026-01-05-test-slug",
+            path: "ideas/2026-01-05-test-slug",
+            type: "dir",
+            sha: "new-sha",
+          },
+        ])
+      ),
       getFile: vi.fn((path: string) => {
         if (path.endsWith("research.md")) {
-          return { content: "Existing content", sha: "latest-sha", path };
+          return Promise.resolve(
+            Result.ok({ content: "Existing content", sha: "latest-sha", path })
+          );
         }
-        return null;
+        return Promise.resolve(Result.ok(null));
       }),
-      createFile: vi.fn().mockResolvedValue("https://github.com/url"),
-      updateFile: vi.fn().mockResolvedValue("https://github.com/url"),
+      createFile: vi
+        .fn()
+        .mockResolvedValue(Result.ok("https://github.com/url")),
+      updateFile: vi
+        .fn()
+        .mockResolvedValue(Result.ok("https://github.com/url")),
     };
-    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-    vi.mocked(GitHubClient).mockImplementation(function () {
-      return mockGithub;
-    } as unknown as typeof GitHubClient);
+    vi.mocked(GitHubClient.create).mockReturnValue(
+      Result.ok(mockGithub) as any
+    );
 
     const mockAnthropic = {
-      generateResearch: vi.fn().mockResolvedValue({
-        content: "New research content",
-        inputTokens: 10,
-        outputTokens: 20,
-      }),
+      generateResearch: vi.fn().mockResolvedValue(
+        Result.ok({
+          content: "New research content",
+          inputTokens: 10,
+          outputTokens: 20,
+        })
+      ),
     };
     // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
     vi.mocked(AnthropicClient).mockImplementation(function () {
       return mockAnthropic;
     } as unknown as typeof AnthropicClient);
 
-    vi.mocked(getJob).mockResolvedValue({
-      id: "test-job",
-      idea: "Test Idea",
-      mode: "exploration",
-      model: "sonnet",
-      status: "running",
-      created_at: Date.now(),
-    } as any);
+    vi.mocked(getJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "running",
+        created_at: Date.now(),
+      }) as any
+    );
+    vi.mocked(updateJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "running",
+        created_at: Date.now(),
+      }) as any
+    );
 
     const workflow = new ExplorationWorkflow({} as any, mockEnv as any);
 
@@ -207,12 +252,32 @@ describe("ExplorationWorkflow", () => {
   });
 
   it("should handle failures and update job status", async () => {
-    // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-    vi.mocked(GitHubClient).mockImplementation(function () {
-      return {
-        listDirectory: vi.fn().mockRejectedValue(new Error("Network error")),
-      };
-    } as unknown as typeof GitHubClient);
+    const mockGithub = {
+      listDirectory: vi.fn().mockRejectedValue(new Error("Network error")),
+    };
+    vi.mocked(GitHubClient.create).mockReturnValue(
+      Result.ok(mockGithub) as any
+    );
+    vi.mocked(getJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "running",
+        created_at: Date.now(),
+      }) as any
+    );
+    vi.mocked(updateJob).mockResolvedValue(
+      Result.ok({
+        id: "test-job",
+        idea: "Test Idea",
+        mode: "exploration",
+        model: "sonnet",
+        status: "failed",
+        created_at: Date.now(),
+      }) as any
+    );
 
     const workflow = new ExplorationWorkflow({} as any, mockEnv as any);
 

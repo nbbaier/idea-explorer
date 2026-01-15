@@ -1,4 +1,6 @@
+import { Result } from "better-result";
 import { z } from "zod";
+import { JobNotFoundError, JsonParseError, StorageError } from "./errors";
 
 const BLOCKED_HOST_SUFFIXES = [
   "localhost",
@@ -85,10 +87,7 @@ function isIpv6(hostname: string): boolean {
   return hostname.includes(":");
 }
 
-function hasIpv6Prefix(
-  hostname: string,
-  prefixes: readonly string[]
-): boolean {
+function hasIpv6Prefix(hostname: string, prefixes: readonly string[]): boolean {
   for (const prefix of prefixes) {
     if (hostname.startsWith(prefix)) {
       return true;
@@ -116,8 +115,10 @@ function isPrivateOrReservedIpv6(hostname: string): boolean {
     let mappedIpv4 = suffix;
     if (suffix.includes(":")) {
       const parts = suffix.split(":");
-      if (parts.length === 2) {
-        mappedIpv4 = hexPairToIpv4(parts[0], parts[1]);
+      const hexHigh = parts[0];
+      const hexLow = parts[1];
+      if (parts.length === 2 && hexHigh && hexLow) {
+        mappedIpv4 = hexPairToIpv4(hexHigh, hexLow);
       }
     }
     return isPrivateOrReservedIpv4(mappedIpv4);
@@ -228,10 +229,12 @@ export type Model = z.infer<typeof ModelSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
 
+export type JobError = StorageError | JsonParseError | JobNotFoundError;
+
 export async function createJob(
   kv: KVNamespace,
   request: ExploreRequest
-): Promise<Job> {
+): Promise<Result<Job, StorageError>> {
   const id = crypto.randomUUID().slice(0, 8);
   const job: Job = {
     id,
@@ -245,24 +248,37 @@ export async function createJob(
     update: request.update ?? false,
     created_at: Date.now(),
   };
-  await kv.put(id, JSON.stringify(job));
-  return job;
+
+  return Result.tryPromise({
+    try: async () => {
+      await kv.put(id, JSON.stringify(job));
+      return job;
+    },
+    catch: (error) =>
+      new StorageError({ operation: "put", key: id, cause: error }),
+  });
 }
 
 export async function getJob(
   kv: KVNamespace,
   id: string
-): Promise<Job | undefined> {
-  const data = await kv.get(id);
-  if (!data) {
-    return;
-  }
-  try {
-    const parsed = JSON.parse(data);
-    return JobSchema.parse(parsed);
-  } catch {
-    return undefined;
-  }
+): Promise<Result<Job | null, StorageError | JsonParseError>> {
+  return Result.tryPromise({
+    try: async () => {
+      const data = await kv.get(id);
+      if (!data) {
+        return null;
+      }
+      const parsed = JSON.parse(data);
+      return JobSchema.parse(parsed);
+    },
+    catch: (error) => {
+      if (error instanceof SyntaxError) {
+        return new JsonParseError({ context: `job ${id}`, cause: error });
+      }
+      return new StorageError({ operation: "get", key: id, cause: error });
+    },
+  });
 }
 
 export async function updateJob(
@@ -270,12 +286,54 @@ export async function updateJob(
   id: string,
   updates: Partial<Omit<Job, "id" | "created_at">>,
   existingJob?: Job
-): Promise<Job | undefined> {
-  const job = existingJob ?? (await getJob(kv, id));
-  if (!job) {
-    return;
-  }
-  const updated = { ...job, ...updates };
-  await kv.put(id, JSON.stringify(updated));
-  return updated;
+): Promise<Result<Job, JobError>> {
+  return Result.gen(async function* () {
+    let job = existingJob;
+    if (!job) {
+      const jobResult = yield* Result.await(getJob(kv, id));
+      if (!jobResult) {
+        return Result.err(new JobNotFoundError({ jobId: id }));
+      }
+      job = jobResult;
+    }
+
+    const updated = { ...job, ...updates };
+
+    yield* Result.await(
+      Result.tryPromise({
+        try: async () => {
+          await kv.put(id, JSON.stringify(updated));
+        },
+        catch: (error) =>
+          new StorageError({ operation: "put", key: id, cause: error }),
+      })
+    );
+
+    return Result.ok(updated);
+  });
+}
+
+export async function listJobs(
+  kv: KVNamespace
+): Promise<Result<Job[], StorageError>> {
+  return Result.tryPromise({
+    try: async () => {
+      const { keys } = await kv.list();
+      const results = await Promise.allSettled(
+        keys.map(async (key) => {
+          const data = await kv.get(key.name, "json");
+          return data as Job | null;
+        })
+      );
+
+      return results
+        .filter(
+          (result): result is PromiseFulfilledResult<Job | null> =>
+            result.status === "fulfilled"
+        )
+        .map((result) => result.value)
+        .filter((job): job is Job => job !== null);
+    },
+    catch: (error) => new StorageError({ operation: "list", cause: error }),
+  });
 }

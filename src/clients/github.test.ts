@@ -26,13 +26,18 @@ function createMockOctokit(overrides: {
   };
 }
 
-describe("GitHubClient", () => {
-  const defaultConfig = {
-    pat: "test-token",
-    repo: "owner/repo",
-    branch: "main",
-  };
+function createClient(mockOctokit: ReturnType<typeof createMockOctokit>) {
+  const result = GitHubClient.create(
+    { pat: "test-token", repo: "owner/repo", branch: "main" },
+    mockOctokit
+  );
+  if (result.status !== "ok") {
+    throw new Error("Client creation failed");
+  }
+  return result.value;
+}
 
+describe("GitHubClient", () => {
   describe("getFile", () => {
     it("should return file content and sha", async () => {
       const mockOctokit = createMockOctokit({
@@ -46,10 +51,14 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.getFile("test.txt");
 
-      expect(result).toEqual({
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("getFile failed");
+      }
+      expect(result.value).toEqual({
         content: "Hello, World!",
         sha: "abc123",
         path: "test.txt",
@@ -68,10 +77,14 @@ describe("GitHubClient", () => {
         getContent: vi.fn().mockRejectedValue({ status: 404 }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.getFile("nonexistent.txt");
 
-      expect(result).toBeNull();
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("getFile failed");
+      }
+      expect(result.value).toBeNull();
     });
 
     it("should return null for directory type", async () => {
@@ -81,10 +94,14 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.getFile("folder");
 
-      expect(result).toBeNull();
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("getFile failed");
+      }
+      expect(result.value).toBeNull();
     });
 
     it("should decode base64 content with embedded newlines", async () => {
@@ -101,20 +118,29 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.getFile("test.txt");
 
-      expect(result?.content).toBe("Hello, multiline!");
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("getFile failed");
+      }
+      expect(result.value?.content).toBe("Hello, multiline!");
     });
 
-    it("should throw on other errors", async () => {
+    it("should return error on other errors", async () => {
       const mockOctokit = createMockOctokit({
         getContent: vi.fn().mockRejectedValue({ status: 500 }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
+      const result = await client.getFile("test.txt");
 
-      await expect(client.getFile("test.txt")).rejects.toEqual({ status: 500 });
+      expect(result.status).toBe("error");
+      if (result.status !== "error") {
+        throw new Error("Expected error");
+      }
+      expect(result.error.status).toBe(500);
     });
   });
 
@@ -131,14 +157,20 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.createFile(
         "new.txt",
         "New content",
         "Create new.txt"
       );
 
-      expect(result).toBe("https://github.com/owner/repo/blob/main/new.txt");
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("createFile failed");
+      }
+      expect(result.value).toBe(
+        "https://github.com/owner/repo/blob/main/new.txt"
+      );
       expect(
         mockOctokit.rest.repos.createOrUpdateFileContents
       ).toHaveBeenCalledWith({
@@ -175,14 +207,18 @@ describe("GitHubClient", () => {
         createOrUpdateFileContents: mockCreateOrUpdate,
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.createFile(
         "existing.txt",
         "New content",
         "Update existing.txt"
       );
 
-      expect(result).toBe(
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("createFile failed");
+      }
+      expect(result.value).toBe(
         "https://github.com/owner/repo/blob/main/existing.txt"
       );
 
@@ -222,14 +258,20 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.createFile(
         "large.txt",
         largeContent,
         "Add large file"
       );
 
-      expect(result).toBe("https://github.com/owner/repo/blob/main/large.txt");
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("createFile failed");
+      }
+      expect(result.value).toBe(
+        "https://github.com/owner/repo/blob/main/large.txt"
+      );
       expect(
         mockOctokit.rest.repos.createOrUpdateFileContents
       ).toHaveBeenCalledWith({
@@ -255,7 +297,7 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.updateFile(
         "test.txt",
         "Updated",
@@ -263,7 +305,13 @@ describe("GitHubClient", () => {
         "Update test.txt"
       );
 
-      expect(result).toBe("https://github.com/owner/repo/blob/main/test.txt");
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("updateFile failed");
+      }
+      expect(result.value).toBe(
+        "https://github.com/owner/repo/blob/main/test.txt"
+      );
       expect(
         mockOctokit.rest.repos.createOrUpdateFileContents
       ).toHaveBeenCalledWith({
@@ -299,10 +347,14 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.listDirectory("folder");
 
-      expect(result).toEqual([
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("listDirectory failed");
+      }
+      expect(result.value).toEqual([
         {
           name: "file.txt",
           path: "folder/file.txt",
@@ -323,10 +375,14 @@ describe("GitHubClient", () => {
         getContent: vi.fn().mockRejectedValue({ status: 404 }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.listDirectory("nonexistent");
 
-      expect(result).toEqual([]);
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("listDirectory failed");
+      }
+      expect(result.value).toEqual([]);
     });
 
     it("should return empty array if response is not array", async () => {
@@ -336,10 +392,14 @@ describe("GitHubClient", () => {
         }),
       });
 
-      const client = new GitHubClient(defaultConfig, mockOctokit);
+      const client = createClient(mockOctokit);
       const result = await client.listDirectory("file.txt");
 
-      expect(result).toEqual([]);
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("listDirectory failed");
+      }
+      expect(result.value).toEqual([]);
     });
   });
 });

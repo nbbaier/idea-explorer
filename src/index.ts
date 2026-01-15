@@ -1,11 +1,15 @@
 import { zValidator } from "@hono/zod-validator";
-import { Hono, type Context, type Next } from "hono";
+import { Result } from "better-result";
+import { type Context, Hono, type Next } from "hono";
+import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
+  type ExploreRequest,
   ExploreRequestSchema,
   getJob,
   type Job,
   JobStatusSchema,
+  listJobs,
   ModeSchema,
   updateJob,
 } from "./jobs";
@@ -103,7 +107,7 @@ async function securityHeadersMiddleware(
 async function rateLimitMiddleware(
   c: ExploreContext,
   next: Next
-): Promise<Response | void> {
+): Promise<Response | undefined> {
   const rateLimiter = c.env.RATE_LIMITER;
   if (!rateLimiter) {
     await next();
@@ -118,39 +122,9 @@ async function rateLimitMiddleware(
     }
   } catch (error) {
     logError("rate_limiter_error", error, { ip });
-    // Fail open if rate limiter errors
   }
 
   await next();
-}
-
-function isFulfilledJobResult(
-  result: PromiseSettledResult<Job | null>
-): result is PromiseFulfilledResult<Job | null> {
-  return result.status === "fulfilled";
-}
-
-function getJobValue(result: PromiseFulfilledResult<Job | null>): Job | null {
-  return result.value;
-}
-
-function isJob(job: Job | null): job is Job {
-  return job !== null;
-}
-
-async function loadJobsFromStorage(kv: KVNamespace): Promise<Job[]> {
-  const { keys } = await kv.list();
-
-  function fetchJob(key: { name: string }): Promise<Job | null> {
-    return kv.get(key.name, "json") as Promise<Job | null>;
-  }
-
-  const results = await Promise.allSettled(keys.map(fetchJob));
-
-  return results
-    .filter(isFulfilledJobResult)
-    .map(getJobValue)
-    .filter(isJob);
 }
 
 function renderDocs(c: ExploreContext): Response {
@@ -158,35 +132,52 @@ function renderDocs(c: ExploreContext): Response {
 }
 
 async function createExploreHandler(c: ExploreContext): Promise<Response> {
-  const body = c.req.valid("json");
+  const body = (await c.req.json()) as ExploreRequest;
   const webhookUrl = body.webhook_url || c.env.IDEA_EXPLORER_WEBHOOK_URL;
-  const job = await createJob(c.env.IDEA_EXPLORER_JOBS, {
+
+  const jobResult = await createJob(c.env.IDEA_EXPLORER_JOBS, {
     ...body,
     webhook_url: webhookUrl,
   });
 
+  if (jobResult.status === "error") {
+    logError("job_creation_failed", jobResult.error);
+    return c.json({ error: "Failed to create job" }, 500);
+  }
+
+  const job = jobResult.value;
   logJobCreated(job.id, job.idea, job.mode);
 
-  try {
-    await c.env.EXPLORATION_WORKFLOW.create({
-      id: job.id,
-      params: {
-        jobId: job.id,
-        idea: job.idea,
-        mode: job.mode,
-        model: job.model,
-        context: job.context,
-        update: job.update,
-        webhook_url: job.webhook_url,
-        callback_secret: job.callback_secret,
-      },
-    });
-  } catch (error) {
+  const workflowResult = await Result.tryPromise({
+    try: () =>
+      c.env.EXPLORATION_WORKFLOW.create({
+        id: job.id,
+        params: {
+          jobId: job.id,
+          idea: job.idea,
+          mode: job.mode,
+          model: job.model,
+          context: job.context,
+          update: job.update,
+          webhook_url: job.webhook_url,
+          callback_secret: job.callback_secret,
+        },
+      }),
+    catch: (error) =>
+      new WorkflowCreationError({ jobId: job.id, cause: error }),
+  });
+
+  if (workflowResult.status === "error") {
     await updateJob(c.env.IDEA_EXPLORER_JOBS, job.id, {
       status: "failed",
       error: "Workflow creation failed",
     });
-    logError("workflow_creation_failed", error, undefined, job.id);
+    logError(
+      "workflow_creation_failed",
+      workflowResult.error,
+      undefined,
+      job.id
+    );
     return c.json({ error: "Failed to start exploration" }, 500);
   }
 
@@ -194,20 +185,14 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function listJobsHandler(c: ExploreContext): Promise<Response> {
-  // Note: This implementation loads all jobs into memory for filtering.
-  // For personal use scale (dozens to hundreds of explorations), this is acceptable.
-  // If scaling beyond personal use, consider using KV metadata for filtering
-  // or migrating to a database with proper indexing.
-  let jobs: Job[];
-  try {
-    jobs = await loadJobsFromStorage(c.env.IDEA_EXPLORER_JOBS);
-  } catch (error) {
-    logError(
-      "jobs_list_failed",
-      error instanceof Error ? error : new Error(String(error))
-    );
+  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS);
+
+  if (jobsResult.status === "error") {
+    logError("jobs_list_failed", jobsResult.error);
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
+
+  const jobs = jobsResult.value;
 
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
@@ -227,7 +212,9 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  const statusFilter = statusValidation?.valid ? statusValidation.value : undefined;
+  const statusFilter = statusValidation?.valid
+    ? statusValidation.value
+    : undefined;
   const modeFilter = modeValidation?.valid ? modeValidation.value : undefined;
 
   function filterJob(job: Job): boolean {
@@ -315,8 +302,14 @@ function buildStatusResponse(job: Job): Record<string, unknown> {
 
 async function getJobStatusHandler(c: ExploreContext): Promise<Response> {
   const jobId = c.req.param("id");
-  const job = await getJob(c.env.IDEA_EXPLORER_JOBS, jobId);
+  const jobResult = await getJob(c.env.IDEA_EXPLORER_JOBS, jobId);
 
+  if (jobResult.status === "error") {
+    logError("job_status_fetch_failed", jobResult.error, undefined, jobId);
+    return c.json({ error: "Failed to retrieve job" }, 500);
+  }
+
+  const job = jobResult.value;
   if (!job) {
     return c.json({ error: "Job not found" }, 404);
   }
@@ -326,17 +319,24 @@ async function getJobStatusHandler(c: ExploreContext): Promise<Response> {
 
 async function getWorkflowStatusHandler(c: ExploreContext): Promise<Response> {
   const jobId = c.req.param("id");
-  try {
-    const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
-    const status = await instance.status();
-    return c.json({
-      workflow_status: status.status,
-      output: status.output,
-      error: status.error,
-    });
-  } catch {
-    return c.json({ error: "Workflow instance not found" }, 404);
+  const instanceResult = await Result.tryPromise({
+    try: async () => {
+      const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
+      return instance.status();
+    },
+    catch: () => new WorkflowNotFoundError({ jobId }),
+  });
+
+  if (instanceResult.status === "error") {
+    return c.json({ error: instanceResult.error.message }, 404);
   }
+
+  const status = instanceResult.value;
+  return c.json({
+    workflow_status: status.status,
+    output: status.output,
+    error: status.error,
+  });
 }
 
 function healthHandler(c: ExploreContext): Response {
@@ -392,18 +392,27 @@ async function testWebhookHandler(c: ExploreContext): Promise<Response> {
     githubRepo: c.env.GITHUB_REPO,
   });
 
-  const result = await sendWebhook(
+  const webhookResult = await sendWebhook(
     mockJob,
     c.env.GITHUB_REPO,
     c.env.GITHUB_BRANCH || "main",
     { "X-Test-Webhook": "true" }
   );
 
+  if (webhookResult.status === "error") {
+    return c.json({
+      message: "Mock webhook failed",
+      webhook_url: webhookUrl,
+      status,
+      error: webhookResult.error.message,
+    });
+  }
+
   return c.json({
     message: "Mock webhook sent",
     webhook_url: webhookUrl,
     status,
-    result,
+    result: webhookResult.value,
   });
 }
 
