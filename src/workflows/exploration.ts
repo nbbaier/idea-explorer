@@ -154,19 +154,17 @@ async function completeJobAndNotify({
     throw new Error("Webhook delivery failed");
   }
 
-  await updateJob(
-    kv,
-    jobId,
-    { webhook_sent_at: Date.now() },
-    updatedJob
-  );
+  await updateJob(kv, jobId, { webhook_sent_at: Date.now() }, updatedJob);
 }
 
 export class ExplorationWorkflow extends WorkflowEntrypoint<
   ExplorationEnv,
   JobParams
 > {
-  override async run(event: WorkflowEvent<JobParams>, step: WorkflowStep) {
+  override async run(
+    event: WorkflowEvent<JobParams>,
+    step: WorkflowStep
+  ): Promise<void> {
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GITHUB_BRANCH || "main";
@@ -339,9 +337,10 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       let finalResearchPath = researchPath;
       let finalLogPath = logPath;
 
-      // Only use existing paths if we have both content and SHA (consistent state)
-      const isValidUpdate = existingSha && existingContent && existingDirPath;
-      if (isValidUpdate) {
+      const hasExistingResearch = Boolean(
+        existingSha && existingContent && existingDirPath
+      );
+      if (hasExistingResearch) {
         finalResearchPath = `${existingDirPath}/research.md`;
         finalLogPath = `${existingDirPath}/exploration-log.json`;
       } else if (existingDirPath && !existingContent) {
@@ -368,7 +367,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             ? `${existingContent}\n\n${researchContent}`
             : researchContent;
 
-          if (isValidUpdate) {
+          if (hasExistingResearch) {
             // Re-fetch SHA to avoid stale SHA conflicts
             const currentFile = await github.getFile(finalResearchPath);
             if (currentFile) {
