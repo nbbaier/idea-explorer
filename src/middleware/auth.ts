@@ -1,4 +1,4 @@
-import type { Context, MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler, Next } from "hono";
 
 interface AuthEnv {
   IDEA_EXPLORER_API_TOKEN: string;
@@ -6,21 +6,27 @@ interface AuthEnv {
 
 const encoder = new TextEncoder();
 
-export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
-  return async (c: Context<{ Bindings: AuthEnv }>, next) => {
+type AuthContext = Context<{ Bindings: AuthEnv }>;
+
+function unauthorized(c: AuthContext, message: string): Response {
+  return c.json({ error: message }, 401);
+}
+
+export function requireAuth(): MiddlewareHandler<{ Bindings: AuthEnv }> {
+  return async function requireAuthMiddleware(
+    c: AuthContext,
+    next: Next
+  ): Promise<Response | void> {
     const authHeader = c.req.header("Authorization");
 
     if (!authHeader) {
-      return c.json(
-        { error: "Unauthorized: Missing Authorization header" },
-        401
-      );
+      return unauthorized(c, "Unauthorized: Missing Authorization header");
     }
 
     if (!authHeader.startsWith("Bearer ")) {
-      return c.json(
-        { error: "Unauthorized: Invalid Authorization header format" },
-        401
+      return unauthorized(
+        c,
+        "Unauthorized: Invalid Authorization header format"
       );
     }
 
@@ -30,13 +36,13 @@ export const requireAuth = (): MiddlewareHandler<{ Bindings: AuthEnv }> => {
     const secretBuffer = encoder.encode(c.env.IDEA_EXPLORER_API_TOKEN);
 
     if (tokenBuffer.byteLength !== secretBuffer.byteLength) {
-      return c.json({ error: "Unauthorized: Invalid token" }, 401);
+      return unauthorized(c, "Unauthorized: Invalid token");
     }
 
     if (!crypto.subtle.timingSafeEqual(tokenBuffer, secretBuffer)) {
-      return c.json({ error: "Unauthorized: Invalid token" }, 401);
+      return unauthorized(c, "Unauthorized: Invalid token");
     }
 
     await next();
   };
-};
+}

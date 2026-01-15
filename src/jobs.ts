@@ -28,6 +28,11 @@ const IPV4_BLOCKS: [string, string][] = [
   ["203.0.113.0", "203.0.113.255"],
 ];
 
+const IPV6_UNIQUE_LOCAL_PREFIXES = ["fc", "fd"];
+const IPV6_LINK_LOCAL_PREFIXES = ["fe8", "fe9", "fea", "feb"];
+const IPV6_SITE_LOCAL_PREFIXES = ["fec", "fed", "fee", "fef"];
+const IPV6_DOCUMENTATION_PREFIX = "2001:db8";
+
 function isValidIpv4Bytes(
   bytes: number[]
 ): bytes is [number, number, number, number] {
@@ -80,6 +85,18 @@ function isIpv6(hostname: string): boolean {
   return hostname.includes(":");
 }
 
+function hasIpv6Prefix(
+  hostname: string,
+  prefixes: readonly string[]
+): boolean {
+  for (const prefix of prefixes) {
+    if (hostname.startsWith(prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isPrivateOrReservedIpv6(hostname: string): boolean {
   const normalized =
     hostname.startsWith("[") && hostname.endsWith("]")
@@ -105,26 +122,16 @@ function isPrivateOrReservedIpv6(hostname: string): boolean {
     }
     return isPrivateOrReservedIpv4(mappedIpv4);
   }
-  if (lower.startsWith("fc") || lower.startsWith("fd")) {
+  if (hasIpv6Prefix(lower, IPV6_UNIQUE_LOCAL_PREFIXES)) {
     return true;
   }
-  if (
-    lower.startsWith("fe8") ||
-    lower.startsWith("fe9") ||
-    lower.startsWith("fea") ||
-    lower.startsWith("feb")
-  ) {
+  if (hasIpv6Prefix(lower, IPV6_LINK_LOCAL_PREFIXES)) {
     return true;
   }
-  if (
-    lower.startsWith("fec") ||
-    lower.startsWith("fed") ||
-    lower.startsWith("fee") ||
-    lower.startsWith("fef")
-  ) {
+  if (hasIpv6Prefix(lower, IPV6_SITE_LOCAL_PREFIXES)) {
     return true;
   }
-  if (lower.startsWith("2001:db8")) {
+  if (lower.startsWith(IPV6_DOCUMENTATION_PREFIX)) {
     return true;
   }
   return false;

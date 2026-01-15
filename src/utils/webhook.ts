@@ -33,6 +33,10 @@ type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 
 const encoder = new TextEncoder();
 
+function toHex(byte: number): string {
+  return byte.toString(16).padStart(2, "0");
+}
+
 async function generateSignature(
   secret: string,
   body: string
@@ -46,9 +50,7 @@ async function generateSignature(
   );
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
   const hashArray = Array.from(new Uint8Array(signature));
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const hashHex = hashArray.map(toHex).join("");
   return `sha256=${hashHex}`;
 }
 
@@ -63,26 +65,36 @@ function buildSuccessPayload(
     ? `https://raw.githubusercontent.com/${githubRepo}/${branch}/${outputPath}`
     : "";
 
-  return {
+  const payload: WebhookSuccessPayload = {
     event: "idea_explored",
     status: "completed",
     job_id: job.id,
     idea: job.idea,
     github_url: githubUrl,
     github_raw_url: githubRawUrl,
-    ...(job.step_durations && { step_durations: job.step_durations }),
   };
+
+  if (job.step_durations) {
+    payload.step_durations = job.step_durations;
+  }
+
+  return payload;
 }
 
 function buildFailurePayload(job: Job): WebhookFailurePayload {
-  return {
+  const payload: WebhookFailurePayload = {
     event: "idea_explored",
     status: "failed",
     job_id: job.id,
     idea: job.idea,
     error: job.error ?? "Unknown error",
-    ...(job.step_durations && { step_durations: job.step_durations }),
   };
+
+  if (job.step_durations) {
+    payload.step_durations = job.step_durations;
+  }
+
+  return payload;
 }
 
 const RETRY_DELAYS_MS = [1000, 5000, 30_000]; // 1s, 5s, 30s
@@ -105,10 +117,12 @@ export async function sendWebhook(
 
   const webhookUrl = job.webhook_url;
 
-  const payload: WebhookPayload =
-    job.status === "completed"
-      ? buildSuccessPayload(job, githubRepo, branch)
-      : buildFailurePayload(job);
+  let payload: WebhookPayload;
+  if (job.status === "completed") {
+    payload = buildSuccessPayload(job, githubRepo, branch);
+  } else {
+    payload = buildFailurePayload(job);
+  }
 
   const body = JSON.stringify(payload);
 
@@ -121,30 +135,38 @@ export async function sendWebhook(
     headers["X-Signature"] = await generateSignature(job.callback_secret, body);
   }
 
+  async function attemptWebhook(attempt: number): Promise<WebhookResponse> {
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers,
+        body,
+        redirect: "manual",
+      });
+      const isRedirect = response.status >= 300 && response.status < 400;
+      return { ok: response.ok && !isRedirect, status: response.status };
+    } catch (error) {
+      logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
+      return { ok: false, status: 0 };
+    }
+  }
+
+  function shouldRetry(response: WebhookResponse): boolean {
+    return !response.ok;
+  }
+
+  function recordAttempt(attempt: number, response: WebhookResponse): void {
+    logWebhookSent(job.id, response.status, attempt);
+  }
+
   const result = await retryWithBackoff<WebhookResponse>(
-    async (attempt) => {
-      try {
-        const response = await fetch(webhookUrl, {
-          method: "POST",
-          headers,
-          body,
-          redirect: "manual",
-        });
-        const isRedirect = response.status >= 300 && response.status < 400;
-        return { ok: response.ok && !isRedirect, status: response.status };
-      } catch (error) {
-        logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
-        return { ok: false, status: 0 };
-      }
-    },
-    (response) => !response.ok,
+    attemptWebhook,
+    shouldRetry,
     {
       maxAttempts: MAX_ATTEMPTS,
       delaysMs: RETRY_DELAYS_MS,
     },
-    (attempt, response) => {
-      logWebhookSent(job.id, response.status, attempt);
-    }
+    recordAttempt
   );
 
   if (!result.success) {
