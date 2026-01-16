@@ -43,12 +43,12 @@ interface ErrorResponse {
 
 describe("GET /api/jobs", () => {
   // Mock KV namespace
-  const createMockKV = (jobs: Record<string, string>) => {
-    return {
-      list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
-      }),
-      get: (key: string, type?: string): Promise<string | null | Job> => {
+  const createMockKV = (
+    jobs: Record<string, string>,
+    metadata: Record<string, unknown> = {}
+  ) => {
+    const getSpy = vi.fn(
+      (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
         if (!value) {
           return Promise.resolve(null);
@@ -57,13 +57,26 @@ describe("GET /api/jobs", () => {
           return Promise.resolve(JSON.parse(value));
         }
         return Promise.resolve(value);
-      },
+      }
+    );
+
+    return {
+      list: async () => ({
+        keys: Object.keys(jobs).map((name) => ({
+          name,
+          metadata: metadata[name],
+        })),
+      }),
+      get: getSpy,
     } as unknown as KVNamespace;
   };
 
-  const createMockEnv = (jobs: Record<string, string>) => ({
+  const createMockEnv = (
+    jobs: Record<string, string>,
+    metadata: Record<string, unknown> = {}
+  ) => ({
     IDEA_EXPLORER_API_TOKEN: "test-token",
-    IDEA_EXPLORER_JOBS: createMockKV(jobs),
+    IDEA_EXPLORER_JOBS: createMockKV(jobs, metadata),
     GITHUB_REPO: "test/repo",
     GITHUB_BRANCH: "main",
   });
@@ -403,5 +416,62 @@ describe("GET /api/jobs", () => {
     expect(res.status).toBe(200);
     expect(data.limit).toBe(20); // default on invalid
     expect(data.offset).toBe(0); // default on invalid
+  });
+
+  it("should use metadata for filtering to avoid unnecessary reads", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        status: "completed",
+        created_at: 1000,
+        mode: "business",
+        idea: "Idea 1",
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        status: "pending",
+        created_at: 2000,
+        mode: "business",
+        idea: "Idea 2",
+      }),
+      job3: JSON.stringify({
+        id: "job3",
+        status: "completed",
+        created_at: 1500,
+        mode: "business",
+        idea: "Idea 3",
+      }),
+    };
+
+    // job1 and job2 have metadata. job3 does not.
+    const metadata = {
+      job1: { status: "completed", created_at: 1000, mode: "business" },
+      job2: { status: "pending", created_at: 2000, mode: "business" },
+    };
+
+    const env = createMockEnv(jobs, metadata);
+    // biome-ignore lint/suspicious/noExplicitAny: accessing spy
+    const kv = env.IDEA_EXPLORER_JOBS as any;
+
+    const req = new Request("http://localhost/api/jobs?status=pending", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(1);
+    expect((data.jobs[0] as { id: string }).id).toBe("job2");
+
+    // Expected calls:
+    // 1. job3: Missing metadata, so must fetch to check status. (1 call)
+    // 2. job2: Matched via metadata. Fetch full object for response. (1 call)
+    // 3. job1: Has metadata, status mismatch. Should NOT fetch. (0 calls)
+
+    expect(kv.get).toHaveBeenCalledTimes(2);
+    expect(kv.get).toHaveBeenCalledWith("job3", "json");
+    expect(kv.get).toHaveBeenCalledWith("job2", "json");
+    expect(kv.get).not.toHaveBeenCalledWith("job1", "json");
   });
 });

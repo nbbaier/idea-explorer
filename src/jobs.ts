@@ -231,7 +231,13 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
-export async function createJob(
+export interface JobMetadata {
+  status: string;
+  mode: string;
+  created_at: number;
+}
+
+export function createJob(
   kv: KVNamespace,
   request: ExploreRequest
 ): Promise<Result<Job, StorageError>> {
@@ -251,7 +257,13 @@ export async function createJob(
 
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), {
+        metadata: {
+          status: job.status,
+          mode: job.mode,
+          created_at: job.created_at,
+        },
+      });
       return job;
     },
     catch: (error) =>
@@ -259,7 +271,7 @@ export async function createJob(
   });
 }
 
-export async function getJob(
+export function getJob(
   kv: KVNamespace,
   id: string
 ): Promise<Result<Job | null, StorageError | JsonParseError>> {
@@ -281,12 +293,13 @@ export async function getJob(
   });
 }
 
-export async function updateJob(
+export function updateJob(
   kv: KVNamespace,
   id: string,
   updates: Partial<Omit<Job, "id" | "created_at">>,
   existingJob?: Job
 ): Promise<Result<Job, JobError>> {
+  // biome-ignore lint/suspicious/useAwait: generator yields promises via Result.await
   return Result.gen(async function* () {
     let job = existingJob;
     if (!job) {
@@ -302,7 +315,13 @@ export async function updateJob(
     yield* Result.await(
       Result.tryPromise({
         try: async () => {
-          await kv.put(id, JSON.stringify(updated));
+          await kv.put(id, JSON.stringify(updated), {
+            metadata: {
+              status: updated.status,
+              mode: updated.mode,
+              created_at: updated.created_at,
+            },
+          });
         },
         catch: (error) =>
           new StorageError({ operation: "put", key: id, cause: error }),
@@ -313,26 +332,87 @@ export async function updateJob(
   });
 }
 
-export async function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+export function listJobs(
+  kv: KVNamespace,
+  options: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    mode?: string;
+  } = {}
+): Promise<Result<{ jobs: Job[]; total: number }, StorageError>> {
   return Result.tryPromise({
     try: async () => {
       const { keys } = await kv.list();
-      const results = await Promise.allSettled(
+
+      // Lazy migration strategy:
+      // 1. If metadata exists, use it.
+      // 2. If missing, fetch object (expensive fallback).
+      const items = await Promise.all(
         keys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
-          return data as Job | null;
+          const meta = key.metadata as JobMetadata | undefined;
+          if (meta) {
+            return {
+              id: key.name,
+              ...meta,
+              // Mark as not fetched yet
+              fetched: null as Job | null,
+            };
+          }
+          // Fallback: fetch full object
+          const data = (await kv.get(key.name, "json")) as Job | null;
+          if (!data) {
+            return null;
+          }
+          return {
+            id: key.name,
+            status: data.status,
+            mode: data.mode,
+            created_at: data.created_at,
+            fetched: data,
+          };
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      // Filter nulls and apply criteria
+      const filtered = items.filter((item) => {
+        if (!item) {
+          return false;
+        }
+        if (options.status && item.status !== options.status) {
+          return false;
+        }
+        if (options.mode && item.mode !== options.mode) {
+          return false;
+        }
+        return true;
+      });
+
+      // Sort by created_at desc
+      // biome-ignore lint/style/noNonNullAssertion: filtered items are checked for null
+      filtered.sort((a, b) => b!.created_at - a!.created_at);
+
+      const total = filtered.length;
+      const limit = options.limit ?? 20;
+      const offset = options.offset ?? 0;
+
+      // Paginate
+      const pagedItems = filtered.slice(offset, offset + limit);
+
+      // Hydrate full objects
+      const jobs = await Promise.all(
+        pagedItems.map(async (item) => {
+          // biome-ignore lint/style/noNonNullAssertion: item is valid here
+          if (item!.fetched) {
+            // biome-ignore lint/style/noNonNullAssertion: checked above
+            return item!.fetched;
+          }
+          // biome-ignore lint/style/noNonNullAssertion: item is valid here
+          return (await kv.get(item!.id, "json")) as Job;
+        })
+      );
+
+      return { jobs, total };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });
