@@ -49,6 +49,12 @@ export type ModelType = z.infer<typeof ModelTypeSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
 
+export interface JobMetadata {
+  status: JobStatus;
+  mode: ExploreMode;
+  created_at: number;
+}
+
 export async function createJob(
   kv: KVNamespace,
   request: ExploreRequest
@@ -66,7 +72,14 @@ export async function createJob(
     update: request.update ?? false,
     created_at: Date.now(),
   };
-  await kv.put(id, JSON.stringify(job));
+
+  const metadata: JobMetadata = {
+    status: job.status,
+    mode: job.mode,
+    created_at: job.created_at,
+  };
+
+  await kv.put(id, JSON.stringify(job), { metadata });
   return job;
 }
 
@@ -91,6 +104,13 @@ export async function updateJob(
     return;
   }
   const updated = { ...job, ...updates };
-  await kv.put(id, JSON.stringify(updated));
+
+  const metadata: JobMetadata = {
+    status: updated.status,
+    mode: updated.mode,
+    created_at: updated.created_at,
+  };
+
+  await kv.put(id, JSON.stringify(updated), { metadata });
   return updated;
 }

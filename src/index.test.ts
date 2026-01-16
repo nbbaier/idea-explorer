@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Job } from "./jobs";
+import type { Job, JobMetadata } from "./jobs";
 
 // Mock crypto.subtle.timingSafeEqual for Node.js test environment
 beforeAll(() => {
@@ -46,10 +46,16 @@ interface ErrorResponse {
 
 describe("GET /api/jobs", () => {
   // Mock KV namespace
-  const createMockKV = (jobs: Record<string, string>) => {
+  const createMockKV = (
+    jobs: Record<string, string>,
+    metadataMap: Record<string, JobMetadata> = {}
+  ) => {
     return {
       list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
+        keys: Object.keys(jobs).map((name) => ({
+          name,
+          metadata: metadataMap[name] || undefined,
+        })),
       }),
       get: (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
@@ -64,9 +70,12 @@ describe("GET /api/jobs", () => {
     } as unknown as KVNamespace;
   };
 
-  const createMockEnv = (jobs: Record<string, string>) => ({
+  const createMockEnv = (
+    jobs: Record<string, string>,
+    metadataMap: Record<string, JobMetadata> = {}
+  ) => ({
     API_BEARER_TOKEN: "test-token",
-    IDEA_EXPLORER_JOBS: createMockKV(jobs),
+    IDEA_EXPLORER_JOBS: createMockKV(jobs, metadataMap),
     GITHUB_REPO: "test/repo",
     GITHUB_BRANCH: "main",
   });
@@ -90,7 +99,7 @@ describe("GET /api/jobs", () => {
     });
   });
 
-  it("should return all jobs sorted by created_at descending", async () => {
+  it("should return all jobs sorted by created_at descending (no metadata fallback)", async () => {
     const jobs = {
       job1: JSON.stringify({
         id: "job1",
@@ -133,6 +142,59 @@ describe("GET /api/jobs", () => {
     expect((data.jobs[0] as { id: string }).id).toBe("job2"); // newest first
     expect((data.jobs[1] as { id: string }).id).toBe("job3");
     expect((data.jobs[2] as { id: string }).id).toBe("job1");
+  });
+
+  it("should return all jobs sorted by created_at descending (using metadata)", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        idea: "First idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 1000,
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        idea: "Second idea",
+        mode: "exploration",
+        model: "opus",
+        status: "pending",
+        created_at: 2000,
+      }),
+    };
+
+    const metadata = {
+      job1: {
+        status: "completed",
+        mode: "business",
+        created_at: 1000,
+      } as JobMetadata,
+      job2: {
+        status: "pending",
+        mode: "exploration",
+        created_at: 2000,
+      } as JobMetadata,
+    };
+
+    const env = createMockEnv(jobs, metadata);
+    // Spy on get to ensure we aren't fetching everything if not needed (though here we fetch all because page size)
+    const getSpy = vi.spyOn(env.IDEA_EXPLORER_JOBS, "get");
+
+    const req = new Request("http://localhost/api/jobs", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(2);
+    // It should fetch bodies for hydration
+    expect(getSpy).toHaveBeenCalledTimes(2);
+
+    expect((data.jobs[0] as { id: string }).id).toBe("job2");
+    expect((data.jobs[1] as { id: string }).id).toBe("job1");
   });
 
   it("should filter jobs by status", async () => {
@@ -256,6 +318,54 @@ describe("GET /api/jobs", () => {
     expect(data.jobs.length).toBe(10);
     expect(data.limit).toBe(10);
     expect(data.offset).toBe(5);
+  });
+
+  it("should rely on metadata to skip fetching non-matching jobs", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        status: "completed",
+        mode: "business",
+        created_at: 1000,
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        status: "pending",
+        mode: "exploration",
+        created_at: 2000,
+      }),
+    };
+    const metadata = {
+      job1: {
+        status: "completed",
+        mode: "business",
+        created_at: 1000,
+      } as JobMetadata,
+      job2: {
+        status: "pending",
+        mode: "exploration",
+        created_at: 2000,
+      } as JobMetadata,
+    };
+
+    const env = createMockEnv(jobs, metadata);
+    const getSpy = vi.spyOn(env.IDEA_EXPLORER_JOBS, "get");
+
+    const req = new Request("http://localhost/api/jobs?status=completed", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(1);
+    expect(data.jobs[0]).toHaveProperty("id", "job1");
+
+    // Should NOT have fetched job2 body because metadata filtered it out
+    // Should have fetched job1 body for hydration
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).toHaveBeenCalledWith("job1", "json");
   });
 
   it("should combine status filter and pagination", async () => {

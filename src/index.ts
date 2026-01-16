@@ -8,6 +8,7 @@ import {
   ExploreRequestSchema,
   getJob,
   type Job,
+  type JobMetadata,
   JobStatusSchema,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
@@ -95,62 +96,114 @@ app.post(
 );
 
 app.get("/api/jobs", async (c) => {
-  // Note: This implementation loads all jobs into memory for filtering.
-  // For personal use scale (dozens to hundreds of explorations), this is acceptable.
-  // If scaling beyond personal use, consider using KV metadata for filtering
-  // or migrating to a database with proper indexing.
-  let jobs: (Job | null)[];
+  // Optimization: Use KV metadata for filtering and sorting to avoid fetching full job bodies
+  // for every item. Falls back to fetching body if metadata is missing (backward compatibility).
+
   try {
-    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-    jobs = await Promise.all(
-      keys.map(
-        (k) =>
-          c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
-      )
+    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list<{
+      metadata: JobMetadata;
+    }>();
+
+    // Map keys to an intermediate structure containing metadata (or fetched body if needed)
+    const allItems = await Promise.all(
+      keys.map(async (k) => {
+        // If we have metadata, use it
+        if (k.metadata) {
+          return {
+            id: k.name,
+            status: (k.metadata as JobMetadata).status,
+            mode: (k.metadata as JobMetadata).mode,
+            created_at: (k.metadata as JobMetadata).created_at,
+            _fullJob: null as Job | null,
+          };
+        }
+
+        // Fallback: fetch the full job to get metadata fields
+        const job = (await c.env.IDEA_EXPLORER_JOBS.get(
+          k.name,
+          "json"
+        )) as Job | null;
+        if (!job) {
+          return null;
+        }
+
+        return {
+          id: job.id,
+          status: job.status,
+          mode: job.mode,
+          created_at: job.created_at,
+          _fullJob: job,
+        };
+      })
     );
-  } catch {
+
+    // Filter out any nulls (failed fetches)
+    let items = allItems.filter(
+      (item): item is NonNullable<typeof item> => item !== null
+    );
+
+    // Apply filtering on the metadata/extracted data
+    const statusValidation = validateEnumFilter(
+      c.req.query("status"),
+      JobStatusSchema,
+      "status"
+    );
+    if (statusValidation?.valid === false) {
+      return c.json({ error: statusValidation.error }, 400);
+    }
+    if (statusValidation?.valid) {
+      items = items.filter((i) => i.status === statusValidation.value);
+    }
+
+    const modeValidation = validateEnumFilter(
+      c.req.query("mode"),
+      ExploreModeSchema,
+      "mode"
+    );
+    if (modeValidation?.valid === false) {
+      return c.json({ error: modeValidation.error }, 400);
+    }
+    if (modeValidation?.valid) {
+      items = items.filter((i) => i.mode === modeValidation.value);
+    }
+
+    // Sort in memory (using metadata fields)
+    items.sort((a, b) => b.created_at - a.created_at);
+
+    // Pagination
+    const { limit, offset } = parsePaginationParams(
+      c.req.query("limit"),
+      c.req.query("offset")
+    );
+
+    const slicedItems = items.slice(offset, offset + limit);
+
+    // Hydrate: Fetch full job bodies for the sliced results (if not already fetched)
+    const jobs = await Promise.all(
+      slicedItems.map(async (item) => {
+        if (item._fullJob) {
+          return item._fullJob;
+        }
+        return (await c.env.IDEA_EXPLORER_JOBS.get(
+          item.id,
+          "json"
+        )) as Job | null;
+      })
+    );
+
+    // Final filter for validity
+    const finalJobs = jobs.filter((j): j is Job => j !== null);
+
+    return c.json({
+      jobs: finalJobs,
+      total: items.length,
+      limit,
+      offset,
+    });
+  } catch (e) {
+    console.error("Error retrieving jobs:", e);
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
-
-  let filtered = jobs.filter((j): j is Job => j != null);
-
-  const statusValidation = validateEnumFilter(
-    c.req.query("status"),
-    JobStatusSchema,
-    "status"
-  );
-  if (statusValidation?.valid === false) {
-    return c.json({ error: statusValidation.error }, 400);
-  }
-  if (statusValidation?.valid) {
-    filtered = filtered.filter((j) => j.status === statusValidation.value);
-  }
-
-  const modeValidation = validateEnumFilter(
-    c.req.query("mode"),
-    ExploreModeSchema,
-    "mode"
-  );
-  if (modeValidation?.valid === false) {
-    return c.json({ error: modeValidation.error }, 400);
-  }
-  if (modeValidation?.valid) {
-    filtered = filtered.filter((j) => j.mode === modeValidation.value);
-  }
-
-  filtered.sort((a, b) => b.created_at - a.created_at);
-
-  const { limit, offset } = parsePaginationParams(
-    c.req.query("limit"),
-    c.req.query("offset")
-  );
-
-  return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
-    limit,
-    offset,
-  });
 });
 
 app.get("/api/status/:id", async (c) => {
