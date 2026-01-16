@@ -8,6 +8,7 @@ import {
   ExploreRequestSchema,
   getJob,
   type Job,
+  type JobMetadata,
   JobStatusSchema,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
@@ -95,62 +96,95 @@ app.post(
 );
 
 app.get("/api/jobs", async (c) => {
-  // Note: This implementation loads all jobs into memory for filtering.
-  // For personal use scale (dozens to hundreds of explorations), this is acceptable.
-  // If scaling beyond personal use, consider using KV metadata for filtering
-  // or migrating to a database with proper indexing.
-  let jobs: (Job | null)[];
+  // ⚡ Optimization: Use KV metadata for filtering/sorting to avoid fetching all job bodies.
+  // Fallback to full fetch for legacy jobs without metadata.
+
   try {
-    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-    jobs = await Promise.all(
-      keys.map(
-        (k) =>
-          c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
-      )
+    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list<JobMetadata>();
+
+    const statusValidation = validateEnumFilter(
+      c.req.query("status"),
+      JobStatusSchema,
+      "status"
     );
-  } catch {
+    if (statusValidation?.valid === false) {
+      return c.json({ error: statusValidation.error }, 400);
+    }
+
+    const modeValidation = validateEnumFilter(
+      c.req.query("mode"),
+      ExploreModeSchema,
+      "mode"
+    );
+    if (modeValidation?.valid === false) {
+      return c.json({ error: modeValidation.error }, 400);
+    }
+
+    const readyItems: { id: string; created_at: number; job?: Job }[] = [];
+    const legacyKeys: string[] = [];
+
+    for (const key of keys) {
+      if (key.metadata) {
+        const meta = key.metadata as JobMetadata;
+        if (statusValidation?.valid && meta.status !== statusValidation.value) {
+          continue;
+        }
+        if (modeValidation?.valid && meta.mode !== modeValidation.value) {
+          continue;
+        }
+        readyItems.push({ id: key.name, created_at: meta.created_at });
+      } else {
+        legacyKeys.push(key.name);
+      }
+    }
+
+    if (legacyKeys.length > 0) {
+      const legacyJobs = await Promise.all(
+        legacyKeys.map(
+          (k) => c.env.IDEA_EXPLORER_JOBS.get(k, "json") as Promise<Job | null>
+        )
+      );
+      for (const job of legacyJobs) {
+        if (!job) continue;
+        if (statusValidation?.valid && job.status !== statusValidation.value) {
+          continue;
+        }
+        if (modeValidation?.valid && job.mode !== modeValidation.value) {
+          continue;
+        }
+        readyItems.push({ id: job.id, created_at: job.created_at, job });
+      }
+    }
+
+    readyItems.sort((a, b) => b.created_at - a.created_at);
+
+    const { limit, offset } = parsePaginationParams(
+      c.req.query("limit"),
+      c.req.query("offset")
+    );
+
+    const sliced = readyItems.slice(offset, offset + limit);
+
+    const resultJobs = await Promise.all(
+      sliced.map(async (item) => {
+        if (item.job) return item.job;
+        return c.env.IDEA_EXPLORER_JOBS.get(
+          item.id,
+          "json"
+        ) as Promise<Job | null>;
+      })
+    );
+
+    return c.json({
+      jobs: resultJobs.filter((j): j is Job => j !== null),
+      total: readyItems.length,
+      limit,
+      offset,
+    });
+  } catch (e) {
+    console.error(e);
     return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
-
-  let filtered = jobs.filter((j): j is Job => j != null);
-
-  const statusValidation = validateEnumFilter(
-    c.req.query("status"),
-    JobStatusSchema,
-    "status"
-  );
-  if (statusValidation?.valid === false) {
-    return c.json({ error: statusValidation.error }, 400);
-  }
-  if (statusValidation?.valid) {
-    filtered = filtered.filter((j) => j.status === statusValidation.value);
-  }
-
-  const modeValidation = validateEnumFilter(
-    c.req.query("mode"),
-    ExploreModeSchema,
-    "mode"
-  );
-  if (modeValidation?.valid === false) {
-    return c.json({ error: modeValidation.error }, 400);
-  }
-  if (modeValidation?.valid) {
-    filtered = filtered.filter((j) => j.mode === modeValidation.value);
-  }
-
-  filtered.sort((a, b) => b.created_at - a.created_at);
-
-  const { limit, offset } = parsePaginationParams(
-    c.req.query("limit"),
-    c.req.query("offset")
-  );
-
-  return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
-    limit,
-    offset,
-  });
 });
 
 app.get("/api/status/:id", async (c) => {
