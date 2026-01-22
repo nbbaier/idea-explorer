@@ -65,6 +65,8 @@ If GitHub response `type !== "file"`: `api_error` with `Path is not a file: {pat
 
 **Anthropic Client**
 - Uses `generateText()` from `ai` + `@ai-sdk/anthropic`
+- Model aliases: `sonnet -> claude-4-5-sonnet`, `opus -> claude-4-5-opus`
+- Web search tool version: `webSearch_20250305`
 - `stopWhen: stepCountIs(5)`
 - Returns `{ content, inputTokens, outputTokens, steps }`
 - Always registers `web_search`

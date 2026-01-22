@@ -95,14 +95,14 @@ Uses `github.getFile()` to read `ideas/{path}`.
 Replace streaming implementation with Vercel AI SDK's `generateText()`:
 
 ```typescript
-import { generateText, tool, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { generateText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import type { ToolExecutor } from "./tool-executor";
 
 const MODEL_MAP = {
-  sonnet: "claude-sonnet-4-20250514",
-  opus: "claude-opus-4-20250514",
+  sonnet: "claude-4-5-sonnet",
+  opus: "claude-4-5-opus",
 } as const;
 
 const MAX_OUTPUT_TOKENS = 16_384;
@@ -114,16 +114,16 @@ export interface AnthropicConfig {
   toolExecutor?: ToolExecutor;
 }
 
-function buildTools(apiKey: string, toolExecutor?: ToolExecutor) {
+function buildTools(provider: ReturnType<typeof createAnthropic>, toolExecutor?: ToolExecutor) {
   const tools: Record<string, unknown> = {
-    web_search: anthropic.tools.webSearch({ maxUses: 5 }),
+    web_search: provider.tools.webSearch_20250305({ maxUses: 5 }),
   };
 
   if (toolExecutor) {
     tools.read_research = tool({
       description:
         "Read an existing research document from the repository. Path is relative to ideas/ directory.",
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().min(1).max(200),
       }),
       execute: async ({ path }) => {
@@ -153,15 +153,14 @@ export class AnthropicClient {
   constructor(private readonly config: AnthropicConfig) {}
 
   async generateResearch(params: GenerateResearchParams) {
-    const tools = buildTools(this.config.apiKey, this.config.toolExecutor);
+    const provider = createAnthropic({ apiKey: this.config.apiKey });
+    const tools = buildTools(provider, this.config.toolExecutor);
 
     const result = await generateText({
-      model: anthropic(MODEL_MAP[this.config.model], {
-        apiKey: this.config.apiKey,
-      }),
+      model: provider(MODEL_MAP[this.config.model]),
       system: params.systemPrompt,
       prompt: params.userPrompt,
-      maxTokens: MAX_OUTPUT_TOKENS,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
       tools,
       stopWhen: stepCountIs(MAX_STEPS),
     });
