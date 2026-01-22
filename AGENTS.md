@@ -14,6 +14,8 @@ A Cloudflare Worker that explores ideas using Claude and commits research to Git
 | `bun run test`       | Run tests (watch mode)             |
 | `bun run test:run`   | Run tests once                     |
 | `bun run status`     | Check idea exploration status      |
+| `bun run cli:build`  | Build the CLI to `dist/cli`        |
+| `bun run cli:dev`    | Watch/build the CLI with tsdown    |
 
 ## Tech Stack
 
@@ -36,9 +38,11 @@ src/
 ├── index.test.ts         # API endpoint tests
 ├── jobs.ts               # Job types and KV storage functions
 ├── jobs.test.ts          # Job storage tests
+├── cli/                   # CLI implementation
 ├── clients/              # API clients (Anthropic, GitHub)
 ├── middleware/           # Auth middleware
 ├── prompts/              # Embedded prompt templates
+├── types/                 # Shared API schemas
 ├── utils/                # Webhook, logging, and helper utilities
 └── workflows/            # Cloudflare Workflow for exploration
 ```

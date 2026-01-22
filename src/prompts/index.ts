@@ -1,4 +1,4 @@
-import type { Mode, Model } from "../jobs";
+import type { Mode, Model } from "@/types/api";
 
 export interface BuildUserPromptParams {
   idea: string;

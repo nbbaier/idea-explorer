@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Result } from "better-result";
 import { type Context, Hono, type Next } from "hono";
+import { JobStatusSchema, ModeSchema } from "@/types/api";
 import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
@@ -8,9 +9,7 @@ import {
   ExploreRequestSchema,
   getJob,
   type Job,
-  JobStatusSchema,
   listJobs,
-  ModeSchema,
   updateJob,
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
