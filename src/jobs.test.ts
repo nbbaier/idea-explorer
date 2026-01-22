@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
+import { ExploreRequestSchema } from "@/types/api";
+import { createJob, getJob, updateJob } from "./jobs";
 
 describe("Job Management", () => {
   let mockKV: KVNamespace;

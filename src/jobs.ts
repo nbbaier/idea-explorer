@@ -1,5 +1,11 @@
 import { Result } from "better-result";
 import { z } from "zod";
+import {
+  ExploreRequestSchema as BaseExploreRequestSchema,
+  JobStatusSchema,
+  ModelSchema,
+  ModeSchema,
+} from "@/types/api";
 import { JobNotFoundError, JsonParseError, StorageError } from "./errors";
 
 const BLOCKED_HOST_SUFFIXES = [
@@ -182,25 +188,9 @@ const webhookUrlSchema = z
   .refine(isValidWebhookUrl, { message: "Invalid webhook URL" })
   .optional();
 
-export const JobStatusSchema = z.enum([
-  "pending",
-  "running",
-  "completed",
-  "failed",
-]);
-
-export const ModeSchema = z.enum(["business", "exploration"]);
-const ModelSchema = z.enum(["sonnet", "opus"]);
-
-export const ExploreRequestSchema = z.object({
-  idea: z.string(),
+export const ExploreRequestSchema = BaseExploreRequestSchema.extend({
   webhook_url: webhookUrlSchema,
-  mode: ModeSchema.optional(),
-  model: ModelSchema.optional(),
   callback_secret: z.string().optional(),
-  context: z.string().optional(),
-  update: z.boolean().optional(),
-  collect_tool_stats: z.boolean().optional(),
 });
 
 const JobSchema = z.object({
@@ -226,8 +216,6 @@ const JobSchema = z.object({
   step_durations: z.record(z.string(), z.number()).optional(),
 });
 
-export type Mode = z.infer<typeof ModeSchema>;
-export type Model = z.infer<typeof ModelSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
 
