@@ -47,6 +47,7 @@ describe("GitHubClient", () => {
             content: encodeToBase64("Hello, World!"),
             sha: "abc123",
             path: "test.txt",
+            size: 13,
           },
         }),
       });
@@ -62,6 +63,8 @@ describe("GitHubClient", () => {
         content: "Hello, World!",
         sha: "abc123",
         path: "test.txt",
+        size: 13,
+        type: "file",
       });
 
       expect(mockOctokit.rest.repos.getContent).toHaveBeenCalledWith({
@@ -102,6 +105,23 @@ describe("GitHubClient", () => {
         throw new Error("getFile failed");
       }
       expect(result.value).toBeNull();
+    });
+
+    it("should return metadata for directories when includeMeta is true", async () => {
+      const mockOctokit = createMockOctokit({
+        getContent: vi.fn().mockResolvedValue({
+          data: [{ name: "file.txt", path: "folder/file.txt", type: "file" }],
+        }),
+      });
+
+      const client = createClient(mockOctokit);
+      const result = await client.getFile("folder", { includeMeta: true });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") {
+        throw new Error("getFile failed");
+      }
+      expect(result.value).toEqual({ path: "folder", type: "dir" });
     });
 
     it("should decode base64 content with embedded newlines", async () => {

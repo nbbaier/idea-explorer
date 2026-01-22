@@ -159,6 +159,7 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
           model: job.model,
           context: job.context,
           update: job.update,
+          collect_tool_stats: job.collect_tool_stats,
           webhook_url: job.webhook_url,
           callback_secret: job.callback_secret,
         },

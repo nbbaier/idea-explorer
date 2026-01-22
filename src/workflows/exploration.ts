@@ -4,8 +4,9 @@ import {
   type WorkflowStep,
 } from "cloudflare:workers";
 import { Result } from "better-result";
-import { AnthropicClient } from "../clients/anthropic";
+import { AnthropicClient, type ToolCallLog } from "../clients/anthropic";
 import { type FileContent, GitHubClient } from "../clients/github";
+import { createToolExecutor } from "../clients/tool-executor";
 import {
   ExplorationLogParseError,
   ExplorationLogUpdateError,
@@ -27,6 +28,7 @@ interface JobParams {
   update?: boolean;
   webhook_url?: string;
   callback_secret?: string;
+  collect_tool_stats?: boolean;
 }
 
 interface CompleteJobParams {
@@ -50,6 +52,8 @@ interface ExplorationLog {
   startedAt: string;
   completedAt: string;
   durationMs: number;
+  steps?: number;
+  toolCalls?: ToolCallLog[];
   tokens: {
     input: number;
     output: number;
@@ -294,9 +298,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       })
     );
 
+    const toolExecutor = createToolExecutor(github);
+    const collectToolStats = event.payload.collect_tool_stats ?? false;
+
     const anthropic = new AnthropicClient({
       apiKey: this.env.ANTHROPIC_API_KEY,
       model,
+      toolExecutor,
+      collectToolStats,
     });
 
     const researchPath = `ideas/${datePrefix}-${slug}/research.md`;
@@ -309,6 +318,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     let researchContent = "";
     let inputTokens = 0;
     let outputTokens = 0;
+    let steps = 0;
+    let toolCalls: ToolCallLog[] | undefined;
 
     try {
       // Step 1: Initialize job
@@ -451,12 +462,15 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           researchContent = result.value.content;
           inputTokens = result.value.inputTokens;
           outputTokens = result.value.outputTokens;
+          steps = result.value.steps;
+          toolCalls = result.value.toolCalls;
 
           logInfo(
             "claude_complete",
             {
               input_tokens: inputTokens,
               output_tokens: outputTokens,
+              steps,
             },
             jobId
           );
@@ -523,6 +537,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             startedAt: new Date(jobStartTime).toISOString(),
             completedAt: new Date().toISOString(),
             durationMs: Date.now() - jobStartTime,
+            steps,
+            toolCalls,
             tokens: {
               input: inputTokens,
               output: outputTokens,
