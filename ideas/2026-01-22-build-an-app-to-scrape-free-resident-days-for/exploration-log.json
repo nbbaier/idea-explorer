@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "25e99c72",
+    "idea": "build an app to scrape free resident days for chicago",
+    "mode": "exploration",
+    "model": "opus",
+    "isUpdate": false,
+    "startedAt": "2026-01-22T06:41:16.087Z",
+    "completedAt": "2026-01-22T06:42:27.167Z",
+    "durationMs": 71080,
+    "steps": 1,
+    "tokens": {
+      "input": 33029,
+      "output": 2959,
+      "total": 35988
+    },
+    "outputPath": "ideas/2026-01-22-build-an-app-to-scrape-free-resident-days-for/research.md"
+  }
+]
