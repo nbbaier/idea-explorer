@@ -51,6 +51,8 @@ export function outputJobStatus(
     current_step_label?: string;
     steps_completed?: number;
     steps_total?: number;
+    step_started_at?: number;
+    step_durations?: Record<string, number>;
   },
   options: OutputOptions
 ): void {

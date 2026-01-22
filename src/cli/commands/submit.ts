@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { Command } from "commander";
+import { type ExploreRequest, ModelSchema, ModeSchema } from "@/types/api";
 import { ApiClient, AuthError } from "../lib/api.js";
 import {
   getApiKey,
@@ -13,7 +14,6 @@ import {
   outputSubmitSuccess,
 } from "../lib/output.js";
 import { runSubmitWizard } from "../prompts/submit.js";
-import { type ExploreRequest, ModelSchema, ModeSchema } from "../types.js";
 
 interface SubmitOptions {
   mode?: string;

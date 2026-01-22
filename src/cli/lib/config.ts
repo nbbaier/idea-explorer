@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { ModelSchema, ModeSchema } from "../types.js";
+import { ModelSchema, ModeSchema } from "@/types/api";
 
 const CONFIG_DIR = join(homedir(), ".config", "idea");
 const CONFIG_FILE = join(CONFIG_DIR, "settings.json");

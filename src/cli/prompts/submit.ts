@@ -1,5 +1,5 @@
 import { cancel, confirm, intro, isCancel, select, text } from "@clack/prompts";
-import type { Mode, Model } from "../types.js";
+import type { Mode, Model } from "@/types/api";
 
 export interface SubmitPromptResult {
   idea: string;

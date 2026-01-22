@@ -8,13 +8,13 @@ import {
   text,
 } from "@clack/prompts";
 import { Command } from "commander";
+import type { Mode, Model } from "@/types/api";
 import {
   type Config,
   getConfigPath,
   loadConfig,
   saveConfig,
 } from "../lib/config.js";
-import type { Mode, Model } from "../types.js";
 
 const DEFAULT_API_URL = "https://idea-explorer.example.workers.dev";
 

@@ -4,7 +4,7 @@ import {
   ExploreResponseSchema,
   type JobStatusResponse,
   JobStatusResponseSchema,
-} from "../types.js";
+} from "@/types/api";
 
 const TRAILING_SLASH_REGEX = /\/$/;
 
