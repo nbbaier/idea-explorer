@@ -43,7 +43,7 @@ export class AnthropicClient {
     this.model = MODEL_MAP[config.model];
   }
 
-  async generateResearch(
+  generateResearch(
     params: GenerateResearchParams
   ): Promise<Result<GenerateResearchResult, AnthropicApiError>> {
     return Result.tryPromise({

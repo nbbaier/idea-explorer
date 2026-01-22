@@ -203,6 +203,75 @@ function unwrapGitHubClient(
   return result.value;
 }
 
+function throwOnError<T, E extends { message: string }>(
+  result: Result<T, E>,
+  operation: string
+): T {
+  if (result.status === "error") {
+    throw new Error(`${operation}: ${result.error.message}`);
+  }
+  return result.value;
+}
+
+async function writeResearchFile(
+  github: GitHubClient,
+  path: string,
+  content: string,
+  message: string,
+  hasExisting: boolean
+): Promise<void> {
+  if (hasExisting) {
+    const fileResult = await github.getFile(path);
+    const currentFile = throwOnError(fileResult, "Failed to get file");
+
+    if (currentFile) {
+      const updateResult = await github.updateFile(
+        path,
+        content,
+        currentFile.sha,
+        message
+      );
+      throwOnError(updateResult, "Failed to update file");
+    } else {
+      const createResult = await github.createFile(path, content, message);
+      throwOnError(createResult, "Failed to create file");
+    }
+  } else {
+    const createResult = await github.createFile(path, content, message);
+    throwOnError(createResult, "Failed to create file");
+  }
+}
+
+async function writeExplorationLogToGitHub(
+  github: GitHubClient,
+  logPath: string,
+  explorationLog: ExplorationLog,
+  slug: string,
+  jobId: string
+): Promise<void> {
+  const logFileResult = await github.getFile(logPath);
+  const existingLog = throwOnError(logFileResult, "Failed to get log file");
+
+  if (existingLog) {
+    const writeLogResult = await writeExplorationLog(
+      github,
+      logPath,
+      explorationLog,
+      existingLog,
+      slug,
+      jobId
+    );
+    throwOnError(writeLogResult, "Failed to write exploration log");
+  } else {
+    const createLogResult = await github.createFile(
+      logPath,
+      JSON.stringify([explorationLog], null, 2),
+      `log: ${slug}`
+    );
+    throwOnError(createLogResult, "Failed to create log file");
+  }
+}
+
 export class ExplorationWorkflow extends WorkflowEntrypoint<
   ExplorationEnv,
   JobParams
@@ -436,50 +505,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             ? `${existingContent}\n\n${researchContent}`
             : researchContent;
 
-          if (hasExistingResearch) {
-            const fileResult = await github.getFile(finalResearchPath);
-            if (fileResult.status === "error") {
-              throw new Error(
-                `Failed to get file: ${fileResult.error.message}`
-              );
-            }
-            const currentFile = fileResult.value;
-            if (currentFile) {
-              const updateResult = await github.updateFile(
-                finalResearchPath,
-                finalContent,
-                currentFile.sha,
-                commitMessage
-              );
-              if (updateResult.status === "error") {
-                throw new Error(
-                  `Failed to update file: ${updateResult.error.message}`
-                );
-              }
-            } else {
-              const createResult = await github.createFile(
-                finalResearchPath,
-                finalContent,
-                commitMessage
-              );
-              if (createResult.status === "error") {
-                throw new Error(
-                  `Failed to create file: ${createResult.error.message}`
-                );
-              }
-            }
-          } else {
-            const createResult = await github.createFile(
-              finalResearchPath,
-              finalContent,
-              commitMessage
-            );
-            if (createResult.status === "error") {
-              throw new Error(
-                `Failed to create file: ${createResult.error.message}`
-              );
-            }
-          }
+          await writeResearchFile(
+            github,
+            finalResearchPath,
+            finalContent,
+            commitMessage,
+            hasExistingResearch
+          );
 
           const explorationLog: ExplorationLog = {
             jobId,
@@ -499,40 +531,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             outputPath: finalResearchPath,
           };
 
-          const logFileResult = await github.getFile(finalLogPath);
-          if (logFileResult.status === "error") {
-            throw new Error(
-              `Failed to get log file: ${logFileResult.error.message}`
-            );
-          }
-          const existingLog = logFileResult.value;
-
-          if (existingLog) {
-            const writeLogResult = await writeExplorationLog(
-              github,
-              finalLogPath,
-              explorationLog,
-              existingLog,
-              slug,
-              jobId
-            );
-            if (writeLogResult.status === "error") {
-              throw new Error(
-                `Failed to write exploration log: ${writeLogResult.error.message}`
-              );
-            }
-          } else {
-            const createLogResult = await github.createFile(
-              finalLogPath,
-              JSON.stringify([explorationLog], null, 2),
-              `log: ${slug}`
-            );
-            if (createLogResult.status === "error") {
-              throw new Error(
-                `Failed to create log file: ${createLogResult.error.message}`
-              );
-            }
-          }
+          await writeExplorationLogToGitHub(
+            github,
+            finalLogPath,
+            explorationLog,
+            slug,
+            jobId
+          );
 
           logInfo("github_write_complete", { path: finalResearchPath }, jobId);
         }

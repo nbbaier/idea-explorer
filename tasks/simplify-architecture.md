@@ -2,7 +2,7 @@
 
 **Status:** Not Started
 **Estimated Effort:** ~1 day
-**Reference:** [ARCHITECTURE-REVIEW.md](../ARCHITECTURE-REVIEW.md)
+**Reference:** [ARCHITECTURE-REVIEW.md](./archived/ARCHITECTURE-REVIEW.md)
 
 ---
 

@@ -108,7 +108,7 @@ export class GitHubClient {
     }
   }
 
-  async createFile(
+  createFile(
     path: string,
     content: string,
     message: string
@@ -164,7 +164,7 @@ export class GitHubClient {
     );
   }
 
-  async updateFile(
+  updateFile(
     path: string,
     content: string,
     sha: string,

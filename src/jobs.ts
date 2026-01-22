@@ -231,7 +231,7 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
-export async function createJob(
+export function createJob(
   kv: KVNamespace,
   request: ExploreRequest
 ): Promise<Result<Job, StorageError>> {
@@ -259,7 +259,7 @@ export async function createJob(
   });
 }
 
-export async function getJob(
+export function getJob(
   kv: KVNamespace,
   id: string
 ): Promise<Result<Job | null, StorageError | JsonParseError>> {
@@ -281,39 +281,42 @@ export async function getJob(
   });
 }
 
-export async function updateJob(
+export function updateJob(
   kv: KVNamespace,
   id: string,
   updates: Partial<Omit<Job, "id" | "created_at">>,
   existingJob?: Job
 ): Promise<Result<Job, JobError>> {
-  return Result.gen(async function* () {
-    let job = existingJob;
-    if (!job) {
-      const jobResult = yield* Result.await(getJob(kv, id));
-      if (!jobResult) {
-        return Result.err(new JobNotFoundError({ jobId: id }));
+  return Result.gen(
+    // biome-ignore lint/suspicious/useAwait: async generator needed for Result.await with Promises
+    async function* () {
+      let job = existingJob;
+      if (!job) {
+        const jobResult = yield* Result.await(getJob(kv, id));
+        if (!jobResult) {
+          return Result.err(new JobNotFoundError({ jobId: id }));
+        }
+        job = jobResult;
       }
-      job = jobResult;
+
+      const updated = { ...job, ...updates };
+
+      yield* Result.await(
+        Result.tryPromise({
+          try: async () => {
+            await kv.put(id, JSON.stringify(updated));
+          },
+          catch: (error) =>
+            new StorageError({ operation: "put", key: id, cause: error }),
+        })
+      );
+
+      return Result.ok(updated);
     }
-
-    const updated = { ...job, ...updates };
-
-    yield* Result.await(
-      Result.tryPromise({
-        try: async () => {
-          await kv.put(id, JSON.stringify(updated));
-        },
-        catch: (error) =>
-          new StorageError({ operation: "put", key: id, cause: error }),
-      })
-    );
-
-    return Result.ok(updated);
-  });
+  );
 }
 
-export async function listJobs(
+export function listJobs(
   kv: KVNamespace
 ): Promise<Result<Job[], StorageError>> {
   return Result.tryPromise({

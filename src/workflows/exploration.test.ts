@@ -31,9 +31,11 @@ vi.mock("../jobs", () => ({
 }));
 vi.mock("../utils/logger");
 vi.mock("../utils/webhook", () => ({
-  sendWebhook: vi.fn().mockResolvedValue(
-    Result.ok({ success: true, statusCode: 200, attempts: 1 })
-  ),
+  sendWebhook: vi
+    .fn()
+    .mockResolvedValue(
+      Result.ok({ success: true, statusCode: 200, attempts: 1 })
+    ),
 }));
 vi.mock("../prompts", () => ({
   buildSystemPrompt: vi.fn(),
