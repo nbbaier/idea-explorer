@@ -26,12 +26,14 @@ describe("prompts", () => {
   describe("buildSystemPrompt", () => {
     it("should return business prompt for business mode", () => {
       const result = buildSystemPrompt("business");
-      expect(result).toBe(PROMPTS.business);
+      expect(result).toContain(PROMPTS.business);
+      expect(result).toContain("## Available Tools");
     });
 
     it("should return exploration prompt for exploration mode", () => {
       const result = buildSystemPrompt("exploration");
-      expect(result).toBe(PROMPTS.exploration);
+      expect(result).toContain(PROMPTS.exploration);
+      expect(result).toContain("## Available Tools");
     });
   });
 

@@ -200,6 +200,7 @@ export const ExploreRequestSchema = z.object({
   callback_secret: z.string().optional(),
   context: z.string().optional(),
   update: z.boolean().optional(),
+  collect_tool_stats: z.boolean().optional(),
 });
 
 const JobSchema = z.object({
@@ -212,6 +213,7 @@ const JobSchema = z.object({
   callback_secret: z.string().optional(),
   context: z.string().optional(),
   update: z.boolean().optional(),
+  collect_tool_stats: z.boolean().optional(),
   github_url: z.string().optional(),
   error: z.string().optional(),
   created_at: z.number(),
@@ -246,6 +248,7 @@ export function createJob(
     callback_secret: request.callback_secret,
     context: request.context,
     update: request.update ?? false,
+    collect_tool_stats: request.collect_tool_stats,
     created_at: Date.now(),
   };
 

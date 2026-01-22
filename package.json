@@ -33,8 +33,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@ai-sdk/anthropic": "^3.0.18",
     "@hono/zod-validator": "^0.7.6",
+    "ai": "^6.0.44",
     "better-result": "^2.0.0",
     "cloudflare": "^5.2.0",
     "hono": "^4.11.3",

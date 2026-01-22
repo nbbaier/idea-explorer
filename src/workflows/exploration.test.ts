@@ -92,6 +92,7 @@ describe("ExplorationWorkflow", () => {
           content: "Research content",
           inputTokens: 100,
           outputTokens: 200,
+          steps: 1,
         })
       ),
     };
@@ -206,6 +207,7 @@ describe("ExplorationWorkflow", () => {
           content: "New research content",
           inputTokens: 10,
           outputTokens: 20,
+          steps: 1,
         })
       ),
     };

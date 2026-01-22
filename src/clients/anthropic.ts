@@ -1,10 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { type AnthropicProvider, createAnthropic } from "@ai-sdk/anthropic";
+import { generateText, stepCountIs, type ToolSet, tool } from "ai";
 import { Result } from "better-result";
+import { z } from "zod";
 import { AnthropicApiError } from "../errors";
+import type { ToolExecutor } from "./tool-executor";
 
 export interface AnthropicConfig {
   apiKey: string;
   model: "sonnet" | "opus";
+  toolExecutor?: ToolExecutor;
+  collectToolStats?: boolean;
 }
 
 export interface GenerateResearchParams {
@@ -18,29 +23,77 @@ export interface GenerateResearchParams {
   userPrompt: string;
 }
 
+export interface ToolCallLog {
+  name: "read_research";
+  path: string;
+  durationMs: number;
+  ok: boolean;
+  bytes?: number;
+  errorType?: string;
+}
+
 export interface GenerateResearchResult {
   content: string;
   inputTokens: number;
   outputTokens: number;
+  steps: number;
+  toolCalls?: ToolCallLog[];
 }
 
 const MODEL_MAP = {
-  sonnet: "claude-sonnet-4-5-20250929",
-  opus: "claude-opus-4-5-20251101",
+  sonnet: "claude-4-sonnet-20250514",
+  opus: "claude-4-opus-20250514",
 } as const;
 
 const MAX_OUTPUT_TOKENS = 16_384;
+const MAX_STEPS = 5;
 
-type AnthropicInstance = InstanceType<typeof Anthropic>;
+function buildTools(
+  provider: AnthropicProvider,
+  toolExecutor?: ToolExecutor,
+  onToolCall?: (log: ToolCallLog) => void
+): ToolSet {
+  const tools: ToolSet = {
+    web_search: provider.tools.webSearch_20250305({ maxUses: 5 }),
+  };
+
+  if (toolExecutor) {
+    tools.read_research = tool({
+      description:
+        "Read an existing research document from the repository. Path is relative to ideas/ directory.",
+      inputSchema: z.object({
+        path: z.string().min(1).max(200),
+      }),
+      execute: async ({ path }: { path: string }) => {
+        const startTime = Date.now();
+        const result = await toolExecutor.readResearch(path);
+        const durationMs = Date.now() - startTime;
+
+        const logEntry: ToolCallLog = {
+          name: "read_research",
+          path,
+          durationMs,
+          ok: result.ok,
+          bytes: result.ok ? result.bytes : undefined,
+          errorType: result.ok ? undefined : result.error_type,
+        };
+
+        console.log("tool_call", logEntry);
+        onToolCall?.(logEntry);
+
+        return result;
+      },
+    });
+  }
+
+  return tools;
+}
 
 export class AnthropicClient {
-  private readonly client: AnthropicInstance;
-  private readonly model: string;
+  private readonly config: AnthropicConfig;
 
-  constructor(config: AnthropicConfig, client?: unknown) {
-    this.client =
-      (client as AnthropicInstance) ?? new Anthropic({ apiKey: config.apiKey });
-    this.model = MODEL_MAP[config.model];
+  constructor(config: AnthropicConfig) {
+    this.config = config;
   }
 
   generateResearch(
@@ -48,24 +101,31 @@ export class AnthropicClient {
   ): Promise<Result<GenerateResearchResult, AnthropicApiError>> {
     return Result.tryPromise({
       try: async () => {
-        const stream = this.client.messages.stream({
-          model: this.model,
-          max_tokens: MAX_OUTPUT_TOKENS,
+        const toolCalls: ToolCallLog[] | undefined = this.config
+          .collectToolStats
+          ? []
+          : undefined;
+        const provider = createAnthropic({ apiKey: this.config.apiKey });
+        const tools = buildTools(provider, this.config.toolExecutor, (log) => {
+          if (toolCalls) {
+            toolCalls.push(log);
+          }
+        });
+        const result = await generateText({
+          model: provider(MODEL_MAP[this.config.model]),
           system: params.systemPrompt,
-          messages: [{ role: "user", content: params.userPrompt }],
+          prompt: params.userPrompt,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
         });
 
-        const message = await stream.finalMessage();
-
-        const textBlock = message.content.find(
-          (block) => block.type === "text"
-        );
-        const content = textBlock && "text" in textBlock ? textBlock.text : "";
-
         return {
-          content,
-          inputTokens: message.usage.input_tokens,
-          outputTokens: message.usage.output_tokens,
+          content: result.text,
+          inputTokens: result.totalUsage.inputTokens ?? 0,
+          outputTokens: result.totalUsage.outputTokens ?? 0,
+          steps: result.steps.length,
+          toolCalls,
         };
       },
       catch: (error) =>

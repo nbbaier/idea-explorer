@@ -17,6 +17,13 @@ export interface FileContent {
   content: string;
   sha: string;
   path: string;
+  size?: number;
+  type?: "file";
+}
+
+export interface NonFileContent {
+  path: string;
+  type: "dir" | "symlink" | "submodule";
 }
 
 export interface DirectoryEntry {
@@ -32,6 +39,7 @@ interface FileResponse {
   path: string;
   encoding?: string;
   type: string;
+  size?: number;
 }
 
 type OctokitInstance = InstanceType<typeof Octokit>;
@@ -74,7 +82,15 @@ export class GitHubClient {
 
   async getFile(
     path: string
-  ): Promise<Result<FileContent | null, GitHubApiError>> {
+  ): Promise<Result<FileContent | null, GitHubApiError>>;
+  async getFile(
+    path: string,
+    options: { includeMeta: true }
+  ): Promise<Result<FileContent | NonFileContent | null, GitHubApiError>>;
+  async getFile(
+    path: string,
+    options?: { includeMeta?: boolean }
+  ): Promise<Result<FileContent | NonFileContent | null, GitHubApiError>> {
     try {
       const { data } = await this.octokit.rest.repos.getContent({
         owner: this.owner,
@@ -83,9 +99,24 @@ export class GitHubClient {
         ref: this.branch,
       });
 
+      if (Array.isArray(data)) {
+        if (options?.includeMeta) {
+          return Result.ok({ path, type: "dir" });
+        }
+        return Result.ok(null);
+      }
+
       const file = data as FileResponse;
 
-      if (file.type !== "file" || !file.content) {
+      if (file.type !== "file") {
+        if (options?.includeMeta) {
+          const type = isNonFileType(file.type) ? file.type : "submodule";
+          return Result.ok({ path: file.path ?? path, type });
+        }
+        return Result.ok(null);
+      }
+
+      if (file.content === undefined) {
         return Result.ok(null);
       }
 
@@ -93,6 +124,8 @@ export class GitHubClient {
         content: decodeBase64(file.content),
         sha: file.sha,
         path: file.path,
+        size: file.size,
+        type: "file",
       });
     } catch (error) {
       if (isNotFoundError(error)) {
@@ -247,6 +280,10 @@ function isHttpError(error: unknown, status: number): boolean {
     "status" in error &&
     error.status === status
   );
+}
+
+function isNonFileType(type: string): type is "dir" | "symlink" | "submodule" {
+  return type === "dir" || type === "symlink" || type === "submodule";
 }
 
 function getErrorStatus(error: unknown): number | undefined {

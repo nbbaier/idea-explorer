@@ -124,8 +124,26 @@ You are exploring an idea with divergent thinking. Use the framework below to pr
 \`\`\``,
 } as const;
 
+const TOOL_GUIDANCE = `## Available Tools
+
+### Web Search
+Use web search to find current market data, competitor information, recent news, industry trends, and factual information about companies or technologies.
+
+### Read Research
+Use this to read existing research documents from the repository. Available when exploring ideas that relate to previous work. Returns a JSON object with ok: true and content on success, or ok: false with error details on failure.
+
+## Tool Usage Guidelines
+- Prefer web_search when you need current, factual, or external information (market data, competitors, news)
+- Prefer read_research when building on previous explorations or referencing internal analysis
+- Avoid redundancy: Do not re-read the same file multiple times in a single exploration
+- Synthesize, do not dump: Integrate tool results into your analysis rather than quoting them verbatim
+- Fail gracefully: If a tool returns an error, acknowledge it and proceed with available information
+`;
+
 export function buildSystemPrompt(mode: Mode): string {
-  return PROMPTS[mode];
+  return `${PROMPTS[mode]}
+
+${TOOL_GUIDANCE}`;
 }
 
 export function buildUserPrompt(params: BuildUserPromptParams): string {
