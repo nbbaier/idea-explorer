@@ -30,7 +30,7 @@ async function statusAction(
     const apiKey = getApiKey();
     if (!apiKey) {
       throw new AuthError(
-        "IDEA_EXPLORER_API_KEY environment variable is not set"
+        "IDEA_EXPLORER_API_TOKEN environment variable is not set"
       );
     }
 

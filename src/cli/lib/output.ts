@@ -113,7 +113,7 @@ function formatError(
   if (error instanceof AuthError) {
     return {
       message:
-        "Authentication failed. Set the IDEA_EXPLORER_API_KEY environment variable.",
+        "Authentication failed. Set the IDEA_EXPLORER_API_TOKEN environment variable.",
       details: verbose ? error.message : undefined,
     };
   }

@@ -3,12 +3,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { ModelSchema, ModeSchema } from "@/types/api";
+import { decrypt, encrypt } from "./crypto.js";
 
 const CONFIG_DIR = join(homedir(), ".config", "idea");
 const CONFIG_FILE = join(CONFIG_DIR, "settings.json");
 
 export const ConfigSchema = z.object({
   api_url: z.string().url().optional(),
+  api_token_encrypted: z.string().optional(),
   default_mode: ModeSchema.optional(),
   default_model: ModelSchema.optional(),
 });
@@ -96,7 +98,27 @@ export function getApiUrl(): string | undefined {
 }
 
 export function getApiKey(): string | undefined {
-  return process.env.IDEA_EXPLORER_API_KEY;
+  const envToken = process.env.IDEA_EXPLORER_API_TOKEN;
+  if (envToken) {
+    return envToken;
+  }
+
+  const config = loadConfig();
+  if (config.api_token_encrypted) {
+    try {
+      return decrypt(config.api_token_encrypted);
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+export function setApiKey(token: string): void {
+  const config = loadConfig();
+  config.api_token_encrypted = encrypt(token);
+  saveConfig(config);
 }
 
 export function getDefaultMode(): string | undefined {

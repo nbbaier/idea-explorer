@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { createAuthCommand } from "./commands/auth.js";
 import { createConfigCommand } from "./commands/config.js";
 import { createInitCommand } from "./commands/init.js";
 import { createStatusCommand } from "./commands/status.js";
@@ -15,5 +16,6 @@ program.addCommand(createSubmitCommand());
 program.addCommand(createStatusCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createConfigCommand());
+program.addCommand(createAuthCommand());
 
 program.parse();

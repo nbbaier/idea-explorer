@@ -117,7 +117,7 @@ async function initAction(): Promise<void> {
   }
 
   note(
-    "Set the IDEA_EXPLORER_API_KEY environment variable:\n\n  export IDEA_EXPLORER_API_KEY=your-api-key",
+    "Set the IDEA_EXPLORER_API_TOKEN environment variable:\n\n  export IDEA_EXPLORER_API_TOKEN=your-api-key",
     "Authentication"
   );
 
