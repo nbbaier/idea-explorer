@@ -1,64 +1,6 @@
-# Idea Explorer: Top 5 Improvement Ideas
+# Idea Explorer: Remaining Improvement Ideas
 
-## 1. Step-Level Progress in Status Endpoint
-
-### The Problem
-
-Currently, when a job is "running," users have zero visibility into what's actually happening. The 6-step workflow (initialize → setup sandbox → check existing → run claude → commit/push → notify) could be at any stage, and a user polling the status endpoint sees only `"status": "running"` for potentially 15+ minutes.
-
-### The Solution
-
-Enhance the job status object to include granular step information:
-
-```typescript
-{
-  status: "running",
-  current_step: "running_claude",
-  current_step_label: "Running Claude analysis...",
-  steps_completed: 3,
-  steps_total: 6,
-  step_started_at: 1704816000000,
-  step_durations: {
-    initialize: 245,
-    setup_sandbox: 1820,
-    check_existing: 312
-  }
-}
-```
-
-### Implementation
-
-Update the job in KV after each workflow step with the step metadata. This requires adding ~6 lines per step in the workflow:
-
-```typescript
-// At start of each step:
-await updateJob(ctx, jobId, {
-   current_step: "running_claude",
-   current_step_label: "Running Claude analysis...",
-   steps_completed: 3,
-   step_started_at: Date.now(),
-});
-
-// At end of step, record duration
-const stepDuration = Date.now() - stepStartTime;
-await updateJob(ctx, jobId, {
-   step_durations: { ...prev.step_durations, running_claude: stepDuration },
-});
-```
-
-### Why This Is #1
-
--  **Certainty of value:** 100% - there is zero downside and immediate UX improvement
--  **Implementation effort:** Minimal - ~50 lines of code
--  **User perception:** Transforms the experience from "black box" to "transparent progress"
--  **Pragmatism:** No architectural changes, no new dependencies, backwards compatible
--  **Compounds with webhooks:** Step progress could be sent in webhook payloads too
-
-This is the canonical "easy win" - maximum ROI, minimum risk.
-
----
-
-## 2. Follow-Up/Iterative Explorations
+## 1. Follow-Up/Iterative Explorations
 
 ### The Problem
 
@@ -100,7 +42,7 @@ if (params.continue_from) {
 }
 ```
 
-### Why This Is #2
+### Why This Matters
 
 -  **Transforms the tool's utility:** From one-shot analysis to iterative ideation partner
 -  **Matches real workflows:** Ideas require 3-5 iterations to crystallize - this enables that
@@ -112,7 +54,7 @@ This elevates the tool from "interesting experiment" to "essential workflow comp
 
 ---
 
-## 3. Custom Analysis Frameworks
+## 2. Custom Analysis Frameworks
 
 ### The Problem
 
@@ -178,7 +120,7 @@ if (!["business", "exploration", ...customFrameworks].includes(mode)) {
 }
 ```
 
-### Why This Is #3
+### Why This Matters
 
 -  **Massive extensibility:** Turns the tool into a platform
 -  **User-controlled evolution:** Users extend without code changes
@@ -190,7 +132,7 @@ This moves the tool from "fixed function" to "infinitely extensible platform."
 
 ---
 
-## 4. Rich Failure Diagnostics
+## 3. Rich Failure Diagnostics
 
 ### The Problem
 
@@ -253,7 +195,7 @@ try {
 }
 ```
 
-### Why This Is #4
+### Why This Matters
 
 -  **Debugging becomes possible:** Users can self-diagnose most issues
 -  **Reduces support burden:** Clear errors = fewer "why did this fail?" questions
@@ -265,100 +207,12 @@ This transforms failures from "black box" to "actionable diagnostic."
 
 ---
 
-## 5. Job Listing Endpoint
-
-### The Problem
-
-After a few weeks of use, you'll have dozens of explorations but no way to see them. The only way to check a job is to remember its `job_id`. There's no:
-
--  History of what you've explored
--  Ability to find "that calendar idea from last month"
--  Overview of exploration patterns
-
-### The Solution
-
-Add a job listing endpoint with basic filtering:
-
-```typescript
-GET /api/jobs
-GET /api/jobs?status=completed
-GET /api/jobs?mode=business
-GET /api/jobs?limit=20&offset=40
-```
-
-Response:
-
-```json
-{
-   "jobs": [
-      {
-         "id": "abc123de",
-         "idea": "AI-powered calendar that learns your preferences",
-         "mode": "business",
-         "status": "completed",
-         "github_url": "https://github.com/...",
-         "created_at": 1704816000000
-      }
-   ],
-   "total": 47,
-   "limit": 20,
-   "offset": 0
-}
-```
-
-### Implementation
-
-For personal use scale, a simple KV list with client-side filtering works:
-
-```typescript
-app.get("/api/jobs", authMiddleware, async (c) => {
-   const { keys } = await c.env.JOBS.list();
-   const jobs = await Promise.all(
-      keys.map((k) => c.env.JOBS.get(k.name, "json"))
-   );
-
-   // Apply filters
-   let filtered = jobs.filter((j) => j != null);
-   if (c.req.query("status")) {
-      filtered = filtered.filter((j) => j.status === c.req.query("status"));
-   }
-
-   // Sort by created_at descending
-   filtered.sort((a, b) => b.created_at - a.created_at);
-
-   // Paginate
-   const limit = parseInt(c.req.query("limit") || "20");
-   const offset = parseInt(c.req.query("offset") || "0");
-
-   return c.json({
-      jobs: filtered.slice(offset, offset + limit),
-      total: filtered.length,
-      limit,
-      offset,
-   });
-});
-```
-
-### Why This Is #5
-
--  **Essential infrastructure:** Any serious tool needs history/listing
--  **Enables meta-analysis:** "What have I been exploring? What patterns emerge?"
--  **Foundation for future features:** Search, dashboards, exports all build on this
--  **Simple implementation:** KV list + filter is sufficient for personal scale
--  **User perception:** "Now I can actually manage my idea portfolio"
-
-This is "table stakes" for a production tool - you can't seriously use something you can't see the history of.
-
----
-
 ## Summary
 
 | Rank | Idea                     | Effort   | Impact    | Confidence |
 | ---- | ------------------------ | -------- | --------- | ---------- |
-| 1    | Step-level progress      | ~1 hour  | High      | 100%       |
-| 2    | Follow-up explorations   | ~4 hours | Very High | 95%        |
-| 3    | Custom frameworks        | ~3 hours | Very High | 90%        |
-| 4    | Rich failure diagnostics | ~2 hours | High      | 95%        |
-| 5    | Job listing endpoint     | ~2 hours | High      | 95%        |
+| 1    | Follow-up explorations   | ~4 hours | Very High | 95%        |
+| 2    | Custom frameworks        | ~3 hours | Very High | 90%        |
+| 3    | Rich failure diagnostics | ~2 hours | High      | 95%        |
 
-All five improvements are obviously accretive (pure upside), pragmatic (reasonable implementation), and address real gaps in the current system. Together, they would transform the tool from "interesting personal project" to "robust, professional-grade idea analysis platform."
+All three improvements are pragmatic (reasonable implementation) and address real gaps in the current system. Together with the already-implemented step-level progress and job listing features, they would transform the tool from "interesting personal project" to "robust, professional-grade idea analysis platform."
