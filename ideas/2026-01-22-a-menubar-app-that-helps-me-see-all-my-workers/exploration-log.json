@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "3b04926e",
+    "idea": "a menubar app that helps me see all my workers deployments ",
+    "mode": "exploration",
+    "model": "opus",
+    "isUpdate": false,
+    "startedAt": "2026-01-22T18:27:25.637Z",
+    "completedAt": "2026-01-22T18:28:41.803Z",
+    "durationMs": 76166,
+    "steps": 1,
+    "tokens": {
+      "input": 60754,
+      "output": 2984,
+      "total": 63738
+    },
+    "outputPath": "ideas/2026-01-22-a-menubar-app-that-helps-me-see-all-my-workers/research.md"
+  }
+]
