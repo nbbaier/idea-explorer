@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "3424d360",
+    "idea": "a weird variant of snake",
+    "mode": "exploration",
+    "model": "opus",
+    "isUpdate": false,
+    "startedAt": "2026-01-22T18:24:48.124Z",
+    "completedAt": "2026-01-22T18:26:06.507Z",
+    "durationMs": 78383,
+    "steps": 2,
+    "tokens": {
+      "input": 44962,
+      "output": 3094,
+      "total": 48056
+    },
+    "outputPath": "ideas/2026-01-22-a-weird-variant-of-snake/research.md"
+  }
+]
