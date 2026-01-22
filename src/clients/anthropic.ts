@@ -41,8 +41,8 @@ export interface GenerateResearchResult {
 }
 
 const MODEL_MAP = {
-  sonnet: "claude-4-sonnet-20250514",
-  opus: "claude-4-opus-20250514",
+  sonnet: "claude-4-5-sonnet",
+  opus: "claude-4-5-opus",
 } as const;
 
 const MAX_OUTPUT_TOKENS = 16_384;
