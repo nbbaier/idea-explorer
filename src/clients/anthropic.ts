@@ -42,7 +42,7 @@ export interface GenerateResearchResult {
 
 const MODEL_MAP = {
   sonnet: "claude-4-5-sonnet",
-  opus: "claude-4-5-opus",
+  opus: "claude-opus-4-5",
 } as const;
 
 const MAX_OUTPUT_TOKENS = 16_384;
