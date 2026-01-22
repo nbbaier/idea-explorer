@@ -1,5 +1,9 @@
 # Idea CLI Specification
 
+> NOTE: Planned change. The CLI will move from `packages/cli/` to `src/cli/` and
+> the shared API schemas will be consolidated under `src/types/`. See
+> `docs/cli-simplification-plan.md` for the refactor plan.
+
 A command-line interface for submitting ideas to the idea-explorer worker API.
 
 ## Overview
