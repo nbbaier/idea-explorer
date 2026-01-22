@@ -111,6 +111,12 @@ async function submitAction(options: SubmitOptions): Promise<void> {
     const validatedMode = validateMode(options.mode);
     const validatedModel = validateModel(options.model);
 
+    const defaultMode = getDefaultMode() as
+      | "business"
+      | "exploration"
+      | undefined;
+    const defaultModel = getDefaultModel() as "sonnet" | "opus" | undefined;
+
     let idea: string | undefined;
     let mode = validatedMode;
     let model = validatedModel;
@@ -124,12 +130,6 @@ async function submitAction(options: SubmitOptions): Promise<void> {
         throw new Error("No idea provided via stdin");
       }
     } else {
-      const defaultMode = getDefaultMode() as
-        | "business"
-        | "exploration"
-        | undefined;
-      const defaultModel = getDefaultModel() as "sonnet" | "opus" | undefined;
-
       const result = await runSubmitWizard({
         skipIdea: false,
         skipMode: !!mode,
@@ -147,6 +147,9 @@ async function submitAction(options: SubmitOptions): Promise<void> {
       model = model ?? result.model;
       context = context ?? result.context;
     }
+
+    mode = mode ?? defaultMode;
+    model = model ?? defaultModel;
 
     const request: ExploreRequest = {
       idea,

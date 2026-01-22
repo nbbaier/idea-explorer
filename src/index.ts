@@ -1,11 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import { Result } from "better-result";
 import { type Context, Hono, type Next } from "hono";
-import { ExploreRequestSchema, JobStatusSchema, ModeSchema } from "@/types/api";
+import { JobStatusSchema, ModeSchema } from "@/types/api";
 import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
   type ExploreRequest,
+  ExploreRequestSchema,
   getJob,
   type Job,
   listJobs,

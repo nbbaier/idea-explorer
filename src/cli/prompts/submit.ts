@@ -151,9 +151,7 @@ export async function runSubmitWizard(
     if (mode === null) {
       return null;
     }
-    if (mode !== "skip") {
-      result.mode = mode;
-    }
+    result.mode = mode === "skip" ? options.defaultMode : mode;
   }
 
   if (!options.skipModel) {
@@ -161,9 +159,7 @@ export async function runSubmitWizard(
     if (model === null) {
       return null;
     }
-    if (model !== "skip") {
-      result.model = model;
-    }
+    result.model = model === "skip" ? options.defaultModel : model;
   }
 
   const context = await promptForContext();
