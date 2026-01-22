@@ -65,7 +65,7 @@ describe("AnthropicClient", () => {
     await client.generateResearch(defaultParams);
 
     expect(mockCreateAnthropic).toHaveBeenCalledWith({ apiKey: "key" });
-    expect(mockProvider).toHaveBeenCalledWith("claude-4-5-sonnet");
+    expect(mockProvider).toHaveBeenCalledWith("claude-sonnet-4-5");
     const options = mockGenerateText.mock.calls[0]?.[0];
     expect(options.tools.web_search).toBe("web_search_tool");
     expect(options.tools.read_research).toBeUndefined();
@@ -76,7 +76,7 @@ describe("AnthropicClient", () => {
 
     await client.generateResearch(defaultParams);
 
-    expect(mockProvider).toHaveBeenCalledWith("claude-4-5-opus");
+    expect(mockProvider).toHaveBeenCalledWith("claude-opus-4-5");
   });
 
   it("registers read_research only when toolExecutor provided", async () => {
