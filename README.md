@@ -184,15 +184,20 @@ idea-explorer/
 │   ├── index.test.ts         # API endpoint tests
 │   ├── jobs.ts               # Job types and KV storage functions
 │   ├── jobs.test.ts          # Job storage tests
+│   ├── cli/                   # CLI implementation
 │   ├── clients/
 │   │   ├── anthropic.ts      # Anthropic Messages API client
 │   │   └── github.ts         # GitHub Contents API client
 │   ├── prompts/
 │   │   └── index.ts          # Embedded prompt templates
+│   ├── types/
+│   │   └── api.ts             # Shared API schemas
 │   ├── workflows/
 │   │   └── exploration.ts    # Cloudflare Workflow for exploration
 │   ├── middleware/           # Auth middleware
 │   └── utils/                # Webhook, logging, and helper utilities
+├── dist/
+│   └── cli/                   # Built CLI output
 └── wrangler.jsonc            # Cloudflare Workers configuration
 ```
 
@@ -229,3 +234,5 @@ bun run dev
 | `bun run test`       | Run tests (watch mode)             |
 | `bun run test:run`   | Run tests once                     |
 | `bun run status`     | Check idea exploration status      |
+| `bun run cli:build`  | Build the CLI to `dist/cli`        |
+| `bun run cli:dev`    | Watch/build the CLI with tsdown    |

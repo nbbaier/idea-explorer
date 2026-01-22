@@ -1,9 +1,5 @@
 # Idea CLI Specification
 
-> NOTE: Planned change. The CLI will move from `packages/cli/` to `src/cli/` and
-> the shared API schemas will be consolidated under `src/types/`. See
-> `docs/cli-simplification-plan.md` for the refactor plan.
-
 A command-line interface for submitting ideas to the idea-explorer worker API.
 
 ## Overview
@@ -11,11 +7,11 @@ A command-line interface for submitting ideas to the idea-explorer worker API.
 | Property | Value |
 |----------|-------|
 | CLI Name | `idea` |
-| Location | `packages/cli/` (monorepo package, shares types with worker) |
-| Build Tool | tsdown |
+| Location | `src/cli/` (internal package) |
+| Build Tool | tsdown (output: `dist/cli`) |
 | Installation | Local build, symlink to PATH |
 | Prompts Library | @clack/prompts |
-| CLI Librar | commander |
+| CLI Library | commander |
 
 ## Subcommands
 
@@ -204,29 +200,29 @@ The CLI communicates with the idea-explorer worker API:
 ## Project Structure
 
 ```
-packages/cli/
-├── src/
-│   ├── index.ts          # Entry point, command routing
-│   ├── commands/
-│   │   ├── submit.ts     # Submit command
-│   │   ├── status.ts     # Status command
-│   │   ├── init.ts       # Init wizard
-│   │   └── config.ts     # Config management
-│   ├── lib/
-│   │   ├── api.ts        # API client
-│   │   ├── config.ts     # Config file handling
-│   │   └── output.ts     # Output formatting (human/json/quiet)
-│   └── prompts/
-│       └── submit.ts     # Clack prompts for submit wizard
-├── package.json
-├── tsconfig.json
-└── tsdown.config.ts
+src/cli/
+├── index.ts          # Entry point, command routing
+├── commands/
+│   ├── submit.ts     # Submit command
+│   ├── status.ts     # Status command
+│   ├── init.ts       # Init wizard
+│   └── config.ts     # Config management
+├── lib/
+│   ├── api.ts        # API client
+│   ├── config.ts     # Config file handling
+│   └── output.ts     # Output formatting (human/json/quiet)
+└── prompts/
+    └── submit.ts     # Clack prompts for submit wizard
+
+dist/cli/
+├── index.js          # Built CLI entry
+└── index.d.ts
 ```
 
 ## Dependencies
 
 - `@clack/prompts` - Interactive prompts
-- Shared types from `../../src/jobs.ts` (ModeSchema, ModelSchema, ExploreRequestSchema)
+- Shared types from `src/types/api.ts` (ModeSchema, ModelSchema, ExploreRequestSchema)
 
 ## Usage Examples
 
