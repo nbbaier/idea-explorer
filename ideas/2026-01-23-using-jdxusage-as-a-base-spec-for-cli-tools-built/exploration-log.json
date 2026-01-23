@@ -1,0 +1,20 @@
+[
+  {
+    "jobId": "ee8f8906",
+    "idea": "using jdx/usage as a base spec for cli tools built by coding agents",
+    "mode": "exploration",
+    "model": "opus",
+    "context": "Usage (https://github.com/jdx/usage) is a specification for CLIs. I think it presents an interesting opportunity for a specifying cli usage for llm agents.",
+    "isUpdate": false,
+    "startedAt": "2026-01-23T04:03:59.006Z",
+    "completedAt": "2026-01-23T04:05:26.856Z",
+    "durationMs": 87850,
+    "steps": 2,
+    "tokens": {
+      "input": 54047,
+      "output": 3553,
+      "total": 57600
+    },
+    "outputPath": "ideas/2026-01-23-using-jdxusage-as-a-base-spec-for-cli-tools-built/research.md"
+  }
+]
