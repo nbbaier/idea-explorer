@@ -226,12 +226,19 @@ const JobSchema = z.object({
   step_durations: z.record(z.string(), z.number()).optional(),
 });
 
+export type JobStatus = z.infer<typeof JobStatusSchema>;
 export type Mode = z.infer<typeof ModeSchema>;
 export type Model = z.infer<typeof ModelSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
+
+export interface JobMetadata {
+  status: JobStatus;
+  mode: Mode;
+  created_at: number;
+}
 
 export function createJob(
   kv: KVNamespace,
@@ -252,9 +259,15 @@ export function createJob(
     created_at: Date.now(),
   };
 
+  const metadata: JobMetadata = {
+    status: job.status,
+    mode: job.mode,
+    created_at: job.created_at,
+  };
+
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), { metadata });
       return job;
     },
     catch: (error) =>
@@ -304,10 +317,16 @@ export function updateJob(
 
       const updated = { ...job, ...updates };
 
+      const metadata: JobMetadata = {
+        status: updated.status,
+        mode: updated.mode,
+        created_at: updated.created_at,
+      };
+
       yield* Result.await(
         Result.tryPromise({
           try: async () => {
-            await kv.put(id, JSON.stringify(updated));
+            await kv.put(id, JSON.stringify(updated), { metadata });
           },
           catch: (error) =>
             new StorageError({ operation: "put", key: id, cause: error }),
@@ -319,26 +338,86 @@ export function updateJob(
   );
 }
 
+export interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  mode?: string;
+}
+
+export interface ListJobsResult {
+  jobs: Job[];
+  total: number;
+}
+
 export function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options?: ListJobsOptions
+): Promise<Result<ListJobsResult, StorageError>> {
   return Result.tryPromise({
     try: async () => {
       const { keys } = await kv.list();
-      const results = await Promise.allSettled(
+
+      // Enriched keys contains either metadata or full job if fallback was needed
+      const summaries = await Promise.all(
         keys.map(async (key) => {
+          const metadata = key.metadata as JobMetadata | undefined;
+          // Check if metadata is valid
+          if (metadata?.status && metadata.mode && metadata.created_at) {
+            return { id: key.name, ...metadata };
+          }
+
+          // Fallback: fetch full body
           const data = await kv.get(key.name, "json");
+          const job = data as Job | null;
+          if (!job) {
+            return null;
+          }
+          return {
+            id: job.id,
+            status: job.status,
+            mode: job.mode,
+            created_at: job.created_at,
+            _job: job,
+          };
+        })
+      );
+
+      const validSummaries = summaries.filter(
+        (s): s is NonNullable<typeof s> => s !== null
+      );
+
+      let filtered = validSummaries;
+      if (options?.status) {
+        filtered = filtered.filter((s) => s.status === options.status);
+      }
+      if (options?.mode) {
+        filtered = filtered.filter((s) => s.mode === options.mode);
+      }
+
+      // Sort descending by created_at
+      filtered.sort((a, b) => b.created_at - a.created_at);
+
+      const total = filtered.length;
+      const limit = options?.limit ?? 20;
+      const offset = options?.offset ?? 0;
+
+      const page = filtered.slice(offset, offset + limit);
+
+      const jobs = await Promise.all(
+        page.map(async (s) => {
+          if ("_job" in s && s._job) {
+            return s._job as Job;
+          }
+          const data = await kv.get(s.id, "json");
           return data as Job | null;
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      return {
+        jobs: jobs.filter((j): j is Job => j !== null),
+        total,
+      };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });

@@ -1,17 +1,44 @@
 import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
+import {
+  createJob,
+  ExploreRequestSchema,
+  getJob,
+  listJobs,
+  updateJob,
+} from "./jobs";
 
 describe("Job Management", () => {
   let mockKV: KVNamespace;
+  let storage: Map<string, string>;
+  let metadataStorage: Map<string, unknown>;
 
   beforeEach(() => {
-    const storage = new Map<string, string>();
+    storage = new Map<string, string>();
+    metadataStorage = new Map<string, unknown>();
     mockKV = {
-      get: vi.fn((key: string) => Promise.resolve(storage.get(key) || null)),
-      put: vi.fn((key: string, value: string) => {
-        storage.set(key, value);
-        return Promise.resolve();
+      get: vi.fn((key: string, type?: string) => {
+        const value = storage.get(key) || null;
+        if (value && type === "json") {
+          return Promise.resolve(JSON.parse(value));
+        }
+        return Promise.resolve(value);
+      }),
+      put: vi.fn(
+        (key: string, value: string, options?: { metadata?: unknown }) => {
+          storage.set(key, value);
+          if (options?.metadata) {
+            metadataStorage.set(key, options.metadata);
+          }
+          return Promise.resolve();
+        }
+      ),
+      list: vi.fn(() => {
+        const keys: { name: string; metadata: unknown }[] = [];
+        for (const key of storage.keys()) {
+          keys.push({ name: key, metadata: metadataStorage.get(key) });
+        }
+        return Promise.resolve({ keys, list_complete: true });
       }),
     } as unknown as KVNamespace;
   });
@@ -260,6 +287,137 @@ describe("Job Management", () => {
         initialize: 245,
         check_existing: 1820,
       });
+    });
+  });
+
+  describe("Job Listing", () => {
+    it("should list jobs correctly with pagination and filtering", async () => {
+      // Create 5 jobs
+      const jobs: Job[] = [];
+      for (let i = 0; i < 5; i++) {
+        const result = await createJob(mockKV, {
+          idea: `Idea ${i}`,
+          mode: i % 2 === 0 ? "business" : "exploration",
+        });
+        if (Result.isOk(result)) {
+          jobs.push(result.value);
+          // Add a small delay to ensure different created_at
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          // Update status for some
+          if (i === 0) {
+            await updateJob(mockKV, result.value.id, { status: "completed" });
+          }
+        }
+      }
+
+      // Test listing all
+      const listAll = await listJobs(mockKV);
+      expect(Result.isOk(listAll)).toBe(true);
+      if (Result.isOk(listAll)) {
+        expect(listAll.value.total).toBe(5);
+        expect(listAll.value.jobs).toHaveLength(5);
+        // Verify sort order (descending created_at)
+        expect(listAll.value.jobs[0].idea).toBe("Idea 4");
+      }
+
+      // Test filtering by mode
+      const listBusiness = await listJobs(mockKV, { mode: "business" });
+      expect(Result.isOk(listBusiness)).toBe(true);
+      if (Result.isOk(listBusiness)) {
+        expect(listBusiness.value.total).toBe(3); // 0, 2, 4
+        expect(
+          listBusiness.value.jobs.every((j) => j.mode === "business")
+        ).toBe(true);
+      }
+
+      // Test filtering by status
+      const listCompleted = await listJobs(mockKV, { status: "completed" });
+      expect(Result.isOk(listCompleted)).toBe(true);
+      if (Result.isOk(listCompleted)) {
+        expect(listCompleted.value.total).toBe(1);
+        expect(listCompleted.value.jobs[0].idea).toBe("Idea 0");
+      }
+
+      // Test pagination
+      const page1 = await listJobs(mockKV, { limit: 2, offset: 0 });
+      expect(Result.isOk(page1)).toBe(true);
+      if (Result.isOk(page1)) {
+        expect(page1.value.total).toBe(5);
+        expect(page1.value.jobs).toHaveLength(2);
+        expect(page1.value.jobs[0].idea).toBe("Idea 4");
+        expect(page1.value.jobs[1].idea).toBe("Idea 3");
+      }
+
+      const page2 = await listJobs(mockKV, { limit: 2, offset: 2 });
+      expect(Result.isOk(page2)).toBe(true);
+      if (Result.isOk(page2)) {
+        expect(page2.value.total).toBe(5);
+        expect(page2.value.jobs).toHaveLength(2);
+        expect(page2.value.jobs[0].idea).toBe("Idea 2");
+      }
+    });
+
+    it("should use metadata to avoid fetching bodies for filtered out items", async () => {
+      // Mock get to spy on it
+      const spyGet = vi.spyOn(mockKV, "get");
+
+      // Create jobs
+      await createJob(mockKV, { idea: "Job 1", mode: "business" });
+      await createJob(mockKV, { idea: "Job 2", mode: "exploration" });
+      await createJob(mockKV, { idea: "Job 3", mode: "business" });
+
+      spyGet.mockClear();
+
+      // List with filter
+      const result = await listJobs(mockKV, { mode: "exploration" });
+
+      expect(Result.isOk(result)).toBe(true);
+      if (Result.isOk(result)) {
+        expect(result.value.total).toBe(1);
+        expect(result.value.jobs[0].idea).toBe("Job 2");
+      }
+
+      // We expect get to be called ONLY for the job that matched the filter (Job 2)
+      // keys.map in listJobs does NOT call get if metadata is present.
+      // Then page.map calls get for the result items.
+      expect(spyGet).toHaveBeenCalledTimes(1);
+    });
+
+    it("should fallback to fetching body if metadata is missing", async () => {
+      // Manually put a job without metadata
+      const id = "legacy-job";
+      const legacyJob = {
+        id,
+        idea: "Legacy Job",
+        mode: "business",
+        model: "sonnet",
+        status: "pending",
+        created_at: Date.now(),
+      };
+      storage.set(id, JSON.stringify(legacyJob));
+
+      // Mock get to spy on it
+      const spyGet = vi.spyOn(mockKV, "get");
+
+      const result = await listJobs(mockKV);
+
+      expect(Result.isOk(result)).toBe(true);
+      if (Result.isOk(result)) {
+        expect(result.value.total).toBe(1);
+        expect(result.value.jobs[0].id).toBe(id);
+      }
+
+      // Expected calls:
+      // 1. In keys.map, metadata is missing, so it calls get(id) to build summary.
+      // 2. In page.map, it might call get(id) again OR use the loaded job.
+      // My implementation re-fetches or uses the loaded job if I passed it.
+      // Let's check implementation:
+      // return { ... _job: job };
+      // ... if ('_job' in s) return s._job
+      // So it should NOT call get again.
+
+      // So expect 1 call.
+      expect(spyGet).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -186,15 +186,6 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function listJobsHandler(c: ExploreContext): Promise<Response> {
-  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS);
-
-  if (jobsResult.status === "error") {
-    logError("jobs_list_failed", jobsResult.error);
-    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
-  }
-
-  const jobs = jobsResult.value;
-
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
     JobStatusSchema,
@@ -213,37 +204,28 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  const statusFilter = statusValidation?.valid
-    ? statusValidation.value
-    : undefined;
-  const modeFilter = modeValidation?.valid ? modeValidation.value : undefined;
-
-  function filterJob(job: Job): boolean {
-    if (statusFilter && job.status !== statusFilter) {
-      return false;
-    }
-    if (modeFilter && job.mode !== modeFilter) {
-      return false;
-    }
-    return true;
-  }
-
-  const filtered = jobs.filter(filterJob);
-
-  function sortByCreatedAtDesc(a: Job, b: Job): number {
-    return b.created_at - a.created_at;
-  }
-
-  filtered.sort(sortByCreatedAtDesc);
-
   const { limit, offset } = parsePaginationParams(
     c.req.query("limit"),
     c.req.query("offset")
   );
 
+  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS, {
+    status: statusValidation?.valid ? statusValidation.value : undefined,
+    mode: modeValidation?.valid ? modeValidation.value : undefined,
+    limit,
+    offset,
+  });
+
+  if (jobsResult.status === "error") {
+    logError("jobs_list_failed", jobsResult.error);
+    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+  }
+
+  const { jobs, total } = jobsResult.value;
+
   return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
+    jobs,
+    total,
     limit,
     offset,
   });
