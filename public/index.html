@@ -403,11 +403,15 @@
           resultDiv.innerHTML = `
             <div class="result-title">Submitted</div>
             <div class="result-details">
-              <p><strong>Job ID:</strong> ${data.job_id}</p>
-              <p><strong>Status:</strong> ${data.status}</p>
-              <p>Check status at <code>/api/status/${data.job_id}</code></p>
+              <p><strong>Job ID:</strong> <span class="job-id"></span></p>
+              <p><strong>Status:</strong> <span class="job-status"></span></p>
+              <p>Check status at <code class="status-url"></code></p>
             </div>
           `;
+          resultDiv.querySelector(".job-id").textContent = data.job_id;
+          resultDiv.querySelector(".job-status").textContent = data.status;
+          resultDiv.querySelector(".status-url").textContent =
+            `/api/status/${data.job_id}`;
 
           form.reset();
           apiTokenInput.value = apiToken;
@@ -416,9 +420,11 @@
           resultDiv.innerHTML = `
             <div class="result-title">Error</div>
             <div class="result-details">
-              ${data.error || "An unexpected error occurred"}
+              <span class="error-message"></span>
             </div>
           `;
+          resultDiv.querySelector(".error-message").textContent =
+            data.error || "An unexpected error occurred";
         }
       } catch (_error) {
         resultDiv.className = "result error";
