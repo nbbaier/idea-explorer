@@ -1,0 +1,3 @@
+## 2025-01-24 - [Lazy Metadata Migration in KV]
+**Learning:** Cloudflare KV `list()` returns metadata along with keys. This allows for significant performance optimization by storing filterable/sortable fields in metadata. A "lazy migration" strategy (read metadata if present, fall back to fetching body if not) allows implementing this without a downtime or a batch migration script, while still providing immediate benefits for new data and eventual consistency for old data.
+**Action:** When designing KV data models, identify fields needed for listing/filtering and store them in metadata. Implement read-path fallback to handle mixed data states.

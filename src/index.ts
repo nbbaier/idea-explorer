@@ -1,7 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import { Result } from "better-result";
 import { type Context, Hono, type Next } from "hono";
-import { JobStatusSchema, ModeSchema } from "@/types/api";
+import {
+  type JobStatus,
+  JobStatusSchema,
+  type Mode,
+  ModeSchema,
+} from "@/types/api";
 import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
@@ -185,15 +190,6 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function listJobsHandler(c: ExploreContext): Promise<Response> {
-  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS);
-
-  if (jobsResult.status === "error") {
-    logError("jobs_list_failed", jobsResult.error);
-    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
-  }
-
-  const jobs = jobsResult.value;
-
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
     JobStatusSchema,
@@ -212,37 +208,35 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  const statusFilter = statusValidation?.valid
-    ? statusValidation.value
-    : undefined;
-  const modeFilter = modeValidation?.valid ? modeValidation.value : undefined;
-
-  function filterJob(job: Job): boolean {
-    if (statusFilter && job.status !== statusFilter) {
-      return false;
-    }
-    if (modeFilter && job.mode !== modeFilter) {
-      return false;
-    }
-    return true;
-  }
-
-  const filtered = jobs.filter(filterJob);
-
-  function sortByCreatedAtDesc(a: Job, b: Job): number {
-    return b.created_at - a.created_at;
-  }
-
-  filtered.sort(sortByCreatedAtDesc);
-
   const { limit, offset } = parsePaginationParams(
     c.req.query("limit"),
     c.req.query("offset")
   );
 
+  const status = statusValidation?.valid
+    ? (statusValidation.value as JobStatus)
+    : undefined;
+  const mode = modeValidation?.valid
+    ? (modeValidation.value as Mode)
+    : undefined;
+
+  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS, {
+    limit,
+    offset,
+    status,
+    mode,
+  });
+
+  if (jobsResult.status === "error") {
+    logError("jobs_list_failed", jobsResult.error);
+    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+  }
+
+  const { jobs, total } = jobsResult.value;
+
   return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
+    jobs,
+    total,
     limit,
     offset,
   });
