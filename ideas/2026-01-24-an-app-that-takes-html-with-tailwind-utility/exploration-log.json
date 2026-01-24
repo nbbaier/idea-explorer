@@ -1,0 +1,20 @@
+[
+  {
+    "jobId": "66231e16",
+    "idea": "an app that takes html with tailwind utility classes and the cdn tailwind bundle and creates an optimized css bundle using only those utility classes",
+    "mode": "exploration",
+    "model": "sonnet",
+    "context": "I like using vanilla html with the tailwind cdn bundle, (https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4), but this bundle is not recommended for production.",
+    "isUpdate": false,
+    "startedAt": "2026-01-24T16:37:07.058Z",
+    "completedAt": "2026-01-24T16:38:23.677Z",
+    "durationMs": 76619,
+    "steps": 1,
+    "tokens": {
+      "input": 3343,
+      "output": 2819,
+      "total": 6162
+    },
+    "outputPath": "ideas/2026-01-24-an-app-that-takes-html-with-tailwind-utility/research.md"
+  }
+]
