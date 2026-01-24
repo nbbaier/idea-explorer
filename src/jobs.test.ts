@@ -1,17 +1,44 @@
 import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
+import {
+  createJob,
+  ExploreRequestSchema,
+  getJob,
+  listJobs,
+  updateJob,
+} from "./jobs";
 
 describe("Job Management", () => {
   let mockKV: KVNamespace;
 
   beforeEach(() => {
-    const storage = new Map<string, string>();
+    const storage = new Map<string, { value: string; metadata?: unknown }>();
     mockKV = {
-      get: vi.fn((key: string) => Promise.resolve(storage.get(key) || null)),
-      put: vi.fn((key: string, value: string) => {
-        storage.set(key, value);
-        return Promise.resolve();
+      get: vi.fn(
+        (key: string, type?: "text" | "json" | "arrayBuffer" | "stream") => {
+          const item = storage.get(key);
+          if (!item) {
+            return Promise.resolve(null);
+          }
+
+          if (type === "json") {
+            return Promise.resolve(JSON.parse(item.value));
+          }
+          return Promise.resolve(item.value);
+        }
+      ),
+      put: vi.fn(
+        (key: string, value: string, options?: { metadata?: unknown }) => {
+          storage.set(key, { value, metadata: options?.metadata });
+          return Promise.resolve();
+        }
+      ),
+      list: vi.fn(() => {
+        const keys = Array.from(storage.entries()).map(([name, item]) => ({
+          name,
+          metadata: item.metadata,
+        }));
+        return Promise.resolve({ keys });
       }),
     } as unknown as KVNamespace;
   });
@@ -75,6 +102,82 @@ describe("Job Management", () => {
         });
         expect(result.success).toBe(false);
       }
+    });
+  });
+
+  describe("Metadata Optimization", () => {
+    it("should use metadata for filtering to avoid N+1 fetches", async () => {
+      // Create a few jobs
+      await createJob(mockKV, {
+        idea: "Idea 1",
+        mode: "business",
+        model: "sonnet",
+      });
+      await createJob(mockKV, {
+        idea: "Idea 2",
+        mode: "exploration",
+        model: "sonnet",
+      });
+      await createJob(mockKV, {
+        idea: "Idea 3",
+        mode: "business",
+        model: "sonnet",
+      });
+
+      // Reset the spy on kv.get to clear calls from createJob
+      vi.clearAllMocks();
+
+      // List jobs filtering by "exploration"
+      // This should only fetch the body for Idea 2
+      const result = await listJobs(mockKV, { mode: "exploration" });
+
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+
+      expect(result.value.jobs).toHaveLength(1);
+      expect(result.value.jobs[0].idea).toBe("Idea 2");
+
+      // Verify kv.get was called ONLY once (for the matching job)
+      // The other two should be filtered out by metadata without fetching
+      expect(mockKV.get).toHaveBeenCalledTimes(1);
+    });
+
+    it("should fallback to fetching body if metadata is missing", async () => {
+      // 1. Manually insert a job WITHOUT metadata (simulating old data)
+      await mockKV.put(
+        "old-job",
+        JSON.stringify({
+          id: "old-job",
+          idea: "Old Idea",
+          mode: "business",
+          model: "sonnet",
+          status: "pending",
+          created_at: Date.now(),
+        })
+      );
+
+      // 2. Create a new job WITH metadata
+      await createJob(mockKV, {
+        idea: "New Idea",
+        mode: "business",
+        model: "sonnet",
+      });
+
+      vi.clearAllMocks();
+
+      // 3. List jobs
+      const result = await listJobs(mockKV);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+
+      expect(result.value.jobs).toHaveLength(2);
+
+      // Verify kv.get was called:
+      // - Once for "old-job" (because metadata was missing)
+      // - Once for "New Idea" (to get the full body for the response)
+      expect(mockKV.get).toHaveBeenCalledTimes(2);
     });
   });
 
