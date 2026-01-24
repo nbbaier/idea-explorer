@@ -8,8 +8,10 @@ import {
   ExploreRequestSchema,
   getJob,
   type Job,
+  type JobStatus,
   JobStatusSchema,
   listJobs,
+  type Mode,
   ModeSchema,
   updateJob,
 } from "./jobs";
@@ -185,15 +187,6 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function listJobsHandler(c: ExploreContext): Promise<Response> {
-  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS);
-
-  if (jobsResult.status === "error") {
-    logError("jobs_list_failed", jobsResult.error);
-    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
-  }
-
-  const jobs = jobsResult.value;
-
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
     JobStatusSchema,
@@ -213,36 +206,34 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
   }
 
   const statusFilter = statusValidation?.valid
-    ? statusValidation.value
+    ? (statusValidation.value as JobStatus)
     : undefined;
-  const modeFilter = modeValidation?.valid ? modeValidation.value : undefined;
-
-  function filterJob(job: Job): boolean {
-    if (statusFilter && job.status !== statusFilter) {
-      return false;
-    }
-    if (modeFilter && job.mode !== modeFilter) {
-      return false;
-    }
-    return true;
-  }
-
-  const filtered = jobs.filter(filterJob);
-
-  function sortByCreatedAtDesc(a: Job, b: Job): number {
-    return b.created_at - a.created_at;
-  }
-
-  filtered.sort(sortByCreatedAtDesc);
+  const modeFilter = modeValidation?.valid
+    ? (modeValidation.value as Mode)
+    : undefined;
 
   const { limit, offset } = parsePaginationParams(
     c.req.query("limit"),
     c.req.query("offset")
   );
 
+  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS, {
+    limit,
+    offset,
+    status: statusFilter,
+    mode: modeFilter,
+  });
+
+  if (jobsResult.status === "error") {
+    logError("jobs_list_failed", jobsResult.error);
+    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+  }
+
+  const { jobs, total } = jobsResult.value;
+
   return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
+    jobs,
+    total,
     limit,
     offset,
   });

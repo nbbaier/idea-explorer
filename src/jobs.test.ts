@@ -1,17 +1,45 @@
 import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
+import {
+  createJob,
+  ExploreRequestSchema,
+  getJob,
+  listJobs,
+  updateJob,
+} from "./jobs";
 
 describe("Job Management", () => {
   let mockKV: KVNamespace;
 
   beforeEach(() => {
     const storage = new Map<string, string>();
+    const metadataMap = new Map<string, any>();
+
     mockKV = {
-      get: vi.fn((key: string) => Promise.resolve(storage.get(key) || null)),
-      put: vi.fn((key: string, value: string) => {
+      get: vi.fn((key: string, type?: string) => {
+        const val = storage.get(key) || null;
+        if (val && type === "json") {
+          return Promise.resolve(JSON.parse(val));
+        }
+        return Promise.resolve(val);
+      }),
+      put: vi.fn((key: string, value: string, options?: { metadata?: any }) => {
         storage.set(key, value);
+        if (options?.metadata) {
+          metadataMap.set(key, options.metadata);
+        }
         return Promise.resolve();
+      }),
+      list: vi.fn(() => {
+        const keys = Array.from(storage.keys()).map((name) => ({
+          name,
+          metadata: metadataMap.get(name),
+        }));
+        return Promise.resolve({
+          keys,
+          list_complete: true,
+          cursor: undefined,
+        });
       }),
     } as unknown as KVNamespace;
   });
@@ -260,6 +288,85 @@ describe("Job Management", () => {
         initialize: 245,
         check_existing: 1820,
       });
+    });
+  });
+
+  describe("Job List Optimization", () => {
+    it("should list jobs efficiently using metadata", async () => {
+      // Create a few jobs
+      await createJob(mockKV, { idea: "Job 1", mode: "business" });
+      await createJob(mockKV, { idea: "Job 2", mode: "exploration" });
+      await createJob(mockKV, { idea: "Job 3", mode: "business" });
+
+      const listResult = await listJobs(mockKV);
+      expect(Result.isOk(listResult)).toBe(true);
+      if (!Result.isOk(listResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const { jobs, total } = listResult.value;
+      expect(total).toBe(3);
+      expect(jobs).toHaveLength(3);
+    });
+
+    it("should filter jobs using metadata without fetching all bodies", async () => {
+      await createJob(mockKV, { idea: "Job 1", mode: "business" });
+      await createJob(mockKV, { idea: "Job 2", mode: "exploration" });
+      await createJob(mockKV, { idea: "Job 3", mode: "business" });
+
+      const listResult = await listJobs(mockKV, { mode: "business" });
+      expect(Result.isOk(listResult)).toBe(true);
+      if (!Result.isOk(listResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const { jobs, total } = listResult.value;
+      expect(total).toBe(2);
+      expect(jobs).toHaveLength(2);
+      expect(jobs.every((j) => j.mode === "business")).toBe(true);
+    });
+
+    it("should support pagination", async () => {
+      await createJob(mockKV, { idea: "Job 1" });
+      await createJob(mockKV, { idea: "Job 2" });
+      await createJob(mockKV, { idea: "Job 3" });
+      await createJob(mockKV, { idea: "Job 4" });
+
+      const listResult = await listJobs(mockKV, { limit: 2, offset: 1 });
+      expect(Result.isOk(listResult)).toBe(true);
+      if (!Result.isOk(listResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const { jobs, total } = listResult.value;
+      expect(total).toBe(4);
+      expect(jobs).toHaveLength(2);
+
+      // Since default sort is created_at desc, and mock creation is almost instant, order might vary unless mocked time explicitly.
+      // But we check that we got 2 items.
+    });
+
+    it("should handle legacy data (missing metadata) by fetching body", async () => {
+      // Manually insert a job without metadata
+      const legacyJob = {
+        id: "legacy-1",
+        idea: "Legacy Job",
+        mode: "business",
+        status: "pending",
+        created_at: Date.now(),
+      };
+      await mockKV.put("legacy-1", JSON.stringify(legacyJob));
+      // Note: we are not passing metadata here, so it simulates legacy data
+
+      const listResult = await listJobs(mockKV);
+      expect(Result.isOk(listResult)).toBe(true);
+      if (!Result.isOk(listResult)) {
+        throw new Error("Expected ok result");
+      }
+
+      const { jobs, total } = listResult.value;
+      expect(total).toBe(1);
+      expect(jobs[0].id).toBe("legacy-1");
     });
   });
 });

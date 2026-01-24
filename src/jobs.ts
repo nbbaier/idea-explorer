@@ -228,8 +228,15 @@ export type Mode = z.infer<typeof ModeSchema>;
 export type Model = z.infer<typeof ModelSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
+export type JobStatus = z.infer<typeof JobStatusSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
+
+export interface JobMetadata {
+  created_at: number;
+  status: JobStatus;
+  mode: Mode;
+}
 
 export async function createJob(
   kv: KVNamespace,
@@ -249,9 +256,15 @@ export async function createJob(
     created_at: Date.now(),
   };
 
+  const metadata: JobMetadata = {
+    created_at: job.created_at,
+    status: job.status,
+    mode: job.mode,
+  };
+
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), { metadata });
       return job;
     },
     catch: (error) =>
@@ -299,10 +312,16 @@ export async function updateJob(
 
     const updated = { ...job, ...updates };
 
+    const metadata: JobMetadata = {
+      created_at: updated.created_at,
+      status: updated.status,
+      mode: updated.mode,
+    };
+
     yield* Result.await(
       Result.tryPromise({
         try: async () => {
-          await kv.put(id, JSON.stringify(updated));
+          await kv.put(id, JSON.stringify(updated), { metadata });
         },
         catch: (error) =>
           new StorageError({ operation: "put", key: id, cause: error }),
@@ -313,26 +332,93 @@ export async function updateJob(
   });
 }
 
+export interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: JobStatus;
+  mode?: Mode;
+}
+
+export interface ListJobsResult {
+  jobs: Job[];
+  total: number;
+}
+
 export async function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options: ListJobsOptions = {}
+): Promise<Result<ListJobsResult, StorageError>> {
   return Result.tryPromise({
     try: async () => {
-      const { keys } = await kv.list();
-      const results = await Promise.allSettled(
+      const { keys } = await kv.list<JobMetadata>();
+
+      // First, we need to gather all necessary data to filter and sort.
+      // Optimistically use metadata. If missing, we must fetch the body (lazy migration support).
+      const items = await Promise.all(
         keys.map(async (key) => {
+          if (key.metadata) {
+            return {
+              key: key.name,
+              ...key.metadata,
+              hasBody: false,
+              body: null as Job | null,
+            };
+          }
+
+          // Fallback: Fetch body if metadata is missing
           const data = await kv.get(key.name, "json");
+          const job = data as Job | null;
+          if (job) {
+            return {
+              key: key.name,
+              created_at: job.created_at,
+              status: job.status,
+              mode: job.mode,
+              hasBody: true,
+              body: job,
+            };
+          }
+          return null;
+        })
+      );
+
+      // Filter nulls (failed fetches) and apply filters
+      const filtered = items
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+        .filter((item) => {
+          if (options.status && item.status !== options.status) {
+            return false;
+          }
+          if (options.mode && item.mode !== options.mode) {
+            return false;
+          }
+          return true;
+        });
+
+      // Sort by created_at desc
+      filtered.sort((a, b) => b.created_at - a.created_at);
+
+      const total = filtered.length;
+      const limit = options.limit ?? 20;
+      const offset = options.offset ?? 0;
+
+      const slice = filtered.slice(offset, offset + limit);
+
+      // Fetch full bodies for the sliced items if we don't have them yet
+      const jobs = await Promise.all(
+        slice.map(async (item) => {
+          if (item.hasBody && item.body) {
+            return item.body;
+          }
+          const data = await kv.get(item.key, "json");
           return data as Job | null;
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      return {
+        jobs: jobs.filter((job): job is Job => job !== null),
+        total,
+      };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });
