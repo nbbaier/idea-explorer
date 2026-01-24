@@ -231,7 +231,13 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
-export async function createJob(
+export interface JobMetadata {
+  status: string;
+  mode: string;
+  created_at: number;
+}
+
+export function createJob(
   kv: KVNamespace,
   request: ExploreRequest
 ): Promise<Result<Job, StorageError>> {
@@ -249,9 +255,15 @@ export async function createJob(
     created_at: Date.now(),
   };
 
+  const metadata: JobMetadata = {
+    status: job.status,
+    mode: job.mode,
+    created_at: job.created_at,
+  };
+
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), { metadata });
       return job;
     },
     catch: (error) =>
@@ -259,7 +271,7 @@ export async function createJob(
   });
 }
 
-export async function getJob(
+export function getJob(
   kv: KVNamespace,
   id: string
 ): Promise<Result<Job | null, StorageError | JsonParseError>> {
@@ -281,12 +293,13 @@ export async function getJob(
   });
 }
 
-export async function updateJob(
+export function updateJob(
   kv: KVNamespace,
   id: string,
   updates: Partial<Omit<Job, "id" | "created_at">>,
   existingJob?: Job
 ): Promise<Result<Job, JobError>> {
+  // biome-ignore lint/suspicious/useAwait: generator uses yield* for async operations
   return Result.gen(async function* () {
     let job = existingJob;
     if (!job) {
@@ -298,11 +311,16 @@ export async function updateJob(
     }
 
     const updated = { ...job, ...updates };
+    const metadata: JobMetadata = {
+      status: updated.status,
+      mode: updated.mode,
+      created_at: updated.created_at,
+    };
 
     yield* Result.await(
       Result.tryPromise({
         try: async () => {
-          await kv.put(id, JSON.stringify(updated));
+          await kv.put(id, JSON.stringify(updated), { metadata });
         },
         catch: (error) =>
           new StorageError({ operation: "put", key: id, cause: error }),
@@ -313,26 +331,123 @@ export async function updateJob(
   });
 }
 
-export async function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  mode?: string;
+}
+
+// Helper for legacy job fetching
+async function fetchLegacyJobs(
+  kv: KVNamespace,
+  keys: string[],
+  filters: { status?: string; mode?: string }
+): Promise<{ key: string; metadata: JobMetadata; job: Job }[]> {
+  const results: { key: string; metadata: JobMetadata; job: Job }[] = [];
+  const fetched = await Promise.allSettled(
+    keys.map(async (key) => {
+      const data = await kv.get(key, "json");
+      return { key, data: data as Job | null };
+    })
+  );
+
+  for (const result of fetched) {
+    if (result.status === "fulfilled" && result.value.data) {
+      const job = result.value.data;
+      if (filters.status && job.status !== filters.status) {
+        continue;
+      }
+      if (filters.mode && job.mode !== filters.mode) {
+        continue;
+      }
+
+      results.push({
+        key: result.value.key,
+        metadata: {
+          status: job.status,
+          mode: job.mode,
+          created_at: job.created_at,
+        },
+        job,
+      });
+    }
+  }
+  return results;
+}
+
+export function listJobs(
+  kv: KVNamespace,
+  options: ListJobsOptions = {}
+): Promise<Result<{ jobs: Job[]; total: number }, StorageError>> {
+  const { limit = 20, offset = 0, status, mode } = options;
+
   return Result.tryPromise({
     try: async () => {
-      const { keys } = await kv.list();
-      const results = await Promise.allSettled(
-        keys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
+      // 1. Fetch all keys with metadata
+      const { keys } = await kv.list<JobMetadata>();
+
+      interface JobCandidate {
+        key: string;
+        metadata?: JobMetadata;
+        job?: Job; // If we had to fetch it
+      }
+
+      // 2. Identify candidates and legacy items
+      const candidates: JobCandidate[] = [];
+      const legacyKeys: string[] = [];
+
+      for (const key of keys) {
+        if (key.metadata) {
+          // Check filters if metadata exists
+          if (status && key.metadata.status !== status) {
+            continue;
+          }
+          if (mode && key.metadata.mode !== mode) {
+            continue;
+          }
+          candidates.push({ key: key.name, metadata: key.metadata });
+        } else {
+          legacyKeys.push(key.name);
+        }
+      }
+
+      // 3. Handle legacy items (lazy migration - fetch to check filters)
+      if (legacyKeys.length > 0) {
+        const legacyCandidates = await fetchLegacyJobs(kv, legacyKeys, {
+          status,
+          mode,
+        });
+        candidates.push(...legacyCandidates);
+      }
+
+      // 4. Sort by created_at desc
+      candidates.sort((a, b) => {
+        const timeA = a.metadata?.created_at ?? 0;
+        const timeB = b.metadata?.created_at ?? 0;
+        return timeB - timeA;
+      });
+
+      const total = candidates.length;
+
+      // 5. Paginate
+      const pagedCandidates = candidates.slice(offset, offset + limit);
+
+      // 6. Fetch bodies for the result page
+      const jobs = await Promise.all(
+        pagedCandidates.map(async (cand) => {
+          if (cand.job) {
+            return cand.job; // Already fetched (legacy)
+          }
+          const data = await kv.get(cand.key, "json");
           return data as Job | null;
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      return {
+        jobs: jobs.filter((job): job is Job => job !== null),
+        total,
+      };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });
