@@ -1,17 +1,35 @@
 import { Result } from "better-result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createJob, ExploreRequestSchema, getJob, updateJob } from "./jobs";
+import {
+  createJob,
+  ExploreRequestSchema,
+  getJob,
+  listJobs,
+  updateJob,
+} from "./jobs";
 
 describe("Job Management", () => {
   let mockKV: KVNamespace;
 
   beforeEach(() => {
-    const storage = new Map<string, string>();
+    const storage = new Map<string, { value: string; metadata?: unknown }>();
     mockKV = {
-      get: vi.fn((key: string) => Promise.resolve(storage.get(key) || null)),
-      put: vi.fn((key: string, value: string) => {
-        storage.set(key, value);
-        return Promise.resolve();
+      get: vi.fn((key: string) => {
+        const item = storage.get(key);
+        return Promise.resolve(item ? item.value : null);
+      }),
+      put: vi.fn(
+        (key: string, value: string, options?: { metadata?: unknown }) => {
+          storage.set(key, { value, metadata: options?.metadata });
+          return Promise.resolve();
+        }
+      ),
+      list: vi.fn(() => {
+        const keys = Array.from(storage.keys()).map((name) => ({
+          name,
+          metadata: storage.get(name)?.metadata,
+        }));
+        return Promise.resolve({ keys, list_complete: true });
       }),
     } as unknown as KVNamespace;
   });
@@ -260,6 +278,28 @@ describe("Job Management", () => {
         initialize: 245,
         check_existing: 1820,
       });
+    });
+  });
+
+  describe("Performance", () => {
+    it("only fetches necessary jobs when listing with pagination", async () => {
+      // Seed 10 jobs
+      for (let i = 0; i < 10; i++) {
+        await createJob(mockKV, {
+          idea: `Idea ${i}`,
+          mode: "business",
+          model: "sonnet",
+        });
+      }
+
+      // Reset mock counts
+      vi.clearAllMocks();
+
+      // List jobs with limit 2
+      await listJobs(mockKV, { limit: 2 });
+
+      // Verify kv.get was called 2 times (only for the page) instead of 10
+      expect(mockKV.get).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -219,6 +219,12 @@ const JobSchema = z.object({
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type Job = z.infer<typeof JobSchema>;
 
+export interface JobMetadata {
+  created_at: number;
+  status: Job["status"];
+  mode: Job["mode"];
+}
+
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
 export function createJob(
@@ -242,7 +248,13 @@ export function createJob(
 
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), {
+        metadata: {
+          created_at: job.created_at,
+          status: job.status,
+          mode: job.mode,
+        } as JobMetadata,
+      });
       return job;
     },
     catch: (error) =>
@@ -295,7 +307,13 @@ export function updateJob(
       yield* Result.await(
         Result.tryPromise({
           try: async () => {
-            await kv.put(id, JSON.stringify(updated));
+            await kv.put(id, JSON.stringify(updated), {
+              metadata: {
+                created_at: updated.created_at,
+                status: updated.status,
+                mode: updated.mode,
+              } as JobMetadata,
+            });
           },
           catch: (error) =>
             new StorageError({ operation: "put", key: id, cause: error }),
@@ -307,26 +325,90 @@ export function updateJob(
   );
 }
 
+export interface ListOptions {
+  limit?: number;
+  offset?: number;
+  status?: Job["status"];
+  mode?: Job["mode"];
+}
+
+export interface ListJobsResult {
+  jobs: Job[];
+  total: number;
+}
+
 export function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options: ListOptions = {}
+): Promise<Result<ListJobsResult, StorageError>> {
+  const { limit = 20, offset = 0, status, mode } = options;
+
   return Result.tryPromise({
     try: async () => {
       const { keys } = await kv.list();
-      const results = await Promise.allSettled(
+
+      const items = await Promise.all(
         keys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
-          return data as Job | null;
+          const metadata = key.metadata as JobMetadata | undefined;
+          if (metadata) {
+            return {
+              id: key.name,
+              created_at: metadata.created_at,
+              status: metadata.status,
+              mode: metadata.mode,
+              job: null as Job | null,
+            };
+          }
+
+          // Fallback: fetch full job to get metadata
+          const job = await kv.get<Job>(key.name, "json");
+          if (!job) {
+            return null;
+          }
+
+          return {
+            id: job.id,
+            created_at: job.created_at,
+            status: job.status,
+            mode: job.mode,
+            job,
+          };
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      const validItems = items.filter(
+        (item): item is NonNullable<typeof item> => item !== null
+      );
+
+      const filtered = validItems.filter((item) => {
+        if (status && item.status !== status) {
+          return false;
+        }
+        if (mode && item.mode !== mode) {
+          return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => b.created_at - a.created_at);
+
+      const total = filtered.length;
+      const paginatedItems = filtered.slice(offset, offset + limit);
+
+      const jobs = await Promise.all(
+        paginatedItems.map(async (item) => {
+          if (item.job) {
+            return item.job;
+          }
+          const job = await kv.get<Job>(item.id, "json");
+          if (!job) {
+            throw new Error(`Job ${item.id} not found`);
+          }
+          return job;
+        })
+      );
+
+      return { jobs, total };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });
