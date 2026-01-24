@@ -221,6 +221,20 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
+export interface JobMetadata {
+  created_at: number;
+  status: Job["status"];
+  mode: Job["mode"];
+}
+
+function buildMetadata(job: Job): JobMetadata {
+  return {
+    created_at: job.created_at,
+    status: job.status,
+    mode: job.mode,
+  };
+}
+
 export function createJob(
   kv: KVNamespace,
   request: ExploreRequest
@@ -242,7 +256,9 @@ export function createJob(
 
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), {
+        metadata: buildMetadata(job),
+      });
       return job;
     },
     catch: (error) =>
@@ -295,7 +311,9 @@ export function updateJob(
       yield* Result.await(
         Result.tryPromise({
           try: async () => {
-            await kv.put(id, JSON.stringify(updated));
+            await kv.put(id, JSON.stringify(updated), {
+              metadata: buildMetadata(updated),
+            });
           },
           catch: (error) =>
             new StorageError({ operation: "put", key: id, cause: error }),
