@@ -9,6 +9,12 @@
   "observability": {
     "enabled": true
   },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application"
+  },
   "vars": {
     "GITHUB_REPO": "nbbaier/idea-explorer",
     "GITHUB_BRANCH": "main"
@@ -27,10 +33,5 @@
       "class_name": "ExplorationWorkflow"
     }
   ],
-  "migrations": [
-    {
-      "tag": "v2",
-      "deleted_classes": ["Sandbox"]
-    }
-  ]
+  "migrations": []
 }
