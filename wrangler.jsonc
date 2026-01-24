@@ -10,7 +10,10 @@
     "enabled": true
   },
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application"
   },
   "vars": {
     "GITHUB_REPO": "nbbaier/idea-explorer",
