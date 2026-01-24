@@ -9,6 +9,9 @@
   "observability": {
     "enabled": true
   },
+  "assets": {
+    "directory": "./public"
+  },
   "vars": {
     "GITHUB_REPO": "nbbaier/idea-explorer",
     "GITHUB_BRANCH": "main"

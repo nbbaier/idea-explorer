@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Idea Explorer - Submit Your Ideas</title>
+    <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+        Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      color: #667eea;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: #444;
+      font-size: 0.9rem;
+    }
+
+    .required {
+      color: #e74c3c;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      transition: border-color 0.3s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    .checkbox-group label {
+      margin-bottom: 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    button {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        transform 0.2s,
+        box-shadow 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .result.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      display: block;
+    }
+
+    .result.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      display: block;
+    }
+
+    .result-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-details {
+      font-size: 0.9rem;
+    }
+
+    .help-text {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .api-link {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .api-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .api-link a:hover {
+      text-decoration: underline;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Idea Explorer</h1>
+        <p class="subtitle">
+          Submit your ideas for AI-powered research and analysis
+        </p>
+      </header>
+
+      <form id="ideaForm">
+        <div class="form-group">
+          <label for="apiToken">
+            API Token <span class="required">*</span>
+          </label>
+          <input
+            type="password"
+            id="apiToken"
+            name="apiToken"
+            required
+            placeholder="Enter your API token"
+            autocomplete="off"
+          >
+          <p class="help-text">
+            Your API token is stored in your browser and never shared.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="idea">Idea <span class="required">*</span></label>
+          <textarea
+            id="idea"
+            name="idea"
+            required
+            placeholder="Describe your idea..."
+          ></textarea>
+          <p class="help-text">What would you like to explore or analyze?</p>
+        </div>
+
+        <div class="form-group">
+          <label for="mode">Mode</label>
+          <select id="mode" name="mode">
+            <option value="">Default</option>
+            <option value="business">Business</option>
+            <option value="exploration">Exploration</option>
+          </select>
+          <p class="help-text">Choose the analysis mode for your idea.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="model">Model</label>
+          <select id="model" name="model">
+            <option value="">Default (Sonnet)</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+          </select>
+          <p class="help-text">Select the AI model to use.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="context">Additional Context</label>
+          <textarea
+            id="context"
+            name="context"
+            placeholder="Add any additional context or requirements..."
+          ></textarea>
+          <p class="help-text">
+            Optional background information or constraints.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="update" name="update">
+            <label for="update">Update existing research</label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input
+              type="checkbox"
+              id="collectToolStats"
+              name="collectToolStats"
+            >
+            <label for="collectToolStats">Collect tool usage statistics</label>
+          </div>
+        </div>
+
+        <button type="submit" id="submitBtn">Submit Idea</button>
+      </form>
+
+      <div id="result" class="result"></div>
+
+      <div class="api-link">
+        <p>
+          Need an API token?
+          <a
+            href="https://github.com/nbbaier/idea-explorer/blob/main/SPEC.md"
+            target="_blank"
+            >View documentation</a
+          >
+        </p>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+    const form = document.getElementById("ideaForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const resultDiv = document.getElementById("result");
+    const apiTokenInput = document.getElementById("apiToken");
+
+    // Load saved API token from localStorage
+    const savedToken = localStorage.getItem("idea-explorer-token");
+    if (savedToken) {
+      apiTokenInput.value = savedToken;
+    }
+
+    // Save API token to localStorage when it changes
+    apiTokenInput.addEventListener("change", (e) => {
+      const token = e.target.value.trim();
+      if (token) {
+        localStorage.setItem("idea-explorer-token", token);
+      } else {
+        localStorage.removeItem("idea-explorer-token");
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+      const apiToken = formData.get("apiToken");
+      const idea = formData.get("idea");
+      const mode = formData.get("mode");
+      const model = formData.get("model");
+      const context = formData.get("context");
+      const update = formData.get("update") === "on";
+      const collectToolStats = formData.get("collectToolStats") === "on";
+
+      // Save token to localStorage
+      if (apiToken) {
+        localStorage.setItem("idea-explorer-token", apiToken);
+      }
+
+      // Build request body
+      const requestBody = { idea };
+      if (mode) {
+        requestBody.mode = mode;
+      }
+      if (model) {
+        requestBody.model = model;
+      }
+      if (context) {
+        requestBody.context = context;
+      }
+      if (update) {
+        requestBody.update = update;
+      }
+      if (collectToolStats) {
+        requestBody.collect_tool_stats = collectToolStats;
+      }
+
+      // Show loading state
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loading"></span>Submitting...';
+      resultDiv.className = "result";
+      resultDiv.style.display = "none";
+
+      try {
+        const response = await fetch("/api/explore", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiToken}`,
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Success
+          resultDiv.className = "result success";
+          resultDiv.innerHTML = `
+                        <div class="result-title">Success!</div>
+                        <div class="result-details">
+                            <p>Your idea has been submitted for exploration.</p>
+                            <p><strong>Job ID:</strong> ${data.job_id}</p>
+                            <p><strong>Status:</strong> ${data.status}</p>
+                            <p style="margin-top: 0.5rem;">Check the status at: <code>/api/status/${data.job_id}</code></p>
+                        </div>
+                    `;
+
+          // Clear form except API token
+          form.reset();
+          apiTokenInput.value = apiToken;
+        } else {
+          // Error
+          resultDiv.className = "result error";
+          resultDiv.innerHTML = `
+                        <div class="result-title">Error</div>
+                        <div class="result-details">
+                            ${data.error || "An unexpected error occurred"}
+                        </div>
+                    `;
+        }
+      } catch (_error) {
+        // Network error
+        resultDiv.className = "result error";
+        resultDiv.innerHTML = `
+                    <div class="result-title">Network Error</div>
+                    <div class="result-details">
+                        Failed to connect to the server. Please check your connection and try again.
+                    </div>
+                `;
+      } finally {
+        // Reset button
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = "Submit Idea";
+      }
+    });
+    </script>
+  </body>
+</html>

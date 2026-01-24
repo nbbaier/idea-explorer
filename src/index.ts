@@ -39,12 +39,14 @@ const MAX_LIMIT = 100;
 const DOCS_HTML = `
 <html>
   <body style="font-family: Arial, sans-serif; margin: 1.5rem; max-width: 36rem; line-height: 1.5;">
-    <h2>Idea Explorer</h2>
+    <h2>Idea Explorer API</h2>
     <p>
       A Cloudflare Worker that explores and analyzes ideas using Claude,
       committing research results to a GitHub repository.
     </p>
-    <h3>API</h3>
+    <h3>Web Interface</h3>
+    <p><a href="/">Submit ideas via the web form</a></p>
+    <h3>API Endpoints</h3>
     <p>POST /api/explore</p>
     <p>GET /api/jobs</p>
     <p>GET /api/status/:id</p>
@@ -428,7 +430,7 @@ app.use("/api/*", requireAuth());
 
 app.use("/api/*", rateLimitMiddleware);
 
-app.get("/", renderDocs);
+app.get("/api", renderDocs);
 
 app.post(
   "/api/explore",
