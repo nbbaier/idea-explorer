@@ -2,7 +2,9 @@ import { Result } from "better-result";
 import { z } from "zod";
 import {
   ExploreRequestSchema as BaseExploreRequestSchema,
+  type JobStatus,
   JobStatusSchema,
+  type Mode,
   ModelSchema,
   ModeSchema,
 } from "@/types/api";
@@ -221,6 +223,12 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
+export interface JobMetadata {
+  created_at: number;
+  status: JobStatus;
+  mode: Mode;
+}
+
 export function createJob(
   kv: KVNamespace,
   request: ExploreRequest
@@ -242,7 +250,13 @@ export function createJob(
 
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), {
+        metadata: {
+          created_at: job.created_at,
+          status: job.status,
+          mode: job.mode,
+        } as JobMetadata,
+      });
       return job;
     },
     catch: (error) =>
@@ -295,7 +309,13 @@ export function updateJob(
       yield* Result.await(
         Result.tryPromise({
           try: async () => {
-            await kv.put(id, JSON.stringify(updated));
+            await kv.put(id, JSON.stringify(updated), {
+              metadata: {
+                created_at: updated.created_at,
+                status: updated.status,
+                mode: updated.mode,
+              } as JobMetadata,
+            });
           },
           catch: (error) =>
             new StorageError({ operation: "put", key: id, cause: error }),
@@ -307,26 +327,89 @@ export function updateJob(
   );
 }
 
+export interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: JobStatus;
+  mode?: Mode;
+}
+
 export function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options: ListJobsOptions = {}
+): Promise<Result<{ jobs: Job[]; total: number }, StorageError>> {
+  const { limit = 20, offset = 0, status, mode } = options;
+
   return Result.tryPromise({
     try: async () => {
-      const { keys } = await kv.list();
-      const results = await Promise.allSettled(
+      const { keys } = await kv.list<JobMetadata>();
+
+      const items = await Promise.all(
         keys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
-          return data as Job | null;
+          let metadata = key.metadata;
+          let jobBody: Job | null = null;
+
+          if (!metadata) {
+            // Lazy migration: if no metadata, fetch the full job body
+            const data = await kv.get(key.name, "json");
+            if (data) {
+              jobBody = data as Job;
+              metadata = {
+                created_at: jobBody.created_at,
+                status: jobBody.status,
+                mode: jobBody.mode,
+              };
+            }
+          }
+
+          if (!metadata) {
+            return null;
+          }
+
+          // Filter by status if requested
+          if (status && metadata.status !== status) {
+            return null;
+          }
+
+          // Filter by mode if requested
+          if (mode && metadata.mode !== mode) {
+            return null;
+          }
+
+          return {
+            key: key.name,
+            metadata,
+            jobBody,
+          };
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      const filtered = items.filter(
+        (item): item is NonNullable<typeof item> => item !== null
+      );
+
+      // Sort by created_at descending
+      filtered.sort((a, b) => b.metadata.created_at - a.metadata.created_at);
+
+      const total = filtered.length;
+      const pageItems = filtered.slice(offset, offset + limit);
+
+      // Fetch full bodies for the current page
+      const jobs = await Promise.all(
+        pageItems.map(async (item) => {
+          if (item.jobBody) {
+            return item.jobBody;
+          }
+          const data = await kv.get(item.key, "json");
+          return data as Job;
+        })
+      );
+
+      // Filter out nulls in case of race conditions
+      return {
+        jobs: jobs.filter((j): j is Job => !!j),
+        total,
+      };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });
