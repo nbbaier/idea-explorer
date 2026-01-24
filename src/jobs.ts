@@ -145,6 +145,9 @@ function isValidWebhookUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname;
+    if (!hostname) {
+      return false;
+    }
     const ipv4Int = ipv4ToInt(hostname);
     const isIpv4 = ipv4Int !== null;
     const isIpv4Private = isIpv4 && isPrivateOrReservedIpv4(hostname);
@@ -238,7 +241,13 @@ export async function createJob(
     update: request.update ?? false,
     created_at: Date.now(),
   };
-  await kv.put(id, JSON.stringify(job));
+  await kv.put(id, JSON.stringify(job), {
+    metadata: {
+      status: job.status,
+      mode: job.mode,
+      created_at: job.created_at,
+    },
+  });
   return job;
 }
 
@@ -269,6 +278,12 @@ export async function updateJob(
     return;
   }
   const updated = { ...job, ...updates };
-  await kv.put(id, JSON.stringify(updated));
+  await kv.put(id, JSON.stringify(updated), {
+    metadata: {
+      status: updated.status,
+      mode: updated.mode,
+      created_at: updated.created_at,
+    },
+  });
   return updated;
 }

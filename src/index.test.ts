@@ -46,7 +46,27 @@ describe("GET /api/jobs", () => {
   const createMockKV = (jobs: Record<string, string>) => {
     return {
       list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
+        keys: Object.keys(jobs).map((name) => {
+          const value = jobs[name];
+          if (!value) return { name, metadata: undefined };
+
+          let metadata:
+            | { status?: string; mode?: string; created_at?: number }
+            | undefined;
+          try {
+            const parsed = JSON.parse(value);
+            metadata = {
+              status: parsed.status,
+              mode: parsed.mode,
+              created_at: parsed.created_at,
+            };
+          } catch {
+            // ignore error
+          }
+          return { name, metadata };
+        }),
+        list_complete: true,
+        cacheStatus: null,
       }),
       get: (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
@@ -403,5 +423,59 @@ describe("GET /api/jobs", () => {
     expect(res.status).toBe(200);
     expect(data.limit).toBe(20); // default on invalid
     expect(data.offset).toBe(0); // default on invalid
+  });
+
+  it("should handle jobs with missing metadata by fetching them", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        idea: "First idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 1000,
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        idea: "Second idea",
+        mode: "exploration",
+        model: "opus",
+        status: "pending",
+        created_at: 2000,
+      }),
+    };
+
+    const env = createMockEnv(jobs);
+
+    // Override list to return job2 WITHOUT metadata
+    env.IDEA_EXPLORER_JOBS.list = async () =>
+      ({
+        keys: [
+          {
+            name: "job1",
+            metadata: {
+              status: "completed",
+              mode: "business",
+              created_at: 1000,
+            },
+          },
+          { name: "job2", metadata: undefined }, // Missing metadata
+        ],
+        list_complete: true,
+        cacheStatus: null,
+      }) as any;
+
+    const req = new Request("http://localhost/api/jobs", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(2);
+    // Should still be sorted by created_at desc (job2 is newer)
+    expect((data.jobs[0] as { id: string }).id).toBe("job2");
+    expect((data.jobs[1] as { id: string }).id).toBe("job1");
   });
 });
