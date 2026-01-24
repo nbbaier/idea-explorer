@@ -150,32 +150,17 @@ app.post(
   }
 );
 
+interface JobMetadata {
+  created_at: number;
+  status: Job["status"];
+  mode: Job["mode"];
+}
+
 app.get("/api/jobs", async (c) => {
-  // Note: This implementation loads all jobs into memory for filtering.
-  // For personal use scale (dozens to hundreds of explorations), this is acceptable.
-  // If scaling beyond personal use, consider using KV metadata for filtering
-  // or migrating to a database with proper indexing.
-  let jobs: (Job | null)[];
-  try {
-    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list();
-    const results = await Promise.allSettled(
-      keys.map(
-        (k) =>
-          c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
-      )
-    );
-    jobs = results
-      .filter(
-        (r): r is PromiseFulfilledResult<Job | null> => r.status === "fulfilled"
-      )
-      .map((r) => r.value);
-  } catch (error) {
-    logError(
-      "jobs_list_failed",
-      error instanceof Error ? error : new Error(String(error))
-    );
-    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
-  }
+  // Optimization: use KV metadata for filtering and sorting
+  // to avoid fetching all job bodies.
+  // We fetch bodies only for keys with missing metadata (legacy)
+  // and for the final page of results.
 
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
@@ -195,33 +180,110 @@ app.get("/api/jobs", async (c) => {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  // Single-pass filter for null check and optional status/mode filters
-  const filtered = jobs.filter((j): j is Job => {
-    if (j == null) {
-      return false;
-    }
-    if (statusValidation?.valid && j.status !== statusValidation.value) {
-      return false;
-    }
-    if (modeValidation?.valid && j.mode !== modeValidation.value) {
-      return false;
-    }
-    return true;
-  });
-
-  filtered.sort((a, b) => b.created_at - a.created_at);
-
   const { limit, offset } = parsePaginationParams(
     c.req.query("limit"),
     c.req.query("offset")
   );
 
-  return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
-    limit,
-    offset,
-  });
+  try {
+    const { keys } = await c.env.IDEA_EXPLORER_JOBS.list<JobMetadata>();
+
+    // Split keys into those with metadata (fast path) and those without (slow path)
+    const keysWithMetadata = keys.filter((k) => k.metadata);
+    const keysWithoutMetadata = keys.filter((k) => !k.metadata);
+
+    // 1. Filter keys with metadata
+    const filteredMetadataKeys = keysWithMetadata.filter((k) => {
+      if (
+        statusValidation?.valid &&
+        k.metadata?.status !== statusValidation.value
+      ) {
+        return false;
+      }
+      if (modeValidation?.valid && k.metadata?.mode !== modeValidation.value) {
+        return false;
+      }
+      return true;
+    });
+
+    // 2. Fetch and filter keys without metadata (legacy fallback)
+    let fetchedLegacyJobs: Job[] = [];
+    if (keysWithoutMetadata.length > 0) {
+      const results = await Promise.allSettled(
+        keysWithoutMetadata.map(
+          (k) =>
+            c.env.IDEA_EXPLORER_JOBS.get(k.name, "json") as Promise<Job | null>
+        )
+      );
+      fetchedLegacyJobs = results
+        .filter(
+          (r): r is PromiseFulfilledResult<Job> =>
+            r.status === "fulfilled" && r.value !== null
+        )
+        .map((r) => r.value)
+        .filter((j) => {
+          if (statusValidation?.valid && j.status !== statusValidation.value) {
+            return false;
+          }
+          if (modeValidation?.valid && j.mode !== modeValidation.value) {
+            return false;
+          }
+          return true;
+        });
+    }
+
+    // 3. Combine and sort
+    // We represent everything as a "Job item" which has the sorting key (created_at)
+    // and potentially the full job if we already fetched it.
+    type JobItem =
+      | { type: "metadata"; key: string; created_at: number }
+      | { type: "full"; job: Job; created_at: number };
+
+    const items: JobItem[] = [
+      ...filteredMetadataKeys.map((k) => ({
+        type: "metadata" as const,
+        key: k.name,
+        created_at: k.metadata?.created_at ?? 0,
+      })),
+      ...fetchedLegacyJobs.map((j) => ({
+        type: "full" as const,
+        job: j,
+        created_at: j.created_at,
+      })),
+    ];
+
+    items.sort((a, b) => b.created_at - a.created_at);
+
+    const paginatedItems = items.slice(offset, offset + limit);
+
+    // 4. Fetch missing bodies for the current page
+    const finalJobs = await Promise.all(
+      paginatedItems.map(async (item) => {
+        if (item.type === "full") {
+          return item.job;
+        }
+        return (await c.env.IDEA_EXPLORER_JOBS.get(
+          item.key,
+          "json"
+        )) as Job | null;
+      })
+    );
+
+    const validFinalJobs = finalJobs.filter((j): j is Job => j !== null);
+
+    return c.json({
+      jobs: validFinalJobs,
+      total: items.length,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    logError(
+      "jobs_list_failed",
+      error instanceof Error ? error : new Error(String(error))
+    );
+    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
+  }
 });
 
 app.get("/api/status/:id", async (c) => {

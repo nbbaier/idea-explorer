@@ -8,7 +8,7 @@ describe("Job Management", () => {
     const storage = new Map<string, string>();
     mockKV = {
       get: vi.fn((key: string) => Promise.resolve(storage.get(key) || null)),
-      put: vi.fn((key: string, value: string) => {
+      put: vi.fn((key: string, value: string, _options?: unknown) => {
         storage.set(key, value);
         return Promise.resolve();
       }),

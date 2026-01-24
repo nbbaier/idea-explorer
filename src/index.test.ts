@@ -46,7 +46,17 @@ describe("GET /api/jobs", () => {
   const createMockKV = (jobs: Record<string, string>) => {
     return {
       list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
+        keys: Object.keys(jobs).map((name) => {
+          const job = JSON.parse(jobs[name]);
+          return {
+            name,
+            metadata: {
+              created_at: job.created_at,
+              status: job.status,
+              mode: job.mode,
+            },
+          };
+        }),
       }),
       get: (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
