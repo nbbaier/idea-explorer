@@ -231,6 +231,24 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
+interface JobMetadata {
+  created_at: number;
+  status: string;
+  mode: string;
+}
+
+export interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  mode?: string;
+}
+
+export interface ListJobsResult {
+  jobs: Job[];
+  total: number;
+}
+
 export async function createJob(
   kv: KVNamespace,
   request: ExploreRequest
@@ -249,9 +267,15 @@ export async function createJob(
     created_at: Date.now(),
   };
 
+  const metadata: JobMetadata = {
+    created_at: job.created_at,
+    status: job.status,
+    mode: job.mode,
+  };
+
   return Result.tryPromise({
     try: async () => {
-      await kv.put(id, JSON.stringify(job));
+      await kv.put(id, JSON.stringify(job), { metadata });
       return job;
     },
     catch: (error) =>
@@ -299,10 +323,16 @@ export async function updateJob(
 
     const updated = { ...job, ...updates };
 
+    const metadata: JobMetadata = {
+      created_at: updated.created_at,
+      status: updated.status,
+      mode: updated.mode,
+    };
+
     yield* Result.await(
       Result.tryPromise({
         try: async () => {
-          await kv.put(id, JSON.stringify(updated));
+          await kv.put(id, JSON.stringify(updated), { metadata });
         },
         catch: (error) =>
           new StorageError({ operation: "put", key: id, cause: error }),
@@ -314,25 +344,91 @@ export async function updateJob(
 }
 
 export async function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options: ListJobsOptions = {}
+): Promise<Result<ListJobsResult, StorageError>> {
   return Result.tryPromise({
     try: async () => {
-      const { keys } = await kv.list();
-      const results = await Promise.allSettled(
-        keys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
+      const { keys } = await kv.list<JobMetadata>();
+
+      // Separate keys into those with metadata (fast path) and those without (legacy/slow path)
+      const keysWithMetadata: { name: string; metadata: JobMetadata }[] = [];
+      const keysWithoutMetadata: string[] = [];
+
+      for (const key of keys) {
+        if (key.metadata) {
+          keysWithMetadata.push({ name: key.name, metadata: key.metadata });
+        } else {
+          keysWithoutMetadata.push(key.name);
+        }
+      }
+
+      // Fetch full objects for keys without metadata
+      // This is necessary for backward compatibility
+      const legacyJobs = await Promise.all(
+        keysWithoutMetadata.map(async (key) => {
+          const data = await kv.get(key, "json");
           return data as Job | null;
         })
       );
 
-      return results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
-        )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+      // Convert legacy jobs to the same shape as keysWithMetadata
+      const legacyItems = legacyJobs
+        .filter((job): job is Job => job !== null)
+        .map((job) => ({
+          name: job.id,
+          metadata: {
+            created_at: job.created_at,
+            status: job.status,
+            mode: job.mode,
+          },
+          job, // Store the full job object so we don't have to fetch it again
+        }));
+
+      // Combine both lists
+      // We use a unified structure: { name, metadata, job? }
+      const allItems = [
+        ...keysWithMetadata.map((k) => ({
+          ...k,
+          job: undefined as Job | undefined,
+        })),
+        ...legacyItems,
+      ];
+
+      // Filter
+      const filtered = allItems.filter((item) => {
+        if (options.status && item.metadata.status !== options.status) {
+          return false;
+        }
+        if (options.mode && item.metadata.mode !== options.mode) {
+          return false;
+        }
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => b.metadata.created_at - a.metadata.created_at);
+
+      // Pagination
+      const limit = options.limit ?? 20;
+      const offset = options.offset ?? 0;
+      const sliced = filtered.slice(offset, offset + limit);
+
+      // Fetch missing job bodies
+      const jobs = await Promise.all(
+        sliced.map(async (item) => {
+          if (item.job) {
+            return item.job;
+          }
+          const data = await kv.get(item.name, "json");
+          return data as Job | null;
+        })
+      );
+
+      return {
+        jobs: jobs.filter((job): job is Job => job !== null),
+        total: filtered.length,
+      };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });

@@ -41,13 +41,33 @@ interface ErrorResponse {
   error: string;
 }
 
+interface KVOptions {
+  metadata?: unknown;
+}
+
 describe("GET /api/jobs", () => {
   // Mock KV namespace
   const createMockKV = (jobs: Record<string, string>) => {
+    // We store metadata in a separate map to simulate KV behavior
+    const metadataStore: Record<string, unknown> = {};
+
+    // Initialize metadata for existing jobs if possible (lazy migration simulation)
+    // But for tests we can just leave it empty and let the fallback mechanism work,
+    // OR we can pre-populate it for some tests if we want to test metadata path.
+    // The current tests just pass JSON strings.
+
     return {
-      list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
-      }),
+      list: async <T>() => {
+        // In real KV, list returns keys sorted by name (lexicographically)
+        // We'll just return them as is from Object.keys
+        // If we want to test metadata optimization, we should populate metadataStore.
+
+        const keys = Object.keys(jobs).map((name) => ({
+          name,
+          metadata: metadataStore[name] as T | undefined,
+        }));
+        return { keys };
+      },
       get: (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
         if (!value) {
@@ -57,6 +77,13 @@ describe("GET /api/jobs", () => {
           return Promise.resolve(JSON.parse(value));
         }
         return Promise.resolve(value);
+      },
+      put: async (key: string, value: string, options?: KVOptions) => {
+        jobs[key] = value;
+        if (options?.metadata) {
+          metadataStore[key] = options.metadata;
+        }
+        return Promise.resolve();
       },
     } as unknown as KVNamespace;
   };
