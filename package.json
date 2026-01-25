@@ -5,7 +5,7 @@
   "private": true,
   "description": "A Cloudflare Worker that explores ideas using Claude and commits research to GitHub",
   "scripts": {
-    "dev": "alchemy dev",
+    "dev": "alchemy dev --stage dev",
     "deploy": "alchemy deploy --stage prod",
     "destroy": "alchemy destroy",
     "build:cli": "tsdown",
