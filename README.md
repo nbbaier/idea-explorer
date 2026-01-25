@@ -46,8 +46,8 @@ Edit `wrangler.jsonc` to set your production GitHub repository and branch:
 
 ```jsonc
 "vars": {
-  "GITHUB_REPO": "your-username/repo-name",
-  "GITHUB_BRANCH": "main"
+  "GH_REPO": "your-username/repo-name",
+  "GH_BRANCH": "main"
 }
 ```
 
@@ -66,7 +66,7 @@ wrangler kv namespace create IDEA_EXPLORER_JOBS --preview
 
 ```bash
 wrangler secret put ANTHROPIC_API_KEY
-wrangler secret put GITHUB_PAT
+wrangler secret put GH_PAT
 wrangler secret put IDEA_EXPLORER_API_TOKEN
 # Optional: Set a default webhook URL
 wrangler secret put IDEA_EXPLORER_WEBHOOK_URL
@@ -75,7 +75,7 @@ wrangler secret put IDEA_EXPLORER_WEBHOOK_URL
 | Secret                      | Description                                                                  |
 | --------------------------- | ---------------------------------------------------------------------------- |
 | `ANTHROPIC_API_KEY`         | API key for Claude (get from console.anthropic.com)                          |
-| `GITHUB_PAT`                | Personal access token with `repo` scope for writing to the ideas repository  |
+| `GH_PAT`                | Personal access token with `repo` scope for writing to the ideas repository  |
 | `IDEA_EXPLORER_API_TOKEN`   | Token used to authenticate API requests (generate a strong random string)    |
 | `IDEA_EXPLORER_WEBHOOK_URL` | (Optional) Default webhook URL for job completion notifications              |
 
@@ -213,10 +213,10 @@ cp .dev.vars.example .dev.vars
 
 # Edit .dev.vars with your local config:
 # - ANTHROPIC_API_KEY
-# - GITHUB_PAT
+# - GH_PAT
 # - IDEA_EXPLORER_API_TOKEN
-# - GITHUB_REPO
-# - GITHUB_BRANCH
+# - GH_REPO
+# - GH_BRANCH
 
 # Then run the dev server
 bun run dev

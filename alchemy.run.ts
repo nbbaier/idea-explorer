@@ -35,10 +35,10 @@ export const worker = await Worker("api", {
     ASSETS: await Assets({ path: "./public" }),
     IDEA_EXPLORER_JOBS: jobsKv,
     EXPLORATION_WORKFLOW: explorationWorkflow,
-    GITHUB_REPO: "nbbaier/idea-explorer",
-    GITHUB_BRANCH: "main",
+    GH_REPO: alchemy.secret(process.env.GH_REPO),
+    GH_BRANCH: alchemy.secret(process.env.GH_BRANCH),
     ANTHROPIC_API_KEY: alchemy.secret(process.env.ANTHROPIC_API_KEY),
-    GITHUB_PAT: alchemy.secret(process.env.GITHUB_PAT),
+    GH_PAT: alchemy.secret(process.env.GH_PAT),
     IDEA_EXPLORER_API_TOKEN: alchemy.secret(
       process.env.IDEA_EXPLORER_API_TOKEN
     ),
@@ -54,8 +54,8 @@ if (process.env.PULL_REQUEST) {
   const previewUrl = worker.url;
 
   await GitHubComment("pr-preview-comment", {
-    owner: process.env.GITHUB_REPOSITORY_OWNER || "your-username",
-    repository: process.env.GITHUB_REPOSITORY_NAME || "password",
+    owner: process.env.GITHUB_REPOSITORY_OWNER || "nbbaier",
+    repository: process.env.GITHUB_REPOSITORY_NAME || "idea-explorer",
     issueNumber: Number(process.env.PULL_REQUEST),
     body: `
 ## 🚀 Preview Deployed

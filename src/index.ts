@@ -391,13 +391,13 @@ async function testWebhookHandler(c: ExploreContext): Promise<Response> {
     status,
     webhookUrl,
     callbackSecret,
-    githubRepo: c.env.GITHUB_REPO,
+    githubRepo: c.env.GH_REPO,
   });
 
   const webhookResult = await sendWebhook(
     mockJob,
-    c.env.GITHUB_REPO,
-    c.env.GITHUB_BRANCH || "main",
+    c.env.GH_REPO,
+    c.env.GH_BRANCH || "main",
     { "X-Test-Webhook": "true" }
   );
 
