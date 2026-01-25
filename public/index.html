@@ -384,7 +384,49 @@
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="loading"></span>Submitting...';
       resultDiv.className = "result";
-      resultDiv.style.display = "none";
+
+      // Demo mode: simulate responses for UI testing
+      if (apiToken === "demo" || apiToken === "demo-error") {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        if (apiToken === "demo-error") {
+          resultDiv.className = "result error";
+          resultDiv.innerHTML = `
+            <div class="result-title">Error</div>
+            <div class="result-details">
+              <span class="error-message"></span>
+            </div>
+          `;
+          resultDiv.querySelector(".error-message").textContent =
+            "Invalid API token or insufficient permissions";
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = "Submit Idea";
+          return;
+        }
+
+        const mockData = {
+          job_id: "demo-" + Math.random().toString(36).slice(2, 10),
+          status: "queued",
+        };
+        resultDiv.className = "result success";
+        resultDiv.innerHTML = `
+          <div class="result-title">Submitted</div>
+          <div class="result-details">
+            <p><strong>Job ID:</strong> <span class="job-id"></span></p>
+            <p><strong>Status:</strong> <span class="job-status"></span></p>
+            <p>Check status at <code class="status-url"></code></p>
+          </div>
+        `;
+        resultDiv.querySelector(".job-id").textContent = mockData.job_id;
+        resultDiv.querySelector(".job-status").textContent = mockData.status;
+        resultDiv.querySelector(".status-url").textContent =
+          `/api/status/${mockData.job_id}`;
+        form.reset();
+        apiTokenInput.value = apiToken;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = "Submit Idea";
+        return;
+      }
 
       try {
         const response = await fetch("/api/explore", {
