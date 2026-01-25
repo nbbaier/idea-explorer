@@ -1,0 +1,35 @@
+[
+  {
+    "jobId": "b2a5a056",
+    "idea": "an astro integration or component that makes it easy to add json-ld to an astro site",
+    "mode": "exploration",
+    "model": "opus",
+    "isUpdate": false,
+    "startedAt": "2026-01-25T00:54:24.291Z",
+    "completedAt": "2026-01-25T00:56:00.054Z",
+    "durationMs": 95763,
+    "steps": 3,
+    "toolCalls": [
+      {
+        "name": "read_research",
+        "path": "2026-01-12-zod-schemas-for-schemaorg-vocabulary-a-library",
+        "durationMs": 132,
+        "ok": false,
+        "errorType": "api_error"
+      },
+      {
+        "name": "read_research",
+        "path": "2026-01-12-zod-schemas-for-schemaorg-vocabulary-a-library/research.md",
+        "durationMs": 136,
+        "ok": true,
+        "bytes": 37407
+      }
+    ],
+    "tokens": {
+      "input": 74904,
+      "output": 3564,
+      "total": 78468
+    },
+    "outputPath": "ideas/2026-01-25-an-astro-integration-or-component-that-makes-it/research.md"
+  }
+]
