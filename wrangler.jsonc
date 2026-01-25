@@ -1,37 +1,25 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "idea-explorer",
+  "name": "idea-explorer-prod",
   "main": "src/index.ts",
-  "compatibility_date": "2025-05-06",
+  "compatibility_date": "2026-01-24",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "logpush": true,
-  "observability": {
-    "enabled": true
-  },
   "assets": {
-    "directory": "./public",
-    "binding": "ASSETS",
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "single-page-application"
-  },
-  "vars": {
-    "GITHUB_REPO": "nbbaier/idea-explorer",
-    "GITHUB_BRANCH": "main"
+    "directory": "public",
+    "binding": "ASSETS"
   },
   "kv_namespaces": [
     {
       "binding": "IDEA_EXPLORER_JOBS",
-      "id": "dbcbf4512f9f4fd18a20d5fc7e23d3ef",
-      "preview_id": "28ee7c8f6b504387b6eab6d2ffde4ed9"
+      "id": "jobs",
+      "preview_id": "jobs"
     }
   ],
   "workflows": [
     {
       "name": "exploration-workflow",
       "binding": "EXPLORATION_WORKFLOW",
-      "class_name": "ExplorationWorkflow"
+      "class_name": "ExplorationWorkflow",
+      "script_name": "idea-explorer-prod"
     }
-  ],
-  "migrations": []
+  ]
 }

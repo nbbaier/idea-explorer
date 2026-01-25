@@ -1,5 +1,11 @@
 import alchemy from "alchemy";
-import { Assets, KVNamespace, Worker, Workflow } from "alchemy/cloudflare";
+import {
+  Assets,
+  KVNamespace,
+  Worker,
+  Workflow,
+  WranglerJson,
+} from "alchemy/cloudflare";
 import { GitHubComment } from "alchemy/github";
 import { CloudflareStateStore } from "alchemy/state";
 
@@ -50,6 +56,8 @@ export const worker = await Worker("api", {
 console.log(`Worker URL: ${worker.url}`);
 console.log(`Worker name: ${worker.name}`);
 console.log(`App stage: ${app.stage}`);
+
+await WranglerJson({ worker });
 
 if (process.env.PULL_REQUEST) {
   const previewUrl = worker.url;
