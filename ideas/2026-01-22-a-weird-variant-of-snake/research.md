@@ -112,7 +112,7 @@ These core principles can be twisted, inverted, combined with other mechanics, o
 
 1. **What is the minimum viable "weirdness"?** How much can you change before it stops feeling like Snake? What's the irreducible core?
 
-2. **Is the appeal of Snake the *mechanics* or the *familiarity*?** Would a mechanically identical game with different theming succeed equally?
+2. **Is the appeal of Snake the _mechanics_ or the _familiarity_?** Would a mechanically identical game with different theming succeed equally?
 
 3. **Can Snake support narrative?** Or is it fundamentally too abstract for story?
 

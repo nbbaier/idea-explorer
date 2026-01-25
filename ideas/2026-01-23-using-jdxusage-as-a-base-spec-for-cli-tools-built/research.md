@@ -23,6 +23,7 @@ Agentic CLI tools are AI-powered command-line agents that go beyond simple autoc
 **5. Bidirectional Value**
 
 The spec works in two directions:
+
 - **Agent → Human**: Generated CLIs come with complete documentation, shell completions, and manpages
 - **Human → Agent**: Agents can parse existing Usage specs to understand how to invoke tools
 

@@ -16,6 +16,7 @@ The core opportunity is **aggregation + intelligent presentation** of disparate,
 Based on current data, the Chicago free admission ecosystem includes:
 
 **Major Museums with Free Days:**
+
 - Art Institute of Chicago - Free Winter Weekdays (Jan 5 – Feb 28, 2026) from 11 a.m. through closing each weekday
 - Shedd Aquarium - Free for Illinois residents on select dates including Jan. 6-8, 13-20, and 27-29, 2026 plus free nights (5 p.m. – 9 p.m.)
 - Field Museum - Free for Illinois residents every Wednesday through March 25
@@ -26,12 +27,14 @@ Based on current data, the Chicago free admission ecosystem includes:
 - DuSable Black History Museum - Free admission on Wednesdays throughout 2026
 
 **Always-Free Institutions:**
+
 - Lincoln Park Zoo is free every day
 - Chicago Cultural Center is always free
 - National Museum of Mexican Art offers free admission all year round
 - Smart Museum of Art is always free
 
 **Special Access Programs:**
+
 - Museums For All Initiative offers free or significantly discounted admission for up to four people when they present their SNAP EBT card, available at over 1,000 museums nationwide including Chicago
 - Bank of America cardholders can present their card on the first full weekend of each month for free admission to various Chicago area museums
 

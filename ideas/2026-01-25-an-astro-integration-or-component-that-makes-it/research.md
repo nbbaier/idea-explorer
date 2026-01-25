@@ -79,42 +79,52 @@ The underlying insight is multifaceted:
 ## Unexpected Connections
 
 ### Connection to Prior Research
+
 The Zod Schema.org exploration is highly relevant—it provides the validation layer that could power this Astro integration. Combining them creates a unique value proposition: **type-safe, runtime-validated, Astro-native structured data**.
 
 ### Rich Results + LLM Readability
+
 "Simply put, structured data uses a format Google understands to tell it 'this is a blog post,' 'who the author is,' 'when it was published.' Like labeling your website. Google recommends using JSON-LD format, which is JSON-based and intuitive to write." But the same markup that powers Google rich results also helps AI assistants understand and cite content correctly. Building for SEO simultaneously builds for AI discoverability.
 
 ### Content Collections as Source of Truth
+
 Astro Content Collections already define frontmatter schemas in Zod. The same schemas could theoretically generate both:
+
 1. TypeScript types for the content
 2. JSON-LD structured data for search engines
 
 This "define once, use twice" pattern could be powerful.
 
 ### Slot-Based Architecture
+
 "Did you notice the use of slot='head' above? That's a special attribute that controls the placement of an element inside a layout. It allows us to place this component inside <head> while the rest goes inside <body>." Astro's slot system enables elegant structured data injection without manual `<head>` manipulation.
 
 ### What If: Structured Data as First-Class Astro Primitive
+
 What if Astro added native structured data support, similar to how it handles `<head>` content? A `structuredData` export from pages/layouts that automatically renders and validates?
 
 ## Questions Worth Answering
 
 ### Technical Feasibility
+
 1. **How much of Schema.org actually matters?** Research suggests 20-30 types cover 90%+ of use cases. Should the MVP focus only on these?
 2. **Can Content Collections schemas auto-map to Schema.org?** What's the overlap between common Zod frontmatter schemas and Schema.org properties?
 3. **What's the bundle size impact of Zod validation for structured data?** Is tree-shaking sufficient, or does this need a different approach?
 
 ### Market Validation
+
 4. **Why hasn't `astro-seo-schema` dominated?** It has 7,536 downloads and is at version 5.1.0—decent but not massive. What's limiting adoption?
 5. **Do Astro developers actually struggle with JSON-LD?** Or is the current `set:html={JSON.stringify(...)}` pattern "good enough"?
 6. **Who are the highest-value users?** E-commerce (Product schema), recipe sites (Recipe schema), local businesses?
 
 ### Strategic Positioning
+
 7. **Complement or compete with `astro-seo-schema`?** Could this be a PR to that project rather than a new library?
 8. **Should validation be opt-in or default?** Strict by default could frustrate users; loose by default might miss the value proposition.
 9. **How to handle Schema.org updates?** Automated generation (per Zod research) vs. manual curation?
 
 ### User Experience
+
 10. **What's the ideal API?** Props-based like current solutions? Builder pattern? Full inference from data?
 11. **How should validation errors surface?** Console warnings? Build failures? VS Code squiggles?
 12. **Should the library include Google validation API integration?** Or stay offline-only?

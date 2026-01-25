@@ -7,6 +7,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 ## Problem Analysis
 
 ### The Core Problem
+
 - **Type Safety vs. Runtime Validation Gap**: schema-dts provides excellent TypeScript types but offers no runtime validation, meaning invalid data can slip through at runtime
 - **Structured Data Correctness**: Websites implementing Schema.org markup (JSON-LD, Microdata) have no way to validate data before publishing, leading to SEO/rich snippet failures
 - **API Contract Validation**: Services consuming or producing Schema.org data can't validate payloads at runtime without manual validation logic
@@ -16,6 +17,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 - **Schema Evolution**: Schema.org updates regularly; keeping validation logic current is tedious and error-prone
 
 ### Who Experiences This?
+
 - **SEO Engineers**: Implementing structured data for rich snippets, knowledge graphs (millions of websites)
 - **E-commerce Platforms**: Product schema validation for marketplaces (Shopify, WooCommerce plugins, custom platforms)
 - **Content Management Systems**: WordPress, Drupal, Contentful plugins that generate Schema.org markup
@@ -32,6 +34,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 ### Core Features
 
 #### 1. **Complete Schema.org Coverage**
+
 - **All Types**: Generate Zod schemas for all 800+ Schema.org types
   - Thing → Organization → LocalBusiness → Restaurant (inheritance chains)
   - Product, Offer, Review, Person, Place, Event, CreativeWork hierarchies
@@ -47,6 +50,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
   - Deprecation warnings for outdated properties
 
 #### 2. **Type Inheritance & Polymorphism**
+
 - **Extends System**: Mirror Schema.org's inheritance
   ```typescript
   const Thing = z.object({ '@type': z.string(), name: z.string().optional(), ... })
@@ -55,14 +59,15 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
   ```
 - **Union Type Support**: Handle properties accepting multiple types
   ```typescript
-  author: z.union([z.string(), PersonSchema, OrganizationSchema])
+  author: z.union([z.string(), PersonSchema, OrganizationSchema]);
   ```
 - **Discriminated Unions**: Validate based on @type property
   ```typescript
-  z.discriminatedUnion('@type', [ProductSchema, ServiceSchema, EventSchema])
+  z.discriminatedUnion("@type", [ProductSchema, ServiceSchema, EventSchema]);
   ```
 
 #### 3. **Flexible Validation Modes**
+
 - **Strict Mode**: All required properties must be present, no extra properties
 - **Loose Mode**: Allow extra properties for extension types
 - **Partial Validation**: Validate subset of properties (useful for updates)
@@ -71,6 +76,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 - **Custom Rules**: Add domain-specific validation (e.g., price > 0)
 
 #### 4. **JSON-LD Specific Features**
+
 - **@context Validation**: Ensure correct Schema.org context URLs
   ```typescript
   '@context': z.literal('https://schema.org')
@@ -81,13 +87,14 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 - **Embedded Schemas**: Validate nested script tags from HTML
 
 #### 5. **Developer Experience**
+
 - **Tree Shaking**: Import only schemas you need
   ```typescript
-  import { ProductSchema, ReviewSchema } from 'zod-schema-org'
+  import { ProductSchema, ReviewSchema } from "zod-schema-org";
   ```
 - **TypeScript Integration**: Infer types from Zod schemas
   ```typescript
-  type Product = z.infer<typeof ProductSchema>
+  type Product = z.infer<typeof ProductSchema>;
   ```
 - **IDE Autocomplete**: Full IntelliSense for all properties
 - **Error Messages**: Clear validation errors with property paths
@@ -98,13 +105,14 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 - **Default Values**: Provide sensible defaults for common properties
 
 #### 6. **Utility Functions**
+
 - **Validators**: Pre-built validation functions
   ```typescript
-  validateProduct(data) // Returns { success: boolean, data?: Product, errors?: ZodError }
+  validateProduct(data); // Returns { success: boolean, data?: Product, errors?: ZodError }
   ```
 - **Assertions**: Throw on validation failure
   ```typescript
-  assertProduct(data) // Throws if invalid
+  assertProduct(data); // Throws if invalid
   ```
 - **Type Guards**: Runtime type checking
   ```typescript
@@ -114,10 +122,11 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 - **Converters**: Transform between formats (Microdata → JSON-LD)
 
 #### 7. **Testing & Debugging Tools**
+
 - **Schema Validators**: Validate against Google's Structured Data Testing Tool standards
 - **Mock Generators**: Create valid test data
   ```typescript
-  generateProduct({ name: 'Test Product' }) // Returns valid Product with sensible defaults
+  generateProduct({ name: "Test Product" }); // Returns valid Product with sensible defaults
   ```
 - **Diff Tools**: Compare schemas across versions
 - **Migration Helpers**: Update data when Schema.org changes
@@ -127,6 +136,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
   ```
 
 #### 8. **Code Generation**
+
 - **Automated Updates**: Generate schemas from Schema.org's official definitions
   - Parse schema.org RDFa/JSON-LD definitions
   - Generate corresponding Zod schemas
@@ -142,6 +152,7 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
 ### Technical Architecture
 
 #### Core Systems
+
 - **Schema Parser**:
   - Fetch Schema.org vocabulary (JSON-LD format)
   - Parse type hierarchies and property definitions
@@ -158,15 +169,22 @@ A TypeScript library that provides runtime-validated Zod schemas for the complet
   - Performance-optimized validation paths
 
 #### Data Models
+
 ```typescript
 // Generated schema structure
 export const ProductSchema = z.object({
-  '@context': z.literal('https://schema.org').optional(),
-  '@type': z.literal('Product'),
-  '@id': z.string().url().optional(),
+  "@context": z.literal("https://schema.org").optional(),
+  "@type": z.literal("Product"),
+  "@id": z.string().url().optional(),
   name: z.string(),
   description: z.string().optional(),
-  image: z.union([z.string().url(), ImageObjectSchema, z.array(z.union([z.string().url(), ImageObjectSchema]))]).optional(),
+  image: z
+    .union([
+      z.string().url(),
+      ImageObjectSchema,
+      z.array(z.union([z.string().url(), ImageObjectSchema])),
+    ])
+    .optional(),
   brand: z.union([z.string(), BrandSchema, OrganizationSchema]).optional(),
   offers: z.union([OfferSchema, z.array(OfferSchema)]).optional(),
   aggregateRating: AggregateRatingSchema.optional(),
@@ -174,12 +192,13 @@ export const ProductSchema = z.object({
   sku: z.string().optional(),
   gtin: z.string().optional(),
   // ... 70+ more properties
-})
+});
 
-export type Product = z.infer<typeof ProductSchema>
+export type Product = z.infer<typeof ProductSchema>;
 ```
 
 #### Build Process
+
 1. **Schema Fetching**: Download latest Schema.org definitions
 2. **Parsing**: Extract types, properties, inheritance
 3. **Generation**: Create TypeScript files with Zod schemas
@@ -189,6 +208,7 @@ export type Product = z.infer<typeof ProductSchema>
 7. **Documentation**: Auto-generate API docs from schemas
 
 #### Package Structure
+
 ```
 zod-schema-org/
 ├── src/
@@ -209,103 +229,105 @@ zod-schema-org/
 ### Integration Examples
 
 #### Use Case 1: E-commerce Product Pages
+
 ```typescript
-import { ProductSchema } from 'zod-schema-org'
+import { ProductSchema } from "zod-schema-org";
 
 function generateProductSchema(product: any) {
   // Validate before injecting into page
   const result = ProductSchema.safeParse({
-    '@context': 'https://schema.org',
-    '@type': 'Product',
+    "@context": "https://schema.org",
+    "@type": "Product",
     name: product.name,
     description: product.description,
     image: product.images,
     offers: {
-      '@type': 'Offer',
+      "@type": "Offer",
       price: product.price,
-      priceCurrency: 'USD',
-      availability: 'https://schema.org/InStock',
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
     },
-  })
+  });
 
   if (!result.success) {
-    console.error('Invalid product schema:', result.error)
+    console.error("Invalid product schema:", result.error);
     // Log to monitoring, fix data
-    return null
+    return null;
   }
 
-  return `<script type="application/ld+json">${JSON.stringify(result.data)}</script>`
+  return `<script type="application/ld+json">${JSON.stringify(result.data)}</script>`;
 }
 ```
 
 #### Use Case 2: CMS Plugin
+
 ```typescript
-import { ArticleSchema } from 'zod-schema-org'
+import { ArticleSchema } from "zod-schema-org";
 
 class SchemaOrgPlugin {
   validateArticle(content: any) {
     const schema = {
-      '@context': 'https://schema.org',
-      '@type': 'Article',
+      "@context": "https://schema.org",
+      "@type": "Article",
       headline: content.title,
       author: {
-        '@type': 'Person',
+        "@type": "Person",
         name: content.author,
       },
       datePublished: content.publishDate,
       image: content.featuredImage,
-    }
+    };
 
     // Validate and return typed result
-    return ArticleSchema.parse(schema)
+    return ArticleSchema.parse(schema);
   }
 }
 ```
 
 #### Use Case 3: API Validation
+
 ```typescript
-import { EventSchema } from 'zod-schema-org'
-import { Router } from 'express'
+import { EventSchema } from "zod-schema-org";
+import { Router } from "express";
 
-const router = Router()
+const router = Router();
 
-router.post('/events', (req, res) => {
-  const result = EventSchema.safeParse(req.body)
+router.post("/events", (req, res) => {
+  const result = EventSchema.safeParse(req.body);
 
   if (!result.success) {
     return res.status(400).json({
-      error: 'Invalid event schema',
+      error: "Invalid event schema",
       details: result.error.flatten(),
-    })
+    });
   }
 
   // result.data is fully typed and validated
-  const event = result.data
+  const event = result.data;
   // ... save to database
-})
+});
 ```
 
 #### Use Case 4: Testing
+
 ```typescript
-import { ProductSchema, ReviewSchema } from 'zod-schema-org'
+import { ProductSchema, ReviewSchema } from "zod-schema-org";
 
-describe('Product structured data', () => {
-  it('should generate valid product schema', () => {
-    const product = generateProductSchema(mockProduct)
-    expect(() => ProductSchema.parse(product)).not.toThrow()
-  })
+describe("Product structured data", () => {
+  it("should generate valid product schema", () => {
+    const product = generateProductSchema(mockProduct);
+    expect(() => ProductSchema.parse(product)).not.toThrow();
+  });
 
-  it('should validate product with reviews', () => {
+  it("should validate product with reviews", () => {
     const product = {
-      '@type': 'Product',
-      name: 'Widget',
-      review: [
-        { '@type': 'Review', reviewRating: { ratingValue: 5 } },
-      ],
-    }
-    expect(ProductSchema.safeParse(product).success).toBe(true)
-  })
-})
+      "@type": "Product",
+      name: "Widget",
+      review: [{ "@type": "Review", reviewRating: { ratingValue: 5 } }],
+    };
+    expect(ProductSchema.safeParse(product).success).toBe(true);
+  });
+});
 ```
 
 ## Competitive Landscape
@@ -313,6 +335,7 @@ describe('Product structured data', () => {
 ### Existing Solutions
 
 #### schema-dts (Google)
+
 - **What**: TypeScript type definitions for Schema.org
 - **Strengths**:
   - Official Google project, well-maintained
@@ -327,6 +350,7 @@ describe('Product structured data', () => {
 - **Differentiation**: zod-schema-org complements this perfectly - use both together
 
 #### schema-org-gen
+
 - **What**: Code generator for Schema.org types
 - **Strengths**: Generates various formats
 - **Weaknesses**:
@@ -336,6 +360,7 @@ describe('Product structured data', () => {
 - **Differentiation**: Purpose-built for runtime validation with Zod
 
 #### Manual Validation
+
 - **Current Practice**: Developers write custom validation
 - **Problems**:
   - Time-consuming (hours per type)
@@ -345,6 +370,7 @@ describe('Product structured data', () => {
 - **Differentiation**: Automated, comprehensive, always up-to-date
 
 #### JSON Schema Validators
+
 - **What**: Generic JSON Schema libraries (ajv, jsonschema)
 - **Strengths**: Mature, standards-based
 - **Weaknesses**:
@@ -355,6 +381,7 @@ describe('Product structured data', () => {
 - **Differentiation**: Native TypeScript/Zod, Schema.org optimized
 
 #### Google Structured Data Testing Tool
+
 - **What**: Online validator for structured data
 - **Strengths**: Official Google validation
 - **Weaknesses**:
@@ -365,6 +392,7 @@ describe('Product structured data', () => {
 - **Differentiation**: Programmatic validation in development
 
 ### Differentiation Opportunities
+
 - **Only Runtime Validation Library**: First comprehensive runtime validator for Schema.org in TypeScript
 - **Zod Ecosystem**: Leverage Zod's popularity (5M+ weekly downloads) and ergonomics
 - **TypeScript Native**: First-class TypeScript support, full type inference
@@ -376,6 +404,7 @@ describe('Product structured data', () => {
 ## Potential Challenges
 
 ### Technical Challenges
+
 - **Schema Complexity**: Schema.org has 800+ types with intricate relationships
   - Deep inheritance hierarchies (up to 10 levels)
   - Circular dependencies (Person can have knows: Person)
@@ -402,6 +431,7 @@ describe('Product structured data', () => {
   - Deprecated properties
 
 ### Adoption Challenges
+
 - **Awareness**: Developers may not know they need runtime validation
   - Many assume TypeScript types are enough
   - Education needed on runtime validation value
@@ -421,6 +451,7 @@ describe('Product structured data', () => {
   - Performance must be acceptable
 
 ### Business/Sustainability Challenges
+
 - **Open Source Sustainability**: Who maintains this long-term?
   - Automated generation helps but not sufficient
   - Need sponsorship or commercial backing
@@ -439,6 +470,7 @@ describe('Product structured data', () => {
 ## Key Questions to Validate
 
 ### User Research Questions
+
 1. How many developers use schema-dts currently? (Check npm stats: ~200k weekly downloads)
 2. What percentage encounter runtime validation issues with Schema.org data?
 3. Do developers currently write custom validation? How much time does it take?
@@ -449,6 +481,7 @@ describe('Product structured data', () => {
 8. Would developers pay for premium features (CLI tools, custom generators)?
 
 ### Product Questions
+
 1. Should we generate ALL 800+ schemas or start with popular ones?
    - MVP: Top 20-30 most used types (Product, Article, Organization, Person, Event, Review, Recipe, etc.)
    - Full: Complete library with tree-shaking
@@ -460,6 +493,7 @@ describe('Product structured data', () => {
 7. How to handle versioning (align with Schema.org or independent)?
 
 ### Technical Questions
+
 1. Can we auto-generate reliably from Schema.org's JSON-LD definitions?
 2. What's the bundle size impact? (Estimate: 50-100KB for common types, 5-10MB for all)
 3. Performance acceptable? (Zod is fast but not fastest - test with real data)
@@ -469,6 +503,7 @@ describe('Product structured data', () => {
 7. Can we contribute back to Zod if we hit limitations?
 
 ### Market Questions
+
 1. What's the TAM? (Millions of websites use Schema.org, but how many need runtime validation?)
 2. Who are the highest-value users? (CMS platforms, e-commerce, API developers)
 3. Would companies sponsor development? (Shopify, Vercel, Netlify, SEO tool companies?)
@@ -479,6 +514,7 @@ describe('Product structured data', () => {
 ## Potential Experiments
 
 ### Validation Experiments
+
 1. **GitHub Survey**: Poll schema-dts issues/discussions for validation pain points
 2. **Reddit/HN Post**: "Do you need runtime validation for Schema.org?" gauge interest
 3. **MVP Prototype**: Build Product + Review schemas, share with community
@@ -487,12 +523,14 @@ describe('Product structured data', () => {
 6. **Integration Examples**: Build Next.js, Astro plugins as proof of concept
 
 ### User Research
+
 1. **Interview CMS Developers**: Talk to WordPress, Contentful, Sanity plugin authors
 2. **E-commerce Platforms**: Reach out to Shopify, WooCommerce developers
 3. **SEO Community**: Survey r/TechnicalSEO about validation needs
 4. **schema-dts Users**: Analyze GitHub issues for validation-related requests
 
 ### MVP Approaches
+
 1. **Top 10 Types Only**: Product, Organization, Person, Article, Event, Review, Offer, Place, Recipe, LocalBusiness
 2. **Single Vertical**: E-commerce only (Product, Offer, Review, Brand, Organization)
 3. **CLI Tool First**: Validation tool before library
@@ -502,12 +540,14 @@ describe('Product structured data', () => {
 ## Success Metrics
 
 ### Adoption Metrics
+
 - npm downloads (target: 10k/week after 6 months, 50k/week after 1 year)
 - GitHub stars (target: 1k in 6 months, 5k in 1 year)
 - Dependent packages (target: 100 in 6 months)
 - Framework integrations (Next.js, Astro, SvelteKit plugins)
 
 ### Community Health
+
 - Contributors (target: 10+ contributors)
 - Issues/PRs response time (<48 hours)
 - Test coverage (>90%)
@@ -515,6 +555,7 @@ describe('Product structured data', () => {
 - Community Discord/discussions activity
 
 ### Quality Metrics
+
 - Bundle size per schema (<5KB average)
 - Validation performance (<1ms for typical schemas)
 - Schema.org coverage (100% of common types, 80% of all types)
@@ -522,6 +563,7 @@ describe('Product structured data', () => {
 - Zero high-severity bugs in latest release
 
 ### Business Metrics (if pursuing)
+
 - GitHub Sponsors revenue (target: $500/month)
 - Enterprise support contracts
 - Consulting projects from library exposure
@@ -530,6 +572,7 @@ describe('Product structured data', () => {
 ## Initial Recommendations
 
 ### Start with Focused MVP
+
 1. **Core Types Only** (Phase 1: 2-3 months)
    - 20-30 most popular schemas
    - Product, Organization, Person, Article, Event, Review, Offer, Place, Recipe, LocalBusiness, WebSite, WebPage, BreadcrumbList, ImageObject, AggregateRating, Brand, PostalAddress, ContactPoint, OpeningHoursSpecification
@@ -558,6 +601,7 @@ describe('Product structured data', () => {
    - CMS plugin template
 
 ### Key Differentiators to Emphasize
+
 1. **Complements schema-dts**: Use both together (compile-time + runtime)
 2. **Zod Ergonomics**: Familiar API for Zod users, better DX than JSON Schema
 3. **Type Safety**: Full TypeScript inference, catch errors in development
@@ -566,6 +610,7 @@ describe('Product structured data', () => {
 6. **Zero Config**: Import and use, tree-shaking automatic
 
 ### Risks to Mitigate
+
 1. **Bundle Size**: Aggressive tree-shaking, measurement per schema, guidance
 2. **Performance**: Benchmark and optimize, provide shallow validation
 3. **Maintenance**: Automated generation is non-negotiable
@@ -576,6 +621,7 @@ describe('Product structured data', () => {
 ## Next Steps
 
 ### Phase 1: Validation & Prototype (Weeks 1-2)
+
 1. **Technical Feasibility**
    - Parse Schema.org JSON-LD definitions
    - Generate 5 sample Zod schemas (Product, Organization, Person, Review, Offer)
@@ -596,6 +642,7 @@ describe('Product structured data', () => {
    - Set quality bars (test coverage, performance, size)
 
 ### Phase 2: MVP Development (Weeks 3-8)
+
 1. **Core Library**
    - Automated schema generator
    - Generate 20-30 core schemas
@@ -618,6 +665,7 @@ describe('Product structured data', () => {
    - Publishing workflow
 
 ### Phase 3: Launch & Iterate (Weeks 9-12)
+
 1. **Soft Launch**
    - Publish v0.1.0 to npm
    - Share in Zod community
@@ -640,6 +688,7 @@ describe('Product structured data', () => {
    - Build framework integrations
 
 ### Phase 4: Scale (Month 4+)
+
 1. **Complete Coverage**
    - Generate remaining 780+ schemas
    - Handle extensions
@@ -661,9 +710,11 @@ describe('Product structured data', () => {
 ## Technical Feasibility Assessment
 
 ### Prototype Results (To Be Determined)
+
 Based on initial investigation:
 
 **Feasibility: HIGH**
+
 - Schema.org provides machine-readable JSON-LD definitions
 - Zod supports all necessary features (extend, union, lazy for circular refs)
 - Tree-shaking works well with proper exports
@@ -671,12 +722,14 @@ Based on initial investigation:
 - Generation can be fully automated
 
 **Challenges Identified:**
+
 - Union types can be very large (some properties accept 10+ types)
 - Circular dependencies need z.lazy() wrapper pattern
 - Bundle size requires careful optimization
 - Performance needs testing with real-world nested data
 
 **Prototype Metrics (Estimated):**
+
 - Generated Product schema: ~300 lines, ~8KB minified
 - Validation time: ~0.5ms for typical product
 - Type inference: works perfectly
@@ -685,54 +738,60 @@ Based on initial investigation:
 ### Technical Architecture Decisions
 
 #### Schema Generation Strategy
+
 ```typescript
 // Parse Schema.org vocabulary
 interface SchemaOrgType {
-  id: string // 'schema:Product'
-  label: string // 'Product'
-  comment: string // Description
-  subClassOf?: string[] // ['schema:Thing']
-  properties: SchemaOrgProperty[]
+  id: string; // 'schema:Product'
+  label: string; // 'Product'
+  comment: string; // Description
+  subClassOf?: string[]; // ['schema:Thing']
+  properties: SchemaOrgProperty[];
 }
 
 // Generate Zod schemas
 function generateZodSchema(type: SchemaOrgType): string {
   // Handle inheritance
-  const baseSchema = type.subClassOf?.[0] ? `${type.subClassOf[0]}Schema.extend` : 'z.object'
+  const baseSchema = type.subClassOf?.[0]
+    ? `${type.subClassOf[0]}Schema.extend`
+    : "z.object";
 
   // Generate properties
-  const properties = type.properties.map(prop => generateProperty(prop))
+  const properties = type.properties.map((prop) => generateProperty(prop));
 
-  return `export const ${type.label}Schema = ${baseSchema}({ ${properties.join(',\n')} })`
+  return `export const ${type.label}Schema = ${baseSchema}({ ${properties.join(",\n")} })`;
 }
 ```
 
 #### Handling Circular Dependencies
+
 ```typescript
 // Use z.lazy() for circular refs
 export const PersonSchema: z.ZodType<Person> = z.lazy(() =>
   z.object({
-    '@type': z.literal('Person'),
+    "@type": z.literal("Person"),
     name: z.string(),
     knows: z.union([PersonSchema, z.array(PersonSchema)]).optional(), // Circular!
-  })
-)
+  }),
+);
 ```
 
 #### Tree-Shaking Optimization
+
 ```typescript
 // One export per schema
-export { ProductSchema } from './schemas/Product'
-export { OrganizationSchema } from './schemas/Organization'
+export { ProductSchema } from "./schemas/Product";
+export { OrganizationSchema } from "./schemas/Organization";
 // ... etc
 
 // Users import only what they need
-import { ProductSchema } from 'zod-schema-org'
+import { ProductSchema } from "zod-schema-org";
 ```
 
 ## Market Size & Opportunity
 
 ### Total Addressable Market
+
 - **Websites Using Schema.org**: ~40 million (estimate from research)
 - **Developers Working with Schema.org**: ~500k-1M globally
 - **TypeScript Developers**: ~5M globally (Stack Overflow survey)
@@ -740,11 +799,13 @@ import { ProductSchema } from 'zod-schema-org'
 - **schema-dts Users**: ~200k weekly npm downloads
 
 ### Realistic Targets
+
 - **Year 1**: 50k weekly downloads (25% of schema-dts users)
 - **Year 2**: 200k weekly downloads (reach parity with schema-dts)
 - **Year 3**: 500k weekly downloads (as runtime validation becomes standard practice)
 
 ### High-Value User Segments
+
 1. **E-commerce Platforms**: Shopify, WooCommerce (millions of stores)
 2. **CMS Systems**: WordPress, Drupal, Contentful (millions of sites)
 3. **SEO Tools**: Ahrefs, SEMrush, Screaming Frog (validation features)
@@ -755,12 +816,15 @@ import { ProductSchema } from 'zod-schema-org'
 8. **API Developers**: Any service producing/consuming Schema.org data
 
 ### Monetization Potential (If Pursued)
+
 **Free Tier (Core Library)**
+
 - Open source MIT license
 - All schemas
 - Community support
 
 **Potential Paid Services**
+
 - **Enterprise Support**: $500-2000/year
   - Priority bug fixes
   - Custom schema generation
@@ -786,6 +850,7 @@ import { ProductSchema } from 'zod-schema-org'
   - Custom validation rules development
 
 **Realistic Revenue (If Pursued)**
+
 - **Year 1**: $5-10k (GitHub Sponsors, early consulting)
 - **Year 2**: $25-50k (Enterprise support, SaaS API beta)
 - **Year 3**: $100-200k (Established services, corporate sponsorships)
@@ -795,7 +860,9 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 ## Competitive Positioning
 
 ### vs. schema-dts
+
 **Relationship: Complementary, not competitive**
+
 - schema-dts: Compile-time types
 - zod-schema-org: Runtime validation
 - **Best Together**: Use both in same project
@@ -806,7 +873,9 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 **Strategy**: Position as the natural companion library, reach out to Google team for potential collaboration
 
 ### vs. JSON Schema Validators (ajv, jsonschema)
+
 **Advantages:**
+
 - Native TypeScript/Zod (better DX)
 - Type inference automatic
 - Schema.org specific (handles @context, @type, inheritance)
@@ -814,6 +883,7 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 - Better error messages
 
 **Disadvantages:**
+
 - Zod dependency required
 - Possibly slower than ajv (though fast enough)
 - Less universal than JSON Schema standard
@@ -821,7 +891,9 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 **Strategy**: Target Zod users and TypeScript-first developers, not trying to replace ajv in general JSON validation
 
 ### vs. Manual Validation
+
 **Advantages:**
+
 - Saves hours of development time per schema
 - Always up-to-date with Schema.org
 - Comprehensive (all properties, all types)
@@ -829,6 +901,7 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 - Consistent validation across projects
 
 **Disadvantages:**
+
 - Adds dependency
 - Bundle size (mitigated by tree-shaking)
 - One more thing to learn (though Zod is popular)
@@ -836,7 +909,9 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 **Strategy**: Emphasize time savings and correctness, provide migration guides from custom validation
 
 ### vs. Google Structured Data Testing Tool
+
 **Advantages:**
+
 - Programmatic (use in development, CI/CD)
 - Immediate feedback
 - Free, unlimited
@@ -844,6 +919,7 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 - Integrates with dev workflow
 
 **Disadvantages:**
+
 - Not official Google validation
 - May not match Google's exact criteria
 - Doesn't check search-specific requirements
@@ -855,6 +931,7 @@ Note: This is more likely a sustainable side project or part of larger SEO/CMS b
 A Zod schemas library for Schema.org vocabulary addresses a clear gap in the current tooling ecosystem. While schema-dts provides excellent compile-time types, there's no comprehensive runtime validation solution for the millions of websites implementing structured data.
 
 **Key Strengths**:
+
 - **Clear Market Gap**: No existing solution for TypeScript runtime validation of Schema.org
 - **Large Addressable Market**: Millions of websites use Schema.org, hundreds of thousands of developers
 - **Technical Feasibility**: High - automated generation is possible, Zod supports all needed features
@@ -865,6 +942,7 @@ A Zod schemas library for Schema.org vocabulary addresses a clear gap in the cur
 - **Multiple Revenue Paths**: Library free, but consulting/SaaS opportunities exist
 
 **Key Risks**:
+
 - **Bundle Size**: Full library could be large (mitigated by tree-shaking)
 - **Maintenance Burden**: Keeping up with Schema.org updates (mitigated by automation)
 - **Adoption Challenge**: Convincing developers they need runtime validation
@@ -877,6 +955,7 @@ A Zod schemas library for Schema.org vocabulary addresses a clear gap in the cur
 The project should start with a focused MVP (20-30 most popular schemas) to validate demand and technical approach. If successful, expand to full coverage and build ecosystem integrations.
 
 This is an excellent candidate for:
+
 1. **Open source library** (MIT license) - build community adoption
 2. **Side project sustainability** - GitHub Sponsors, consulting revenue
 3. **Portfolio/credibility builder** - demonstrates TypeScript/Zod/codegen expertise
@@ -887,6 +966,7 @@ Unlike some ideas that require massive scale, this can be successful as a focuse
 ## Recommended First Steps
 
 ### Immediate Actions (Week 1)
+
 1. **Technical Proof-of-Concept**
    - Write parser for Schema.org JSON-LD vocabulary
    - Generate 3-5 sample schemas (Product, Organization, Person)
@@ -907,6 +987,7 @@ Unlike some ideas that require massive scale, this can be successful as a focuse
    - Set success criteria (downloads, stars, feedback)
 
 ### Near Term (Weeks 2-4)
+
 1. **MVP Development**
    - Automated generation pipeline
    - 20-30 core schemas
@@ -927,6 +1008,7 @@ Unlike some ideas that require massive scale, this can be successful as a focuse
    - Measure bundle size impact in real projects
 
 ### Long Term (Months 2-6)
+
 1. **Expand Coverage**
    - Generate all 800+ schemas
    - Handle Schema.org extensions
@@ -944,12 +1026,14 @@ Unlike some ideas that require massive scale, this can be successful as a focuse
    - Consider premium services
 
 **Decision Point (Week 4)**: After MVP launch, assess:
+
 - npm download trend
 - Community feedback sentiment
 - Technical challenges encountered
 - Personal motivation to continue
 
 **Go/No-Go Criteria**:
+
 - ✅ GO: 1k+ downloads/week, positive feedback, technical approach validated
 - ❌ NO-GO: <100 downloads/week, major technical blockers, community disinterest
 

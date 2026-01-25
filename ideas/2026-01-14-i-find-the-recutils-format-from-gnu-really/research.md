@@ -3,6 +3,7 @@
 ## Core Insight Deconstruction
 
 **The fundamental appeal of recutils:**
+
 1. **Human-readable structured data** - Text files that are simultaneously machine-parseable and human-editable
 2. **Unix philosophy alignment** - Simple, composable tools that do one thing well
 3. **Database-like querying without database complexity** - SQL-like operations on plain text
@@ -10,6 +11,7 @@
 5. **Low ceremony** - No schemas required, optional typing, gradual formalization
 
 **Why Rust specifically?**
+
 - Memory safety without GC makes it suitable for CLI tools
 - Strong type system could enhance the optional typing features
 - Performance for large record sets
@@ -18,6 +20,7 @@
 - Could offer both library and CLI tool
 
 **The gap in the ecosystem:**
+
 - Recutils is primarily C with Python bindings
 - Modern languages lack recutils implementations
 - Rust's data manipulation ecosystem is rich but lacks this specific pattern
@@ -28,12 +31,12 @@
 ### Direction 1: Faithful Port with Modern CLI
 
 - **Description:** A direct reimplementation of recutils commands (recsel, recins, recdel, recset, recfix) in Rust, maintaining compatibility with the GNU format spec but with modern CLI UX (better error messages, colored output, interactive modes)
-- **Why it could work:** 
+- **Why it could work:**
   - Clear specification to follow
   - Existing test corpus from GNU project
   - Immediate utility for existing recutils users
   - Rust's parsing libraries (nom, pest) are excellent
-- **Risks:** 
+- **Risks:**
   - Becomes "just another port" without innovation
   - GNU recutils is mature and works well
   - Hard to compete on features alone
@@ -200,48 +203,56 @@ Instead of Rust, implement in Zig or Odin for maximum performance and simplicity
 ## Questions Worth Answering
 
 **Format & Compatibility:**
+
 - How strict should compatibility with GNU recutils be? Is 100% compatibility necessary or desirable?
 - What are the edge cases in the recutils format spec that aren't well-documented?
 - Can the format be extended in backward-compatible ways?
 - What's the performance profile of recutils vs. SQLite/JSON for different dataset sizes?
 
 **Use Cases & Users:**
+
 - Who actually uses GNU recutils today, and what for?
 - What prevented recutils from wider adoption?
 - Are there domains where recutils would be superior but isn't being used?
 - Would people use recutils if it had better tooling?
 
 **Technical Decisions:**
+
 - Should parsing be streaming or load everything into memory?
 - What's the right abstraction for queries - AST, builder pattern, or something else?
 - How should concurrent access be handled? (File locking, WAL, etc.)
 - Should there be a binary format for better performance with large files?
 
 **Ecosystem & Integration:**
+
 - Which existing Rust crates would this integrate with? (serde, sqlx, polars?)
 - Should this be one monorepo or multiple crates?
 - What's the relationship to existing text-format tools (ripgrep, fd, sd)?
 - Could this become a database backend for something like Diesel?
 
 **User Experience:**
+
 - What error messages would make the format more approachable?
 - Should there be an LSP (Language Server Protocol) for editors?
 - What visualization tools would help understand record relationships?
 - How do users typically want to edit recfiles - in editor or with CLI?
 
 **Differentiation:**
+
 - What would make this implementation compelling vs. GNU recutils?
 - Is "written in Rust" enough of a differentiator?
 - What killer feature would drive adoption?
 - Should this try to replace GNU recutils or complement it?
 
 **Scope & Roadmap:**
+
 - What's the MVP that provides immediate value?
 - Which direction should be pursued first?
 - Can multiple directions be explored incrementally?
 - What's the 1-year vision vs. the first working prototype?
 
 **Community & Sustainability:**
+
 - Is there enough interest to sustain an open source project?
 - What's the maintenance burden of compatibility testing?
 - How to build community around a niche format?

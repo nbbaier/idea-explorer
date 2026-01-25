@@ -107,26 +107,31 @@ The fundamental insight here is a **workflow optimization problem** at the inter
 ## Questions Worth Answering
 
 ### Technical Feasibility
+
 1. **How accurate can class extraction be?** Can we reliably detect dynamically-constructed class names (e.g., `${'text-' + color + '-500'}`) through static analysis?
 2. **What's the actual size savings?** Benchmark real-world projects: how much smaller is an optimized bundle compared to the full CDN (~4MB → ?)?
 3. **Can we match the CDN bundle structure?** The Tailwind v4 CDN uses modern CSS features (cascade layers, container queries). Can we preserve this structure?
 4. **What about JIT mode edge cases?** Tailwind's JIT generates arbitrary values (`w-[137px]`). How do we handle these in extraction?
 
 ### User Experience
+
 5. **What's the simplest possible interface?** Is it a single command (`tailwind-optimize index.html`)? A config file? A GUI?
 6. **How do developers handle updates?** If Tailwind releases a bug fix, how do users re-generate their optimized bundle?
 7. **What's the integration story for JavaScript?** How should this work with Alpine.js, HTMX, or vanilla JS that manipulates classes?
 
 ### Market Validation
+
 8. **Who actually uses the CDN in production today?** Are there real projects doing this despite warnings, or is this purely a prototyping tool?
 9. **What do Tailwind maintainers think?** Would this compete with or complement their official tooling? Could it become an official tool?
-10. **Is this a feature or a product?** Should this be a CLI tool, a SaaS, a library, or a plugin for existing tools?
+10.   **Is this a feature or a product?** Should this be a CLI tool, a SaaS, a library, or a plugin for existing tools?
 
 ### Business Model
+
 11. **Is there a sustainable monetization path?** Could this be open-source with a hosted/SaaS option? Enterprise features?
 12. **What's the competitive landscape?** Are there existing tools that do this (PurgeCSS, UnCSS)? What makes this different?
 
 ### Edge Cases
+
 13. **How do we handle framework-generated classes?** What about React, Vue, or Svelte components that might not be in the HTML at build time?
 14. **What about CSS-in-JS patterns?** If someone uses Tailwind classes in JavaScript string templates, can we detect them?
 15. **Should we support custom Tailwind configurations?** What if someone has custom colors or plugins in their CDN setup?

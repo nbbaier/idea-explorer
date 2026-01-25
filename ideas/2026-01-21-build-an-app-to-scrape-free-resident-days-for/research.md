@@ -6,7 +6,7 @@ The underlying insight here is threefold:
 
 1. **Information asymmetry creates missed value** - Chicago offers numerous free admission days at museums, zoos, gardens, and cultural institutions for residents, but this information is fragmented across dozens of websites, each with their own calendars, eligibility rules, and update schedules.
 
-2. **Temporal relevance is key** - A static list is nearly useless. The value comes from knowing what's free *today*, *this weekend*, or *when I'm actually free*. This is a calendar problem disguised as a directory problem.
+2. **Temporal relevance is key** - A static list is nearly useless. The value comes from knowing what's free _today_, _this weekend_, or _when I'm actually free_. This is a calendar problem disguised as a directory problem.
 
 3. **Civic benefit meets personal planning** - These programs exist to increase cultural access, but friction in discovery undermines that goal. Reducing friction serves both individual users and the broader civic intent.
 

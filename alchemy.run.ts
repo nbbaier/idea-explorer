@@ -29,6 +29,7 @@ export const worker = await Worker("api", {
     html_handling: "auto-trailing-slash",
     not_found_handling: "single-page-application",
   },
+  domains: app.stage === "prod" ? ["ideas.nicobaier.com"] : [],
   bindings: {
     ASSETS: await Assets({ path: "./public" }),
     IDEA_EXPLORER_JOBS: jobsKv,

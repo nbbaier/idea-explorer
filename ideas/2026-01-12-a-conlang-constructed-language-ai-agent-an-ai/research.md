@@ -7,6 +7,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Problem Analysis
 
 ### The Core Problem
+
 - **Complexity Overwhelm**: Creating a conlang requires expertise in phonology, morphology, syntax, semantics, and pragmatics - a steep learning curve
 - **Consistency Management**: Maintaining internal consistency across thousands of words and grammatical rules becomes unmanageable
 - **Documentation Burden**: Conlangers spend enormous time documenting grammar rules, lexicons, and usage examples
@@ -15,6 +16,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Testing & Validation**: Hard to identify logical inconsistencies, gaps in expressiveness, or unnatural patterns
 
 ### Who Experiences This?
+
 - **Hobbyist Conlangers**: Language creation enthusiasts (100k+ active globally)
 - **Fiction Writers**: Authors creating languages for worldbuilding (fantasy, sci-fi)
 - **Game Developers**: Studios needing believable fictional languages
@@ -28,6 +30,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ### Core Features
 
 #### 1. **Phonology Design Assistant**
+
 - **Sound Inventory Builder**:
   - Suggest consonant/vowel inventories based on naturalness constraints
   - Check for typologically common vs. rare features
@@ -43,6 +46,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Create etymological depth
 
 #### 2. **Morphology & Grammar System**
+
 - **Word Formation**:
   - Design inflectional paradigms (noun cases, verb tenses/aspects)
   - Create derivational morphology (prefixes, suffixes, infixes, circumfixes)
@@ -59,6 +63,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Identify gaps in paradigms
 
 #### 3. **Lexicon Management**
+
 - **Vocabulary Generation**:
   - Generate phonologically valid root words
   - Suggest semantic fields to fill lexical gaps
@@ -78,12 +83,14 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Export to various formats (PDF, CSV, LaTeX)
 
 #### 4. **Example Sentence Generator**
+
 - **Grammar Validation**: Generate sentences to test grammatical rules
 - **Corpus Building**: Create sample texts for documentation
 - **Interlinear Glossing**: Auto-generate IGT (word-by-word translations)
 - **Natural Dialogue**: Produce realistic conversations in the conlang
 
 #### 5. **Documentation & Presentation**
+
 - **Grammar Book Generation**: Auto-compile comprehensive grammar reference
 - **Lexicon Publishing**: Create formatted dictionaries
 - **Phonology Charts**: Generate IPA charts, allophone descriptions
@@ -91,6 +98,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Version Control**: Track language evolution and design decisions
 
 #### 6. **Learning & Analysis Tools**
+
 - **Naturalism Checker**:
   - Compare against typological databases (WALS, LAPSyD)
   - Identify extremely rare or unattested features
@@ -106,6 +114,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ### User Experience Considerations
 
 #### Onboarding
+
 - **Setup Wizard**:
   - Choose starting point (from scratch, from natural language, from template)
   - Select language type (artistic, auxiliary, logical, minimalist)
@@ -114,12 +123,14 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Template Library**: Pre-made skeletons (Celtic-inspired, agglutinative, tonal, etc.)
 
 #### Core Workflow
+
 1. **Iterative Design**: Start simple, add complexity gradually
 2. **Real-Time Validation**: Immediate feedback on consistency
 3. **Multiple Views**: Switch between high-level overview and detailed rules
 4. **Export/Import**: Standard formats (JSON, XML, custom schema)
 
 #### Collaboration Features
+
 - **Shared Projects**: Multiple creators working on same language
 - **Version History**: Git-like branching for design alternatives
 - **Community Library**: Share/discover conlangs
@@ -128,6 +139,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ### Technical Architecture
 
 #### Core Systems
+
 - **Linguistic Engine**:
   - Formal grammar representation (CFG, feature structures)
   - Phonological rule interpreter
@@ -143,6 +155,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Similarity detection for avoiding clichés
 
 #### Data Models
+
 - **Phoneme Database**: Features (voicing, place, manner), allophones
 - **Morpheme Registry**: Forms, meanings, combinatorial rules
 - **Lexical Database**: Words, definitions, etymologies, usage notes
@@ -150,6 +163,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Example Corpus**: Annotated sentences and texts
 
 #### Integration Points
+
 - **Notion/Obsidian**: Export documentation to note-taking apps
 - **LaTeX**: Generate academic-quality grammar descriptions
 - **Anki**: Create flashcards for vocabulary learning
@@ -161,6 +175,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ### Existing Solutions
 
 #### Dedicated Conlang Tools
+
 1. **PolyGlot**:
    - Desktop app, lexicon + grammar management
    - Strengths: Mature, full-featured, free
@@ -183,12 +198,14 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
    - Weaknesses: Command-line only, limited scope
 
 #### Adjacent Tools
+
 - **General Linguistics Software**: Praat (phonetics), ELAN (annotation) - too technical
 - **Worldbuilding Apps**: World Anvil - not linguistics-focused
 - **Writing Tools**: Scrivener - no linguistic features
 - **Note-Taking Apps**: Notion, Obsidian - require manual structure
 
 ### Differentiation Opportunities
+
 - **AI-Powered Assistance**: First conlang tool with LLM integration
 - **Intelligent Validation**: Real-time consistency and naturalism checking
 - **Learning Path**: Guided workflow for beginners
@@ -199,6 +216,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Potential Challenges
 
 ### Technical Challenges
+
 - **Linguistic Complexity**: Representing all possible language features formally
 - **Validation Logic**: Encoding universal grammar constraints
 - **AI Limitations**: LLMs may hallucinate linguistic facts or suggest invalid rules
@@ -207,6 +225,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Edge Cases**: Handling truly exotic linguistic features
 
 ### User Behavior Challenges
+
 - **Expertise Range**: Serving both linguistics PhD students and complete beginners
 - **Creative Freedom vs. Guidance**: Users want help but not prescriptiveness
 - **Documentation Discipline**: Users may skip documenting decisions, causing confusion later
@@ -214,6 +233,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Migration Pain**: Users have existing conlangs in spreadsheets/docs to import
 
 ### Business Challenges
+
 - **Niche Market**: Conlanging community is small (though passionate)
 - **Willingness to Pay**: Hobbyists may expect free tools
 - **Professional Market**: Limited but high-value (film/game studios)
@@ -223,6 +243,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Key Questions to Validate
 
 ### User Research Questions
+
 1. What percentage of conlangers use dedicated tools vs. spreadsheets/docs?
 2. What's the biggest pain point in the conlang creation process?
 3. How much would users pay for a comprehensive tool?
@@ -232,6 +253,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 7. What linguistic sophistication level do most conlangers have?
 
 ### Product Questions
+
 1. Should this be web-based, desktop app, or both?
 2. What's the MVP feature set? (Phonology + lexicon? Or add grammar?)
 3. How much AI assistance vs. rule-based tools?
@@ -240,6 +262,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 6. Online-only or offline support needed?
 
 ### Business Questions
+
 1. Freemium model (basic free, advanced paid) or full subscription?
 2. What's the TAM (Total Addressable Market) size?
 3. Is there a B2B opportunity (entertainment industry)?
@@ -249,6 +272,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Potential Experiments
 
 ### Validation Experiments
+
 1. **Survey**: Poll r/conlangs (155k members) about tool usage and pain points
 2. **Landing Page**: Test demand with signup for "AI conlang assistant"
 3. **Prototype**: Build minimal phonology + wordgen tool, get feedback
@@ -257,6 +281,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 6. **Expert Consultation**: Talk to professional conlangers (David Peterson, etc.)
 
 ### MVP Approaches
+
 1. **Phonology + Lexicon Only**: Core sound system + dictionary builder
 2. **AI Copilot for Existing Tools**: Plugin for PolyGlot with AI suggestions
 3. **Grammar Checker**: Tool that validates existing conlang for consistency
@@ -266,6 +291,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Success Metrics
 
 ### User Engagement
+
 - Daily/weekly active users
 - Average session length
 - Number of conlangs created per user
@@ -274,6 +300,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - Documentation exports per month
 
 ### Product Health
+
 - New user signups
 - User retention (30/60/90 day)
 - Feature adoption rates
@@ -282,6 +309,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - Community contributions (if open-source)
 
 ### Business Metrics
+
 - Free to paid conversion rate
 - Monthly recurring revenue (MRR)
 - Customer acquisition cost (CAC)
@@ -292,6 +320,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Initial Recommendations
 
 ### Start Small
+
 1. Focus on phonology + lexicon for MVP (most universal needs)
 2. Target existing conlangers first (they understand the value prop)
 3. Build in public, engage with r/conlangs community early
@@ -299,6 +328,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 5. Create compelling demos of AI-generated languages
 
 ### Key Differentiators to Emphasize
+
 1. **AI-Powered**: First intelligent assistant for conlanging
 2. **Beginner-Friendly**: Guided workflow, not intimidating
 3. **Typologically Informed**: Grounded in real linguistic data
@@ -306,6 +336,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 5. **Complete Toolkit**: Design → Documentation → Teaching
 
 ### Risks to Mitigate
+
 1. **AI Accuracy**: Validate all AI suggestions against linguistic principles
 2. **Overwhelm**: Progressive disclosure of advanced features
 3. **Lock-In Fears**: Robust export to open formats
@@ -349,23 +380,27 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Potential Business Models
 
 ### B2C (Individual Conlangers)
+
 - **Freemium**:
   - Free: 1 conlang, 500 words, basic features
   - Premium: $5-10/month - unlimited, AI features, advanced tools, exports
   - Pro: $15-20/month - collaboration, version control, priority support
 
 ### B2B (Professional Market)
+
 - **Studio Licenses**: $500-2000/year for production companies
 - **Consulting Services**: Help design languages for specific projects
 - **Educational Licenses**: $200-500/year for university courses
 
 ### Community Model
+
 - **Open Source Core**: MIT/GPL license
 - **Paid Hosting**: $5/month for cloud version
 - **Support Tiers**: Pay for priority support/features
 - **Donations**: Patreon/GitHub Sponsors
 
 ### Hybrid Approach
+
 - Core tool free/open-source
 - AI features subscription-based (due to API costs)
 - Professional services for studios
@@ -374,6 +409,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Market Size Estimation
 
 ### TAM (Total Addressable Market)
+
 - **r/conlangs**: 155k members (proxy for active community)
 - **Broader Interest**: ~500k-1M people have tried conlanging
 - **Adjacent Markets**:
@@ -382,11 +418,13 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Linguists: ~100k globally
 
 ### Realistic Targets
+
 - **Year 1**: 1,000 users (10% paid = 100 paying = $5k-10k MRR)
 - **Year 2**: 5,000 users (10% paid = 500 paying = $25k-50k MRR)
 - **Year 3**: 15,000 users (12% paid = 1,800 paying = $90k-180k MRR)
 
 ### Professional Market
+
 - **Film/TV Productions**: 50-100 projects/year needing conlangs globally
 - **Game Studios**: 200-500 potential clients
 - **Average Contract**: $1,000-5,000 per project
@@ -395,6 +433,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 ## Technical Feasibility
 
 ### Core Technologies
+
 - **Frontend**: React/Vue.js for web app, responsive design
 - **Backend**: Python (for linguistic processing) + Node.js (API)
 - **Database**: PostgreSQL (structured data) + vector DB (semantic search)
@@ -405,6 +444,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
   - Sound change: Port of existing sound change appliers
 
 ### Development Complexity
+
 - **MVP (Phonology + Lexicon)**: 3-6 months (1-2 developers)
 - **Grammar System**: +4-6 months (complex)
 - **AI Integration**: 2-3 months (ongoing refinement)
@@ -412,6 +452,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 - **Community Features**: 2-3 months
 
 ### Open Source Considerations
+
 - **Pros**:
   - Community contributions (features, linguistic data)
   - Faster adoption in hobbyist community
@@ -428,6 +469,7 @@ An AI-powered assistant specifically designed to help linguists, hobbyists, and 
 A conlang AI agent addresses genuine needs in a passionate niche community. The problem space is real - existing tools are outdated or limited, and the complexity of language creation creates high barriers to entry. An AI-powered assistant could democratize conlanging while helping experts work more efficiently.
 
 **Key Strengths**:
+
 - Underserved market with clear pain points
 - No modern, AI-powered competitor
 - Multiple revenue streams (hobbyist, professional, educational)
@@ -435,6 +477,7 @@ A conlang AI agent addresses genuine needs in a passionate niche community. The 
 - Technical feasibility with current AI/NLP technology
 
 **Key Risks**:
+
 - Small market size limits growth potential
 - Users may expect free tools (existing tools are mostly free)
 - High complexity to build comprehensive solution
