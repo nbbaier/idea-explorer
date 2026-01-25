@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Idea Explorer</title>
+    <link rel="icon" type="image/svg+xml" href="/ai-idea-stroke-rounded.svg">
     <style>
     * {
       box-sizing: border-box;
@@ -405,7 +406,7 @@
         }
 
         const mockData = {
-          job_id: "demo-" + Math.random().toString(36).slice(2, 10),
+          job_id: `demo-${Math.random().toString(36).slice(2, 10)}`,
           status: "queued",
         };
         resultDiv.className = "result success";
