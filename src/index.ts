@@ -425,10 +425,13 @@ function notFoundHandler(c: ExploreContext): Response {
 const app = new Hono<{ Bindings: ExploreEnv }>();
 
 app.use("*", securityHeadersMiddleware);
-
 app.use("/api/*", requireAuth());
-
 app.use("/api/*", rateLimitMiddleware);
+
+app.get("/", async (c) => {
+  const url = new URL(c.req.url);
+  return await c.env.ASSETS.fetch(new URL(url.origin));
+});
 
 app.get("/api", renderDocs);
 
@@ -439,13 +442,9 @@ app.post(
 );
 
 app.get("/api/jobs", listJobsHandler);
-
 app.get("/api/status/:id", getJobStatusHandler);
-
 app.get("/api/workflow-status/:id", getWorkflowStatusHandler);
-
 app.get("/api/health", healthHandler);
-
 app.get("/api/test-webhook", requireAuth(), testWebhookHandler);
 
 app.all("*", notFoundHandler);

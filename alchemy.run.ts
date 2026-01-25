@@ -3,11 +3,9 @@ import { Assets, KVNamespace, Worker, Workflow } from "alchemy/cloudflare";
 import { GitHubComment } from "alchemy/github";
 import { CloudflareStateStore } from "alchemy/state";
 
-const stage = process.env.STAGE ?? "dev";
-
 const app = await alchemy("idea-explorer", {
-  stage,
   stateStore: (scope) => new CloudflareStateStore(scope),
+  password: process.env.ALCHEMY_PASSWORD,
 });
 
 const jobsKv = await KVNamespace("jobs", {
@@ -21,9 +19,9 @@ const explorationWorkflow = Workflow("exploration", {
 });
 
 export const worker = await Worker("api", {
-  name: `idea-explorer${stage === "dev" ? "-dev" : ""}`,
+  name: `idea-explorer-${app.stage}`,
   entrypoint: "./src/index.ts",
-  compatibilityDate: "2025-05-06",
+  compatibilityDate: "2026-01-24",
   compatibilityFlags: ["nodejs_compat"],
   url: true,
   adopt: true,
@@ -49,6 +47,8 @@ export const worker = await Worker("api", {
 });
 
 console.log(`Worker URL: ${worker.url}`);
+console.log(`Worker name: ${worker.name}`);
+console.log(`App stage: ${app.stage}`);
 
 if (process.env.PULL_REQUEST) {
   const previewUrl = worker.url;

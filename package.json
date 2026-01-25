@@ -6,7 +6,7 @@
   "description": "A Cloudflare Worker that explores ideas using Claude and commits research to GitHub",
   "scripts": {
     "dev": "alchemy dev",
-    "deploy": "alchemy deploy",
+    "deploy": "alchemy deploy --stage prod",
     "destroy": "alchemy destroy",
     "build:cli": "tsdown",
     "dev:cli": "tsdown --watch",
