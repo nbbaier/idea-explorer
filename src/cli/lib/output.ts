@@ -1,5 +1,10 @@
 import { cancel, outro } from "@clack/prompts";
-import { ApiError, AuthError, NetworkError, ValidationError } from "./api.js";
+import {
+  AuthError,
+  CliApiError,
+  NetworkError,
+  ValidationError,
+} from "./api.js";
 
 export type OutputMode = "default" | "json" | "quiet";
 
@@ -132,7 +137,7 @@ function formatError(
     };
   }
 
-  if (error instanceof ApiError) {
+  if (error instanceof CliApiError) {
     return {
       message: `API error: ${error.message}`,
       details: verbose

@@ -39,7 +39,6 @@ export const ExploreResponseSchema = z.object({
 
 export type Mode = z.infer<typeof ModeSchema>;
 export type Model = z.infer<typeof ModelSchema>;
-export type JobStatus = z.infer<typeof JobStatusSchema>;
 export type ExploreRequest = z.infer<typeof ExploreRequestSchema>;
 export type JobStatusResponse = z.infer<typeof JobStatusResponseSchema>;
 export type ExploreResponse = z.infer<typeof ExploreResponseSchema>;

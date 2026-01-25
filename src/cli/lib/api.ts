@@ -8,13 +8,13 @@ import {
 
 const TRAILING_SLASH_REGEX = /\/$/;
 
-export class ApiError extends Error {
+export class CliApiError extends Error {
   statusCode?: number;
   responseBody?: string;
 
   constructor(message: string, statusCode?: number, responseBody?: string) {
     super(message);
-    this.name = "ApiError";
+    this.name = "CliApiError";
     this.statusCode = statusCode;
     this.responseBody = responseBody;
   }
@@ -96,7 +96,7 @@ export class ApiClient {
 
     if (!response.ok) {
       const responseBody = await response.text().catch(() => "");
-      throw new ApiError(
+      throw new CliApiError(
         `API request failed: ${response.statusText}`,
         response.status,
         responseBody
