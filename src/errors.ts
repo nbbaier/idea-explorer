@@ -178,8 +178,6 @@ export type GitHubError =
   | GitHubApiError
   | GitHubConfigError;
 
-export type StorageErrorType = StorageError | JobNotFoundError | JsonParseError;
-
 export class WorkflowStepError extends TaggedError("WorkflowStepError")<{
   step: string;
   message: string;
@@ -231,29 +229,3 @@ export class ExplorationLogUpdateError extends TaggedError(
     });
   }
 }
-
-export class WorkflowFailureError extends TaggedError("WorkflowFailureError")<{
-  jobId: string;
-  message: string;
-  cause: unknown;
-}>() {
-  constructor(args: { jobId: string; cause: unknown }) {
-    const causeMsg =
-      args.cause instanceof Error ? args.cause.message : String(args.cause);
-    super({
-      ...args,
-      message: `Workflow failed for job ${args.jobId}: ${causeMsg}`,
-    });
-  }
-}
-
-export type ApiError =
-  | GitHubError
-  | AnthropicApiError
-  | StorageErrorType
-  | WebhookDeliveryError
-  | WorkflowCreationError
-  | WorkflowStepError
-  | ExplorationLogParseError
-  | ExplorationLogUpdateError
-  | WorkflowFailureError;

@@ -221,7 +221,7 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
-export interface JobMetadata {
+interface JobMetadata {
   created_at: number;
   status: Job["status"];
   mode: Job["mode"];

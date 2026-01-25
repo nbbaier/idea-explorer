@@ -33,7 +33,7 @@ export function getConfigPath(): string {
   return CONFIG_FILE;
 }
 
-export function ensureConfigDir(): void {
+function ensureConfigDir(): void {
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true });
   }

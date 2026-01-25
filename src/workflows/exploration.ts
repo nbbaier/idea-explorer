@@ -286,14 +286,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
   ): Promise<void> {
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
-    const branch = this.env.GITHUB_BRANCH || "main";
+    const branch = this.env.GH_BRANCH || "main";
     const slug = generateSlug(idea);
     const datePrefix = getDatePrefix();
 
     const github = unwrapGitHubClient(
       GitHubClient.create({
-        pat: this.env.GITHUB_PAT,
-        repo: this.env.GITHUB_REPO,
+        pat: this.env.GH_PAT,
+        repo: this.env.GH_REPO,
         branch,
       })
     );
@@ -571,13 +571,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         "notify",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
         async () => {
-          const githubUrl = `https://github.com/${this.env.GITHUB_REPO}/blob/${branch}/${finalResearchPath}`;
+          const githubUrl = `https://github.com/${this.env.GH_REPO}/blob/${branch}/${finalResearchPath}`;
           await completeJobAndNotify({
             kv: this.env.IDEA_EXPLORER_JOBS,
             jobId,
             status: "completed",
             githubUrl,
-            githubRepo: this.env.GITHUB_REPO,
+            githubRepo: this.env.GH_REPO,
             branch,
             jobStartTime,
           });
@@ -626,7 +626,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       jobId,
       status: "failed",
       error: errorMessage,
-      githubRepo: this.env.GITHUB_REPO,
+      githubRepo: this.env.GH_REPO,
       branch,
       jobStartTime,
     });
