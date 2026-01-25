@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Result } from "better-result";
 import { type Context, Hono, type Next } from "hono";
 import { JobStatusSchema, ModeSchema } from "@/types/api";
+import type { worker } from "../alchemy.run";
 import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
@@ -16,9 +17,8 @@ import { requireAuth } from "./middleware/auth";
 import { logError, logJobCreated } from "./utils/logger";
 import { sendWebhook } from "./utils/webhook";
 
-type ExploreEnv = Env & {
+type ExploreEnv = typeof worker.Env & {
   IDEA_EXPLORER_WEBHOOK_URL?: string;
-  IDEA_EXPLORER_JOBS: KVNamespace;
   RATE_LIMITER?: RateLimit;
 };
 

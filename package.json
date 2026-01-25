@@ -5,9 +5,12 @@
   "private": true,
   "description": "A Cloudflare Worker that explores ideas using Claude and commits research to GitHub",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "deploy": "bun alchemy.run.ts",
+    "deploy:wrangler": "wrangler deploy",
+    "dev": "bun alchemy.run.ts --dev",
+    "dev:wrangler": "wrangler dev",
     "start": "wrangler dev",
+    "destroy": "bun alchemy.run.ts --destroy",
     "types": "wrangler types",
     "typecheck": "tsgo --noEmit",
     "check": "ultracite check .",
@@ -39,14 +42,15 @@
   "license": "MIT",
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.18",
+    "@clack/prompts": "^0.10.0",
     "@hono/zod-validator": "^0.7.6",
     "ai": "^6.0.44",
+    "alchemy": "^0.83.1",
     "better-result": "^2.0.0",
     "cloudflare": "^5.2.0",
+    "commander": "^14.0.0",
     "hono": "^4.11.3",
     "octokit": "^5.0.5",
-    "zod": "^4.3.5",
-    "@clack/prompts": "^0.10.0",
-    "commander": "^14.0.0"
+    "zod": "^4.3.5"
   }
 }
