@@ -57,8 +57,9 @@ jobs:
          - *a1
          - *a2
          - name: Cleanup Preview
-           run: bun run destroy
-           env:
+            run: bun run destroy
+            env:
+               STAGE: pr-${{ github.event.pull_request.number }}
               ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
               ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
               ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
