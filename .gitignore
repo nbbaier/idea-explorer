@@ -205,3 +205,6 @@ scratch.ts
 
 # opensrc - source code for packages
 opensrc/
+
+# Use bun.lock instead of package-lock.json
+package-lock.json
