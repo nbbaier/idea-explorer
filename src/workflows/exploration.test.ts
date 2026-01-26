@@ -42,7 +42,7 @@ vi.mock("../prompts", () => ({
   buildUserPrompt: vi.fn(),
 }));
 vi.mock("../utils/slug", () => ({
-  generateSlug: vi.fn(() => "test-slug"),
+  generateSlugWithLLM: vi.fn(() => Promise.resolve("test-slug")),
 }));
 
 describe("ExplorationWorkflow", () => {
