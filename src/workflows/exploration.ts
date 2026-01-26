@@ -287,8 +287,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GH_BRANCH || "main";
-    const slug = await generateSlugWithLLM(idea, this.env.ANTHROPIC_API_KEY);
-    const datePrefix = getDatePrefix();
+    const apiKey = this.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error("ANTHROPIC_API_KEY is required");
+    }
+
+    let slug = "";
+    let datePrefix = "";
 
     const github = unwrapGitHubClient(
       GitHubClient.create({
@@ -302,14 +307,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     const collectToolStats = event.payload.collect_tool_stats ?? false;
 
     const anthropic = new AnthropicClient({
-      apiKey: this.env.ANTHROPIC_API_KEY,
+      apiKey,
       model,
       toolExecutor,
       collectToolStats,
     });
 
-    const researchPath = `ideas/${datePrefix}-${slug}/research.md`;
-    const logPath = `ideas/${datePrefix}-${slug}/exploration-log.json`;
+    let researchPath = "";
+    let logPath = "";
 
     let existingContent: string | undefined;
     let existingSha: string | undefined;
@@ -325,7 +330,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
       // Step 1: Initialize job
       let stepStartTime = Date.now();
       await updateStepProgress(this.env.IDEA_EXPLORER_JOBS, jobId, 0);
-      await step.do(
+      const initResult = await step.do(
         "initialize",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "30 seconds" },
         async () => {
@@ -338,8 +343,14 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             );
           }
           logInfo("job_started", { mode, model }, jobId);
+          const generatedSlug = await generateSlugWithLLM(idea, apiKey);
+          return { slug: generatedSlug, datePrefix: getDatePrefix() };
         }
       );
+      slug = initResult.slug;
+      datePrefix = initResult.datePrefix;
+      researchPath = `ideas/${datePrefix}-${slug}/research.md`;
+      logPath = `ideas/${datePrefix}-${slug}/exploration-log.json`;
 
       // Step 2: Check for existing research (for update mode)
       await updateStepProgress(
