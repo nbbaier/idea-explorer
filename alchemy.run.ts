@@ -16,7 +16,7 @@ const app = await alchemy("idea-explorer", {
 
 const jobsKv = await KVNamespace("jobs", {
   title: "idea-explorer-jobs",
-  adopt: true, // Critical: adopt existing resource
+  adopt: true,
 });
 
 const explorationWorkflow = Workflow("exploration", {
