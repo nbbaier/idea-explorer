@@ -204,6 +204,7 @@ const JobSchema = z.object({
   context: z.string().optional(),
   update: z.boolean().optional(),
   collect_tool_stats: z.boolean().optional(),
+  continue_from: z.string().optional(),
   github_url: z.string().optional(),
   error: z.string().optional(),
   created_at: z.number(),
@@ -251,6 +252,7 @@ export function createJob(
     context: request.context,
     update: request.update ?? false,
     collect_tool_stats: request.collect_tool_stats,
+    continue_from: request.continue_from,
     created_at: Date.now(),
   };
 

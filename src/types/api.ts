@@ -16,6 +16,7 @@ export const ExploreRequestSchema = z.object({
   context: z.string().optional(),
   update: z.boolean().optional(),
   collect_tool_stats: z.boolean().optional(),
+  continue_from: z.string().optional(),
 });
 
 export const JobStatusResponseSchema = z.object({
@@ -30,6 +31,7 @@ export const JobStatusResponseSchema = z.object({
   steps_total: z.number().optional(),
   step_started_at: z.number().optional(),
   step_durations: z.record(z.string(), z.number()).optional(),
+  continue_from: z.string().optional(),
 });
 
 export const ExploreResponseSchema = z.object({
