@@ -189,7 +189,10 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
     );
   }
 
-  // Handle follow-up exploration (continue_from)
+  // Handle follow-up exploration (continue_from) vs update mode
+  // Priority: continue_from takes precedence over update when building prompts
+  // Note: Validation prevents both from being set simultaneously, but this
+  // else-if structure ensures the right behavior if validation is bypassed
   if (previousResearchContent) {
     const previousIdeaLabel = previousJobIdea
       ? `"${previousJobIdea}"`
