@@ -5,6 +5,8 @@ export interface BuildUserPromptParams {
   context?: string;
   existingContent?: string;
   existingResearchList?: string[];
+  previousResearchContent?: string;
+  previousJobIdea?: string;
   datePrefix: string;
   jobId: string;
   mode: Mode;
@@ -152,6 +154,8 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
     context,
     existingContent,
     existingResearchList,
+    previousResearchContent,
+    previousJobIdea,
     datePrefix,
     jobId,
     mode,
@@ -165,6 +169,7 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
     datePrefix,
     jobId,
     isUpdate: !!existingContent,
+    isFollowUp: !!previousResearchContent,
   });
 
   const parts: string[] = [frontmatter];
@@ -184,7 +189,21 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
     );
   }
 
-  if (existingContent) {
+  // Handle follow-up exploration (continue_from) vs update mode
+  // Priority: continue_from takes precedence over update when building prompts
+  // Note: Validation prevents both from being set simultaneously, but this
+  // else-if structure ensures the right behavior if validation is bypassed
+  if (previousResearchContent) {
+    const previousIdeaLabel = previousJobIdea
+      ? `"${previousJobIdea}"`
+      : "the previous exploration";
+    parts.push(
+      `## Previous Research\n\nThis exploration builds upon ${previousIdeaLabel}. Use this as your foundation:\n\n${previousResearchContent}`
+    );
+    parts.push(
+      `## Instructions\n\nThis is a follow-up exploration. Build upon the previous research above. Do NOT repeat the same analysis - instead:\n\n1. Reference key findings from the previous research where relevant\n2. Focus on the new direction or angle specified in the current idea\n3. Add new insights, deeper analysis, or explore areas the previous research identified but didn't fully develop\n4. If the current idea contradicts or pivots from the previous research, explain why and provide updated analysis`
+    );
+  } else if (existingContent) {
     parts.push(
       `## Existing Research\n\nThis is an update to existing research. Review and build upon the following:\n\n${existingContent}`
     );
@@ -203,6 +222,7 @@ interface FrontmatterParams {
   datePrefix: string;
   jobId: string;
   isUpdate: boolean;
+  isFollowUp: boolean;
 }
 
 function buildFrontmatter(params: FrontmatterParams): string {
@@ -214,6 +234,7 @@ function buildFrontmatter(params: FrontmatterParams): string {
     `date: ${params.datePrefix}`,
     `job_id: ${params.jobId}`,
     `is_update: ${params.isUpdate}`,
+    `is_follow_up: ${params.isFollowUp}`,
     "---",
   ];
   return lines.join("\n");

@@ -162,6 +162,7 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
           context: job.context,
           update: job.update,
           collect_tool_stats: job.collect_tool_stats,
+          continue_from: job.continue_from,
           webhook_url: job.webhook_url,
           callback_secret: job.callback_secret,
         },
@@ -270,6 +271,10 @@ function buildStatusResponse(job: Job): Record<string, unknown> {
     idea: job.idea,
     mode: job.mode,
   };
+
+  if (job.continue_from) {
+    response.continue_from = job.continue_from;
+  }
 
   switch (job.status) {
     case "completed":

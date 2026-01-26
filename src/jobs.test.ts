@@ -262,4 +262,82 @@ describe("Job Management", () => {
       });
     });
   });
+
+  describe("Continue From (Follow-up Explorations)", () => {
+    it("should create a job with continue_from parameter", async () => {
+      const result = await createJob(mockKV, {
+        idea: "Follow-up idea",
+        mode: "business",
+        model: "sonnet",
+        continue_from: "abc12345",
+      });
+
+      expect(Result.isOk(result)).toBe(true);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+      expect(result.value.continue_from).toBe("abc12345");
+    });
+
+    it("should create a job without continue_from when not provided", async () => {
+      const result = await createJob(mockKV, {
+        idea: "New idea",
+        mode: "business",
+        model: "sonnet",
+      });
+
+      expect(Result.isOk(result)).toBe(true);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+      expect(result.value.continue_from).toBeUndefined();
+    });
+
+    it("should accept continue_from in request schema", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject when both update and continue_from are set", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: true,
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain(
+          "Cannot use both 'update' and 'continue_from' together"
+        );
+      }
+    });
+
+    it("should allow update without continue_from", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: true,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should allow continue_from without update", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should allow update: false with continue_from", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: false,
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
+  });
 });
