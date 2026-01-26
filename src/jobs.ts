@@ -188,10 +188,12 @@ const webhookUrlSchema = z
   .refine(isValidWebhookUrl, { message: "Invalid webhook URL" })
   .optional();
 
-export const ExploreRequestSchema = BaseExploreRequestSchema.extend({
-  webhook_url: webhookUrlSchema,
-  callback_secret: z.string().optional(),
-});
+export const ExploreRequestSchema = BaseExploreRequestSchema.merge(
+  z.object({
+    webhook_url: webhookUrlSchema,
+    callback_secret: z.string().optional(),
+  })
+);
 
 const JobSchema = z.object({
   id: z.string(),
