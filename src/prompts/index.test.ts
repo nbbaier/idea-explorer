@@ -135,5 +135,47 @@ describe("prompts", () => {
 
       expect(result).toContain("mode: exploration");
     });
+
+    it("should include previous research for follow-up explorations", () => {
+      const result = buildUserPrompt({
+        ...baseParams,
+        previousResearchContent: "# Previous Exploration\n\nAnalysis here",
+        previousJobIdea: "Original idea",
+      });
+
+      expect(result).toContain("## Previous Research");
+      expect(result).toContain("# Previous Exploration\n\nAnalysis here");
+      expect(result).toContain('"Original idea"');
+      expect(result).toContain("is_follow_up: true");
+    });
+
+    it("should include follow-up instructions when previous research provided", () => {
+      const result = buildUserPrompt({
+        ...baseParams,
+        previousResearchContent: "Previous content",
+      });
+
+      expect(result).toContain("## Instructions");
+      expect(result).toContain("This is a follow-up exploration");
+      expect(result).toContain("Do NOT repeat the same analysis");
+    });
+
+    it("should set is_follow_up: false when no previous research", () => {
+      const result = buildUserPrompt(baseParams);
+
+      expect(result).toContain("is_follow_up: false");
+    });
+
+    it("should prefer follow-up over update instructions when both provided", () => {
+      const result = buildUserPrompt({
+        ...baseParams,
+        existingContent: "Existing content",
+        previousResearchContent: "Previous research content",
+      });
+
+      // Follow-up instructions should take precedence
+      expect(result).toContain("This is a follow-up exploration");
+      expect(result).not.toContain("## Update - ");
+    });
   });
 });

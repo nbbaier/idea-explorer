@@ -26,6 +26,7 @@ interface JobParams {
   model: "sonnet" | "opus";
   context?: string;
   update?: boolean;
+  continue_from?: string;
   webhook_url?: string;
   callback_secret?: string;
   collect_tool_stats?: boolean;
@@ -49,6 +50,7 @@ interface ExplorationLog {
   model: "sonnet" | "opus";
   context?: string;
   isUpdate: boolean;
+  continueFrom?: string;
   startedAt: string;
   completedAt: string;
   durationMs: number;
@@ -76,6 +78,62 @@ const WORKFLOW_STEPS: {
   { name: "write_github", label: "Writing results to GitHub..." },
   { name: "notify", label: "Sending completion notification..." },
 ];
+
+// Regex for extracting research path from GitHub URL
+// Format: https://github.com/{repo}/blob/{branch}/ideas/{date}-{slug}/research.md
+const GITHUB_URL_PATH_REGEX = /\/blob\/[^/]+\/(.+)$/;
+
+function extractResearchPathFromUrl(githubUrl: string): string | undefined {
+  const match = githubUrl.match(GITHUB_URL_PATH_REGEX);
+  return match?.[1];
+}
+
+interface PreviousResearchResult {
+  content?: string;
+  idea?: string;
+}
+
+async function loadPreviousResearch(
+  kv: KVNamespace,
+  github: GitHubClient,
+  continueFrom: string,
+  jobId: string
+): Promise<PreviousResearchResult> {
+  const previousJobResult = await getJob(kv, continueFrom);
+  const previousJob = previousJobResult.unwrapOr(null);
+
+  if (!previousJob?.github_url || previousJob.status !== "completed") {
+    logInfo(
+      "continue_from_job_not_found_or_incomplete",
+      { continue_from: continueFrom, status: previousJob?.status },
+      jobId
+    );
+    return {};
+  }
+
+  const previousResearchPath = extractResearchPathFromUrl(
+    previousJob.github_url
+  );
+  if (!previousResearchPath) {
+    return {};
+  }
+
+  const fileResult = await github.getFile(previousResearchPath);
+  if (fileResult.status !== "ok" || !fileResult.value?.content) {
+    return {};
+  }
+
+  logInfo(
+    "previous_research_loaded",
+    { path: previousResearchPath, continue_from: continueFrom },
+    jobId
+  );
+
+  return {
+    content: fileResult.value.content,
+    idea: previousJob.idea,
+  };
+}
 
 async function updateStepProgress(
   kv: KVNamespace,
@@ -284,7 +342,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     event: WorkflowEvent<JobParams>,
     step: WorkflowStep
   ): Promise<void> {
-    const { jobId, idea, mode, model, context, update } = event.payload;
+    const { jobId, idea, mode, model, context, update, continue_from } =
+      event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GH_BRANCH || "main";
     const slug = generateSlug(idea);
@@ -315,6 +374,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     let existingSha: string | undefined;
     let existingDirPath: string | undefined;
     let existingResearchList: string[] = [];
+    let previousResearchContent: string | undefined;
+    let previousJobIdea: string | undefined;
     let researchContent = "";
     let inputTokens = 0;
     let outputTokens = 0;
@@ -341,7 +402,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         }
       );
 
-      // Step 2: Check for existing research (for update mode)
+      // Step 2: Check for existing research (for update mode or continue_from)
       await updateStepProgress(
         this.env.IDEA_EXPLORER_JOBS,
         jobId,
@@ -364,6 +425,18 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           existingResearchList = directories
             .filter((dir) => dir.type === "dir")
             .map((dir) => dir.name);
+
+          // Load previous research if continue_from is set
+          if (continue_from) {
+            const previousResearch = await loadPreviousResearch(
+              this.env.IDEA_EXPLORER_JOBS,
+              github,
+              continue_from,
+              jobId
+            );
+            previousResearchContent = previousResearch.content;
+            previousJobIdea = previousResearch.idea;
+          }
 
           if (update) {
             const matchingDirs = directories
@@ -409,6 +482,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             "check_existing_complete",
             {
               hasExisting: !!existingContent,
+              hasPreviousResearch: !!previousResearchContent,
               existingCount: existingResearchList.length,
             },
             jobId
@@ -436,6 +510,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             context,
             existingContent,
             existingResearchList,
+            previousResearchContent,
+            previousJobIdea,
             datePrefix,
             jobId,
             mode,
@@ -534,6 +610,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             model,
             context,
             isUpdate: !!update,
+            continueFrom: continue_from,
             startedAt: new Date(jobStartTime).toISOString(),
             completedAt: new Date().toISOString(),
             durationMs: Date.now() - jobStartTime,

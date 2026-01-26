@@ -262,4 +262,43 @@ describe("Job Management", () => {
       });
     });
   });
+
+  describe("Continue From (Follow-up Explorations)", () => {
+    it("should create a job with continue_from parameter", async () => {
+      const result = await createJob(mockKV, {
+        idea: "Follow-up idea",
+        mode: "business",
+        model: "sonnet",
+        continue_from: "abc12345",
+      });
+
+      expect(Result.isOk(result)).toBe(true);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+      expect(result.value.continue_from).toBe("abc12345");
+    });
+
+    it("should create a job without continue_from when not provided", async () => {
+      const result = await createJob(mockKV, {
+        idea: "New idea",
+        mode: "business",
+        model: "sonnet",
+      });
+
+      expect(Result.isOk(result)).toBe(true);
+      if (!Result.isOk(result)) {
+        throw new Error("Expected ok result");
+      }
+      expect(result.value.continue_from).toBeUndefined();
+    });
+
+    it("should accept continue_from in request schema", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
+  });
 });
