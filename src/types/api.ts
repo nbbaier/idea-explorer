@@ -9,15 +9,28 @@ export const JobStatusSchema = z.enum([
   "failed",
 ]);
 
-export const ExploreRequestSchema = z.object({
-  idea: z.string(),
-  mode: ModeSchema.optional(),
-  model: ModelSchema.optional(),
-  context: z.string().optional(),
-  update: z.boolean().optional(),
-  collect_tool_stats: z.boolean().optional(),
-  continue_from: z.string().optional(),
-});
+// Request schema for explore endpoint
+// Validation: 'update' and 'continue_from' are mutually exclusive
+// - 'update': Appends to existing research for the same idea (same slug)
+// - 'continue_from': Builds upon a previous exploration (different idea)
+// When both are set, there's a conflict:
+//   - Prompt shows only previousResearchContent (continue_from) due to else-if
+//   - File write still appends to existingContent (update)
+// This creates a mismatch where Claude doesn't see what it's appending to
+export const ExploreRequestSchema = z
+  .object({
+    idea: z.string(),
+    mode: ModeSchema.optional(),
+    model: ModelSchema.optional(),
+    context: z.string().optional(),
+    update: z.boolean().optional(),
+    collect_tool_stats: z.boolean().optional(),
+    continue_from: z.string().optional(),
+  })
+  .refine((data) => !(data.update && data.continue_from != null), {
+    message:
+      "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
+  });
 
 export const JobStatusResponseSchema = z.object({
   status: JobStatusSchema,

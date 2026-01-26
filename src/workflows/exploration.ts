@@ -591,6 +591,10 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             ? `idea: ${slug} - research updated`
             : `idea: ${slug} - research complete`;
 
+          // Note: When continue_from is used WITHOUT update, this creates a NEW file
+          // (previousResearchContent is shown to Claude for context only)
+          // When update=true, this appends to existingContent
+          // Validation prevents both from being set simultaneously
           const finalContent = existingContent
             ? `${existingContent}\n\n${researchContent}`
             : researchContent;
