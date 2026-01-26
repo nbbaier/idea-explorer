@@ -27,13 +27,10 @@ export const ExploreRequestSchema = z
     collect_tool_stats: z.boolean().optional(),
     continue_from: z.string().optional(),
   })
-  .refine(
-    (data) => !(data.update === true && data.continue_from !== undefined),
-    {
-      message:
-        "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
-    }
-  );
+  .refine((data) => !(data.update && data.continue_from != null), {
+    message:
+      "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
+  });
 
 export const JobStatusResponseSchema = z.object({
   status: JobStatusSchema,
