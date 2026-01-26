@@ -9,6 +9,14 @@ export const JobStatusSchema = z.enum([
   "failed",
 ]);
 
+// Request schema for explore endpoint
+// Validation: 'update' and 'continue_from' are mutually exclusive
+// - 'update': Appends to existing research for the same idea (same slug)
+// - 'continue_from': Builds upon a previous exploration (different idea)
+// When both are set, there's a conflict:
+//   - Prompt shows only previousResearchContent (continue_from) due to else-if
+//   - File write still appends to existingContent (update)
+// This creates a mismatch where Claude doesn't see what it's appending to
 export const ExploreRequestSchema = z
   .object({
     idea: z.string(),
