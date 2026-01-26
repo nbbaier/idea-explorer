@@ -45,9 +45,23 @@ describe("GET /api/jobs", () => {
   // Mock KV namespace
   const createMockKV = (jobs: Record<string, string>) => {
     return {
-      list: async () => ({
-        keys: Object.keys(jobs).map((name) => ({ name })),
-      }),
+      // biome-ignore lint/suspicious/useAwait: mock interface requires async
+      list: async () => {
+        return {
+          keys: Object.keys(jobs).map((name) => {
+            const job = JSON.parse(jobs[name] as string);
+            return {
+              name,
+              metadata: {
+                created_at: job.created_at,
+                status: job.status,
+                mode: job.mode,
+              },
+            };
+          }),
+          list_complete: true,
+        };
+      },
       get: (key: string, type?: string): Promise<string | null | Job> => {
         const value = jobs[key];
         if (!value) {

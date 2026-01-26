@@ -221,7 +221,7 @@ export type Job = z.infer<typeof JobSchema>;
 
 export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
-interface JobMetadata {
+export interface JobMetadata {
   created_at: number;
   status: Job["status"];
   mode: Job["mode"];
@@ -325,26 +325,79 @@ export function updateJob(
   );
 }
 
+export interface ListJobsOptions {
+  limit?: number;
+  offset?: number;
+  status?: Job["status"];
+  mode?: Job["mode"];
+}
+
+export interface ListJobsResult {
+  jobs: Job[];
+  total: number;
+}
+
 export function listJobs(
-  kv: KVNamespace
-): Promise<Result<Job[], StorageError>> {
+  kv: KVNamespace,
+  options: ListJobsOptions = {}
+): Promise<Result<ListJobsResult, StorageError>> {
   return Result.tryPromise({
     try: async () => {
-      const { keys } = await kv.list();
+      const { limit = 20, offset = 0, status, mode } = options;
+      let keys: KVNamespaceListKey<JobMetadata, string>[] = [];
+      let cursor: string | undefined;
+
+      // Fetch all keys (up to a reasonable safety limit if needed,
+      // but loop ensures we see everything for sorting)
+      do {
+        const list = await kv.list<JobMetadata>({ cursor, limit: 1000 });
+        keys = keys.concat(list.keys);
+        cursor = list.list_complete ? undefined : list.cursor;
+      } while (cursor);
+
+      // Filter keys by metadata
+      const filteredKeys = keys.filter((key) => {
+        if (!key.metadata) {
+          return true; // Should ideally have metadata
+        }
+        if (status && key.metadata.status !== status) {
+          return false;
+        }
+        if (mode && key.metadata.mode !== mode) {
+          return false;
+        }
+        return true;
+      });
+
+      const total = filteredKeys.length;
+
+      // Sort by created_at desc
+      filteredKeys.sort((a, b) => {
+        const timeA = a.metadata?.created_at ?? 0;
+        const timeB = b.metadata?.created_at ?? 0;
+        return timeB - timeA;
+      });
+
+      // Paginate keys
+      const pagedKeys = filteredKeys.slice(offset, offset + limit);
+
+      // Fetch bodies for the page
       const results = await Promise.allSettled(
-        keys.map(async (key) => {
+        pagedKeys.map(async (key) => {
           const data = await kv.get(key.name, "json");
           return data as Job | null;
         })
       );
 
-      return results
+      const jobs = results
         .filter(
           (result): result is PromiseFulfilledResult<Job | null> =>
             result.status === "fulfilled"
         )
         .map((result) => result.value)
         .filter((job): job is Job => job !== null);
+
+      return { jobs, total };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });

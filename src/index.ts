@@ -3,6 +3,7 @@ import { Result } from "better-result";
 import { type Context, Hono, type Next } from "hono";
 import { JobStatusSchema, ModeSchema } from "@/types/api";
 import type { worker } from "../alchemy.run";
+import { parseEnv } from "./env";
 import { WorkflowCreationError, WorkflowNotFoundError } from "./errors";
 import {
   createJob,
@@ -187,14 +188,10 @@ async function createExploreHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function listJobsHandler(c: ExploreContext): Promise<Response> {
-  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS);
-
-  if (jobsResult.status === "error") {
-    logError("jobs_list_failed", jobsResult.error);
-    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
-  }
-
-  const jobs = jobsResult.value;
+  const { limit, offset } = parsePaginationParams(
+    c.req.query("limit"),
+    c.req.query("offset")
+  );
 
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
@@ -214,37 +211,30 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     return c.json({ error: modeValidation.error }, 400);
   }
 
-  const statusFilter = statusValidation?.valid
-    ? statusValidation.value
+  const status = statusValidation?.valid
+    ? (statusValidation.value as Job["status"])
     : undefined;
-  const modeFilter = modeValidation?.valid ? modeValidation.value : undefined;
+  const mode = modeValidation?.valid
+    ? (modeValidation.value as Job["mode"])
+    : undefined;
 
-  function filterJob(job: Job): boolean {
-    if (statusFilter && job.status !== statusFilter) {
-      return false;
-    }
-    if (modeFilter && job.mode !== modeFilter) {
-      return false;
-    }
-    return true;
+  const jobsResult = await listJobs(c.env.IDEA_EXPLORER_JOBS, {
+    limit,
+    offset,
+    status,
+    mode,
+  });
+
+  if (jobsResult.status === "error") {
+    logError("jobs_list_failed", jobsResult.error);
+    return c.json({ error: "Failed to retrieve jobs from storage" }, 500);
   }
 
-  const filtered = jobs.filter(filterJob);
-
-  function sortByCreatedAtDesc(a: Job, b: Job): number {
-    return b.created_at - a.created_at;
-  }
-
-  filtered.sort(sortByCreatedAtDesc);
-
-  const { limit, offset } = parsePaginationParams(
-    c.req.query("limit"),
-    c.req.query("offset")
-  );
+  const { jobs, total } = jobsResult.value;
 
   return c.json({
-    jobs: filtered.slice(offset, offset + limit),
-    total: filtered.length,
+    jobs,
+    total,
     limit,
     offset,
   });
@@ -423,6 +413,16 @@ function notFoundHandler(c: ExploreContext): Response {
 }
 
 const app = new Hono<{ Bindings: ExploreEnv }>();
+
+app.use("*", async (c, next) => {
+  try {
+    parseEnv(c.env);
+  } catch (error) {
+    logError("env_validation_failed", error);
+    return c.json({ error: "Server configuration error" }, 500);
+  }
+  await next();
+});
 
 app.use("*", securityHeadersMiddleware);
 app.use("/api/*", requireAuth());
