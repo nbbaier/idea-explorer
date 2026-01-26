@@ -300,5 +300,44 @@ describe("Job Management", () => {
       });
       expect(result.success).toBe(true);
     });
+
+    it("should reject when both update and continue_from are set", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: true,
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain(
+          "Cannot use both 'update' and 'continue_from' together"
+        );
+      }
+    });
+
+    it("should allow update without continue_from", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: true,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should allow continue_from without update", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should allow update: false with continue_from", () => {
+      const result = ExploreRequestSchema.safeParse({
+        idea: "Test idea",
+        update: false,
+        continue_from: "job-id-12",
+      });
+      expect(result.success).toBe(true);
+    });
   });
 });

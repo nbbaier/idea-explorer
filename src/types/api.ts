@@ -9,15 +9,23 @@ export const JobStatusSchema = z.enum([
   "failed",
 ]);
 
-export const ExploreRequestSchema = z.object({
-  idea: z.string(),
-  mode: ModeSchema.optional(),
-  model: ModelSchema.optional(),
-  context: z.string().optional(),
-  update: z.boolean().optional(),
-  collect_tool_stats: z.boolean().optional(),
-  continue_from: z.string().optional(),
-});
+export const ExploreRequestSchema = z
+  .object({
+    idea: z.string(),
+    mode: ModeSchema.optional(),
+    model: ModelSchema.optional(),
+    context: z.string().optional(),
+    update: z.boolean().optional(),
+    collect_tool_stats: z.boolean().optional(),
+    continue_from: z.string().optional(),
+  })
+  .refine(
+    (data) => !(data.update === true && data.continue_from !== undefined),
+    {
+      message:
+        "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
+    }
+  );
 
 export const JobStatusResponseSchema = z.object({
   status: JobStatusSchema,
