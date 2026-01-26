@@ -358,7 +358,7 @@ export function listJobs(
       // Filter keys by metadata
       const filteredKeys = keys.filter((key) => {
         if (!key.metadata) {
-          return true; // Should ideally have metadata
+          return !(status || mode);
         }
         if (status && key.metadata.status !== status) {
           return false;

@@ -14,8 +14,8 @@ export type EnvConfig = z.infer<typeof EnvSchema>;
 export function parseEnv(env: unknown): EnvConfig {
   const result = EnvSchema.safeParse(env);
   if (!result.success) {
-    const messages = result.error.errors.map(
-      (e) => `${e.path.join(".")}: ${e.message}`
+    const messages = result.error.issues.map(
+      (e: z.ZodIssue) => `${e.path.join(".")}: ${e.message}`
     );
     throw new Error(
       `Invalid environment configuration: ${messages.join(", ")}`
