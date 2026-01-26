@@ -127,13 +127,10 @@ export async function sendWebhook(
   }
 
   const webhookUrl = job.webhook_url;
-
-  let payload: WebhookPayload;
-  if (job.status === "completed") {
-    payload = buildSuccessPayload(job, githubRepo, branch);
-  } else {
-    payload = buildFailurePayload(job);
-  }
+  const payload: WebhookPayload =
+    job.status === "completed"
+      ? buildSuccessPayload(job, githubRepo, branch)
+      : buildFailurePayload(job);
 
   const body = JSON.stringify(payload);
 
@@ -181,11 +178,12 @@ export async function sendWebhook(
     }
   }
 
+  const lastStatus = lastResponse?.status ?? 0;
   logError(
     "webhook_delivery_failed",
     new Error("Webhook delivery failed"),
     {
-      status_code: lastResponse?.status ?? 0,
+      status_code: lastStatus,
       attempts: MAX_ATTEMPTS,
       url: webhookUrl,
     },
@@ -196,7 +194,7 @@ export async function sendWebhook(
     new WebhookDeliveryError({
       url: webhookUrl,
       attempts: MAX_ATTEMPTS,
-      lastStatus: lastResponse?.status,
+      lastStatus,
     })
   );
 }

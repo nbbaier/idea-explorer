@@ -12,6 +12,12 @@ type ReadResearchResult =
       message: string;
     };
 
+type ReadResearchErrorType =
+  | "file_not_found"
+  | "path_validation"
+  | "file_too_large"
+  | "api_error";
+
 export interface ToolExecutor {
   readResearch(path: string): Promise<ReadResearchResult>;
 }
@@ -24,16 +30,19 @@ type PathValidationResult =
   | { ok: true; path: string }
   | { ok: false; message: string };
 
+function failReadResearch(
+  error_type: ReadResearchErrorType,
+  message: string
+): ReadResearchResult {
+  return { ok: false, error_type, message };
+}
+
 export function createToolExecutor(github: GitHubClient): ToolExecutor {
   return {
     async readResearch(path: string): Promise<ReadResearchResult> {
       const validation = validatePath(path);
       if (!validation.ok) {
-        return {
-          ok: false,
-          error_type: "path_validation",
-          message: validation.message,
-        };
+        return failReadResearch("path_validation", validation.message);
       }
 
       const normalizedPath = validation.path;
@@ -41,45 +50,39 @@ export function createToolExecutor(github: GitHubClient): ToolExecutor {
       const fileResult = await github.getFile(fullPath, { includeMeta: true });
 
       if (fileResult.status === "error") {
-        return {
-          ok: false,
-          error_type: "api_error",
-          message: `Failed to read file: ${fileResult.error.message}`,
-        };
+        return failReadResearch(
+          "api_error",
+          `Failed to read file: ${fileResult.error.message}`
+        );
       }
 
       const file = fileResult.value;
       if (!file) {
-        return {
-          ok: false,
-          error_type: "file_not_found",
-          message: `File not found: ${normalizedPath}`,
-        };
+        return failReadResearch(
+          "file_not_found",
+          `File not found: ${normalizedPath}`
+        );
       }
 
       if (isNonFileContent(file)) {
-        return {
-          ok: false,
-          error_type: "api_error",
-          message: `Path is not a file: ${normalizedPath}`,
-        };
+        return failReadResearch(
+          "api_error",
+          `Path is not a file: ${normalizedPath}`
+        );
       }
 
       if (typeof file.size !== "number") {
-        return {
-          ok: false,
-          error_type: "api_error",
-          message: `Failed to read file: Missing size for ${normalizedPath}`,
-        };
+        return failReadResearch(
+          "api_error",
+          `Failed to read file: Missing size for ${normalizedPath}`
+        );
       }
 
       if (file.size > MAX_FILE_BYTES) {
-        return {
-          ok: false,
-          error_type: "file_too_large",
-          message:
-            "File exceeds 50KB limit. Try a more specific path or request a summary.",
-        };
+        return failReadResearch(
+          "file_too_large",
+          "File exceeds 50KB limit. Try a more specific path or request a summary."
+        );
       }
 
       return {
