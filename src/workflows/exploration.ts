@@ -16,7 +16,7 @@ import {
 import { getJob, type Job, updateJob } from "../jobs";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts";
 import { logError, logInfo, logJobComplete } from "../utils/logger";
-import { generateSlug } from "../utils/slug";
+import { generateSlugWithLLM } from "../utils/slug";
 import { sendWebhook } from "../utils/webhook";
 
 interface JobParams {
@@ -287,7 +287,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
     const { jobId, idea, mode, model, context, update } = event.payload;
     const jobStartTime = Date.now();
     const branch = this.env.GH_BRANCH || "main";
-    const slug = generateSlug(idea);
+    const slug = await generateSlugWithLLM(idea, this.env.ANTHROPIC_API_KEY);
     const datePrefix = getDatePrefix();
 
     const github = unwrapGitHubClient(
