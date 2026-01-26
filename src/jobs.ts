@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { z } from "zod";
 import {
-  ExploreRequestSchema as BaseExploreRequestSchema,
+  ExploreRequestBaseSchema,
   JobStatusSchema,
   ModelSchema,
   ModeSchema,
@@ -188,12 +188,15 @@ const webhookUrlSchema = z
   .refine(isValidWebhookUrl, { message: "Invalid webhook URL" })
   .optional();
 
-export const ExploreRequestSchema = BaseExploreRequestSchema.merge(
+export const ExploreRequestSchema = ExploreRequestBaseSchema.merge(
   z.object({
     webhook_url: webhookUrlSchema,
     callback_secret: z.string().optional(),
   })
-);
+).refine((data) => !(data.update && data.continue_from != null), {
+  message:
+    "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
+});
 
 const JobSchema = z.object({
   id: z.string(),

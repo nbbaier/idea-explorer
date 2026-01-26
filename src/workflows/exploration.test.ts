@@ -303,11 +303,13 @@ describe("ExplorationWorkflow", () => {
   describe("continue_from functionality", () => {
     it("should load previous research when continue_from references a completed job", async () => {
       const previousJobId = "prev-job-123";
-      const previousResearchContent = "# Previous Research\n\nDetailed analysis here";
+      const previousResearchContent =
+        "# Previous Research\n\nDetailed analysis here";
       const previousJobIdea = "Original Idea";
 
       // Mock the previous job as completed
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.ok({
             id: previousJobId,
@@ -315,7 +317,8 @@ describe("ExplorationWorkflow", () => {
             mode: "exploration",
             model: "sonnet",
             status: "completed",
-            github_url: "https://github.com/owner/repo/blob/main/ideas/2026-01-01-original/research.md",
+            github_url:
+              "https://github.com/owner/repo/blob/main/ideas/2026-01-01-original/research.md",
             created_at: Date.now(),
           }) as any;
         }
@@ -333,18 +336,26 @@ describe("ExplorationWorkflow", () => {
         listDirectory: vi.fn().mockResolvedValue(Result.ok([])),
         getFile: vi.fn((path: string) => {
           if (path === "ideas/2026-01-01-original/research.md") {
-            return Promise.resolve(Result.ok({
-              content: previousResearchContent,
-              sha: "prev-sha",
-              path,
-            }));
+            return Promise.resolve(
+              Result.ok({
+                content: previousResearchContent,
+                sha: "prev-sha",
+                path,
+              })
+            );
           }
           return Promise.resolve(Result.ok(null));
         }),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -357,18 +368,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -380,7 +393,9 @@ describe("ExplorationWorkflow", () => {
       );
 
       // Verify previous research was loaded
-      expect(mockGithub.getFile).toHaveBeenCalledWith("ideas/2026-01-01-original/research.md");
+      expect(mockGithub.getFile).toHaveBeenCalledWith(
+        "ideas/2026-01-01-original/research.md"
+      );
 
       // Verify buildUserPrompt was called with previous research content
       expect(buildUserPrompt).toHaveBeenCalledWith(
@@ -399,7 +414,8 @@ describe("ExplorationWorkflow", () => {
       const previousJobId = "non-existent-job";
 
       // Mock getJob to return job not found
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.err({ message: "Job not found" }) as any;
         }
@@ -416,10 +432,16 @@ describe("ExplorationWorkflow", () => {
       const mockGithub = {
         listDirectory: vi.fn().mockResolvedValue(Result.ok([])),
         getFile: vi.fn().mockResolvedValue(Result.ok(null)),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -432,18 +454,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -455,9 +479,10 @@ describe("ExplorationWorkflow", () => {
       );
 
       // Verify no attempt to fetch previous research file (only exploration-log.json should be fetched)
-      const getFileCalls = mockGithub.getFile.mock.calls.map(call => call[0]);
-      const previousResearchCalls = getFileCalls.filter((path: string) => 
-        path.includes("ideas/") && path.endsWith("research.md")
+      const getFileCalls = mockGithub.getFile.mock.calls.map((call) => call[0]);
+      const previousResearchCalls = getFileCalls.filter(
+        (path: string) =>
+          path.includes("ideas/") && path.endsWith("research.md")
       );
       expect(previousResearchCalls).toHaveLength(0);
 
@@ -477,7 +502,8 @@ describe("ExplorationWorkflow", () => {
       const previousJobId = "incomplete-job";
 
       // Mock the previous job as running (not completed)
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.ok({
             id: previousJobId,
@@ -485,7 +511,8 @@ describe("ExplorationWorkflow", () => {
             mode: "exploration",
             model: "sonnet",
             status: "running",
-            github_url: "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
+            github_url:
+              "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
             created_at: Date.now(),
           }) as any;
         }
@@ -502,10 +529,16 @@ describe("ExplorationWorkflow", () => {
       const mockGithub = {
         listDirectory: vi.fn().mockResolvedValue(Result.ok([])),
         getFile: vi.fn().mockResolvedValue(Result.ok(null)),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -518,18 +551,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -561,7 +596,8 @@ describe("ExplorationWorkflow", () => {
       const previousJobId = "malformed-url-job";
 
       // Mock the previous job with a malformed URL
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.ok({
             id: previousJobId,
@@ -586,10 +622,16 @@ describe("ExplorationWorkflow", () => {
       const mockGithub = {
         listDirectory: vi.fn().mockResolvedValue(Result.ok([])),
         getFile: vi.fn().mockResolvedValue(Result.ok(null)),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -602,18 +644,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -625,9 +669,10 @@ describe("ExplorationWorkflow", () => {
       );
 
       // Verify no attempt to fetch previous research file due to malformed URL (only exploration-log.json should be fetched)
-      const getFileCalls = mockGithub.getFile.mock.calls.map(call => call[0]);
-      const previousResearchCalls = getFileCalls.filter((path: string) => 
-        path.includes("ideas/") && path.endsWith("research.md")
+      const getFileCalls = mockGithub.getFile.mock.calls.map((call) => call[0]);
+      const previousResearchCalls = getFileCalls.filter(
+        (path: string) =>
+          path.includes("ideas/") && path.endsWith("research.md")
       );
       expect(previousResearchCalls).toHaveLength(0);
 
@@ -647,7 +692,8 @@ describe("ExplorationWorkflow", () => {
       const previousJobId = "getfile-error-job";
 
       // Mock the previous job as completed
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.ok({
             id: previousJobId,
@@ -655,7 +701,8 @@ describe("ExplorationWorkflow", () => {
             mode: "exploration",
             model: "sonnet",
             status: "completed",
-            github_url: "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
+            github_url:
+              "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
             created_at: Date.now(),
           }) as any;
         }
@@ -678,10 +725,16 @@ describe("ExplorationWorkflow", () => {
           }
           return Promise.resolve(Result.ok(null));
         }),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -694,18 +747,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -717,7 +772,9 @@ describe("ExplorationWorkflow", () => {
       );
 
       // Verify attempt to fetch file was made
-      expect(mockGithub.getFile).toHaveBeenCalledWith("ideas/2026-01-01-previous/research.md");
+      expect(mockGithub.getFile).toHaveBeenCalledWith(
+        "ideas/2026-01-01-previous/research.md"
+      );
 
       // Verify buildUserPrompt was called without previous research (error handled gracefully)
       expect(buildUserPrompt).toHaveBeenCalledWith(
@@ -735,7 +792,8 @@ describe("ExplorationWorkflow", () => {
       const previousJobId = "null-content-job";
 
       // Mock the previous job as completed
-      vi.mocked(getJob).mockImplementation(async (kv, jobId) => {
+      vi.mocked(getJob).mockImplementation(async (_kv, jobId) => {
+        await Promise.resolve();
         if (jobId === previousJobId) {
           return Result.ok({
             id: previousJobId,
@@ -743,7 +801,8 @@ describe("ExplorationWorkflow", () => {
             mode: "exploration",
             model: "sonnet",
             status: "completed",
-            github_url: "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
+            github_url:
+              "https://github.com/owner/repo/blob/main/ideas/2026-01-01-previous/research.md",
             created_at: Date.now(),
           }) as any;
         }
@@ -762,14 +821,22 @@ describe("ExplorationWorkflow", () => {
         getFile: vi.fn((path: string) => {
           if (path === "ideas/2026-01-01-previous/research.md") {
             // Return ok but with empty content
-            return Promise.resolve(Result.ok({ content: "", sha: "sha", path }));
+            return Promise.resolve(
+              Result.ok({ content: "", sha: "sha", path })
+            );
           }
           return Promise.resolve(Result.ok(null));
         }),
-        createFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
-        updateFile: vi.fn().mockResolvedValue(Result.ok("https://github.com/url")),
+        createFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
+        updateFile: vi
+          .fn()
+          .mockResolvedValue(Result.ok("https://github.com/url")),
       };
-      vi.mocked(GitHubClient.create).mockReturnValue(Result.ok(mockGithub) as any);
+      vi.mocked(GitHubClient.create).mockReturnValue(
+        Result.ok(mockGithub) as any
+      );
 
       const mockAnthropic = {
         generateResearch: vi.fn().mockResolvedValue(
@@ -782,18 +849,20 @@ describe("ExplorationWorkflow", () => {
         ),
       };
       // biome-ignore lint/complexity/useArrowFunction: must use function for constructor mock
-      vi.mocked(AnthropicClient).mockImplementation(function() {
+      vi.mocked(AnthropicClient).mockImplementation(function () {
         return mockAnthropic;
       } as unknown as typeof AnthropicClient);
 
-      vi.mocked(updateJob).mockResolvedValue(Result.ok({
-        id: "test-job",
-        idea: "Test Idea",
-        mode: "exploration",
-        model: "sonnet",
-        status: "running",
-        created_at: Date.now(),
-      }) as any);
+      vi.mocked(updateJob).mockResolvedValue(
+        Result.ok({
+          id: "test-job",
+          idea: "Test Idea",
+          mode: "exploration",
+          model: "sonnet",
+          status: "running",
+          created_at: Date.now(),
+        }) as any
+      );
 
       const { buildUserPrompt } = await import("../prompts");
 
@@ -805,7 +874,9 @@ describe("ExplorationWorkflow", () => {
       );
 
       // Verify attempt to fetch file was made
-      expect(mockGithub.getFile).toHaveBeenCalledWith("ideas/2026-01-01-previous/research.md");
+      expect(mockGithub.getFile).toHaveBeenCalledWith(
+        "ideas/2026-01-01-previous/research.md"
+      );
 
       // Verify buildUserPrompt was called without previous research (empty content treated as no content)
       expect(buildUserPrompt).toHaveBeenCalledWith(

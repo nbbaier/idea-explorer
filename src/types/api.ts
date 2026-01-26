@@ -17,20 +17,23 @@ export const JobStatusSchema = z.enum([
 //   - Prompt shows only previousResearchContent (continue_from) due to else-if
 //   - File write still appends to existingContent (update)
 // This creates a mismatch where Claude doesn't see what it's appending to
-export const ExploreRequestSchema = z
-  .object({
-    idea: z.string(),
-    mode: ModeSchema.optional(),
-    model: ModelSchema.optional(),
-    context: z.string().optional(),
-    update: z.boolean().optional(),
-    collect_tool_stats: z.boolean().optional(),
-    continue_from: z.string().optional(),
-  })
-  .refine((data) => !(data.update && data.continue_from != null), {
+export const ExploreRequestBaseSchema = z.object({
+  idea: z.string(),
+  mode: ModeSchema.optional(),
+  model: ModelSchema.optional(),
+  context: z.string().optional(),
+  update: z.boolean().optional(),
+  collect_tool_stats: z.boolean().optional(),
+  continue_from: z.string().optional(),
+});
+
+export const ExploreRequestSchema = ExploreRequestBaseSchema.refine(
+  (data) => !(data.update && data.continue_from != null),
+  {
     message:
       "Cannot use both 'update' and 'continue_from' together. Use 'update' to append to existing research of the same idea, or 'continue_from' to build upon a previous exploration.",
-  });
+  }
+);
 
 export const JobStatusResponseSchema = z.object({
   status: JobStatusSchema,
