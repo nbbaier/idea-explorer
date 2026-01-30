@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Idea Explorer — Architecture Playground</title>
+    <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    :root {
+      --bg: #111;
+      --surface: #1a1a1a;
+      --surface2: #222;
+      --border: #333;
+      --text: #e0e0e0;
+      --muted: #888;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f97316;
+      --purple: #a855f7;
+      --pink: #ec4899;
+      --amber: #f59e0b;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+    .sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar h2 {
+      padding: 16px;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .sidebar-section {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-section h3 {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .preset-btn {
+      display: block;
+      width: 100%;
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .preset-btn:hover,
+    .preset-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .layer-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .layer-toggle input {
+      accent-color: var(--accent);
+    }
+    .layer-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .conn-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .conn-toggle input {
+      accent-color: var(--accent);
+    }
+    .conn-line {
+      width: 20px;
+      height: 2px;
+      display: inline-block;
+    }
+    .comments-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px;
+    }
+    .comment-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .comment-item .target {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .comment-item .file {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+    .comment-item .text {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .comment-item .delete {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .comment-item .delete:hover {
+      color: var(--red);
+    }
+    .no-comments {
+      color: var(--muted);
+      font-size: 12px;
+      font-style: italic;
+      padding: 8px 0;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+    .zoom-controls {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+    }
+    .zoom-btn {
+      width: 32px;
+      height: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .zoom-btn:hover {
+      border-color: var(--accent);
+    }
+    .prompt-area {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 12px 16px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .prompt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .prompt-header h3 {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .copy-btn {
+      padding: 4px 12px;
+      background: var(--accent);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .copy-btn:hover {
+      opacity: 0.85;
+    }
+    .prompt-text {
+      font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 500px;
+      max-width: 90vw;
+      padding: 20px;
+    }
+    .modal h3 {
+      margin-bottom: 4px;
+      font-size: 16px;
+    }
+    .modal .modal-file {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: monospace;
+      margin-bottom: 8px;
+    }
+    .modal .modal-desc {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+      margin-bottom: 12px;
+      background: var(--surface2);
+      padding: 10px;
+      border-radius: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .modal .modal-snippet {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: monospace;
+      background: #0d0d0d;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre;
+      line-height: 1.4;
+    }
+    .modal textarea {
+      width: 100%;
+      height: 80px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 8px;
+      font-size: 13px;
+      font-family: system-ui;
+      resize: vertical;
+    }
+    .modal textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      justify-content: flex-end;
+    }
+    .modal-actions button {
+      padding: 6px 16px;
+      border-radius: 4px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-save {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-cancel {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border) !important;
+    }
+    .legend {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 11px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 3px;
+    }
+    .legend-item:last-child {
+      margin-bottom: 0;
+    }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <h2>Idea Explorer</h2>
+
+      <div class="sidebar-section">
+        <h3>Views</h3>
+        <button class="preset-btn active" onclick="setPreset('full')">
+          Full System
+        </button>
+        <button class="preset-btn" onclick="setPreset('api')">
+          API & Middleware
+        </button>
+        <button class="preset-btn" onclick="setPreset('workflow')">
+          Exploration Workflow
+        </button>
+        <button class="preset-btn" onclick="setPreset('cli')">CLI</button>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Layers</h3>
+        <div id="layer-toggles"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Connections</h3>
+        <div id="conn-toggles"></div>
+      </div>
+
+      <div
+        class="sidebar-section"
+        style="flex:1;display:flex;flex-direction:column;overflow:hidden;padding-bottom:0"
+      >
+        <h3>Comments (<span id="comment-count">0</span>)</h3>
+        <div class="comments-list" id="comments-list">
+          <div class="no-comments">Click a node to add a comment</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="canvas-wrap" id="canvas-wrap">
+        <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="zoom-controls">
+          <button class="zoom-btn" onclick="zoomIn()">+</button>
+          <button class="zoom-btn" onclick="zoomOut()">−</button>
+          <button class="zoom-btn" onclick="zoomReset()" style="font-size:12px">
+            ⟲
+          </button>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="prompt-area">
+        <div class="prompt-header">
+          <h3>Prompt Output</h3>
+          <button class="copy-btn" onclick="copyPrompt()">Copy</button>
+        </div>
+        <div class="prompt-text" id="prompt-output">
+          Click components to add comments and generate a prompt.
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+      <div class="modal">
+        <h3 id="modal-title"></h3>
+        <div class="modal-file" id="modal-file"></div>
+        <div class="modal-desc" id="modal-desc"></div>
+        <div class="modal-snippet" id="modal-snippet"></div>
+        <textarea
+          id="modal-input"
+          placeholder="Ask a question or suggest an edit for this component..."
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-save" onclick="saveComment()">Add Comment</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+    // ─── DATA ────────────────────────────────────────────────────────
+    const layers = [
+      { id: "api", label: "API / Server", color: "#fef3c7", dot: "#f59e0b" },
+      { id: "workflow", label: "Workflow", color: "#dcfce7", dot: "#10b981" },
+      { id: "clients", label: "API Clients", color: "#f3e8ff", dot: "#a855f7" },
+      {
+        id: "middleware",
+        label: "Middleware",
+        color: "#e0e7ff",
+        dot: "#6366f1",
+      },
+      { id: "data", label: "Data / Storage", color: "#fce7f3", dot: "#ec4899" },
+      { id: "prompts", label: "Prompts", color: "#fff7ed", dot: "#f97316" },
+      { id: "cli", label: "CLI", color: "#dbeafe", dot: "#3b82f6" },
+      { id: "utils", label: "Utilities", color: "#f5f5f4", dot: "#78716c" },
+      {
+        id: "types",
+        label: "Types / Schemas",
+        color: "#fef9c3",
+        dot: "#ca8a04",
+      },
+      {
+        id: "external",
+        label: "External Services",
+        color: "#fee2e2",
+        dot: "#ef4444",
+      },
+    ];
+
+    const connTypes = [
+      { id: "data-flow", label: "Data Flow", color: "#3b82f6", dash: "" },
+      { id: "tool-call", label: "Tool Call", color: "#10b981", dash: "6,3" },
+      { id: "event", label: "Event/Async", color: "#ef4444", dash: "4,4" },
+      { id: "import", label: "Import/Use", color: "#6b7280", dash: "2,2" },
+    ];
+
+    const nodes = [
+      // API layer (y~60)
+      {
+        id: "hono-app",
+        label: "Hono App",
+        subtitle: "src/index.ts",
+        x: 420,
+        y: 50,
+        w: 150,
+        h: 50,
+        layer: "api",
+        desc: "Main entry point. Defines routes: POST /api/explore, GET /api/jobs, GET /api/status/:id, GET /api/health. Applies security headers, rate limiting, and auth middleware.",
+        snippet:
+          'app.post("/api/explore", createExploreHandler)\napp.get("/api/jobs", listJobsHandler)\napp.get("/api/status/:id", getJobStatusHandler)\napp.get("/api/health", ...)',
+      },
+
+      // Middleware (y~140)
+      {
+        id: "auth",
+        label: "Auth Middleware",
+        subtitle: "src/middleware/auth.ts",
+        x: 420,
+        y: 140,
+        w: 150,
+        h: 50,
+        layer: "middleware",
+        desc: "Bearer token auth with timing-safe comparison via crypto.subtle.timingSafeEqual. Applied to all /api/* routes.",
+        snippet:
+          "const token = authHeader.slice(7);\nif (!crypto.subtle.timingSafeEqual(\n  tokenBuffer, secretBuffer\n)) return unauthorized(c);",
+      },
+
+      // Workflow (y~240)
+      {
+        id: "workflow",
+        label: "Exploration Workflow",
+        subtitle: "src/workflows/exploration.ts",
+        x: 420,
+        y: 240,
+        w: 180,
+        h: 50,
+        layer: "workflow",
+        desc: "Cloudflare Workflow with 5 steps: initialize → check_existing → generate_research → write_github → notify. Each step has retry config. Orchestrates the full idea exploration pipeline.",
+        snippet:
+          'WORKFLOW_STEPS = [\n  "initialize",\n  "check_existing",\n  "generate_research",\n  "write_github",\n  "notify"\n]',
+      },
+
+      // Clients (y~360)
+      {
+        id: "anthropic",
+        label: "Anthropic Client",
+        subtitle: "src/clients/anthropic.ts",
+        x: 280,
+        y: 360,
+        w: 160,
+        h: 50,
+        layer: "clients",
+        desc: "Wrapper around Vercel AI SDK. Calls Claude (sonnet/opus) with web_search and read_research tools. Max 5 steps, 16K output tokens. Returns content + token usage.",
+        snippet:
+          "generateResearch(params):\n  Promise<Result<{\n    content, inputTokens,\n    outputTokens, steps, toolLogs?\n  }, AnthropicApiError>>",
+      },
+      {
+        id: "github",
+        label: "GitHub Client",
+        subtitle: "src/clients/github.ts",
+        x: 570,
+        y: 360,
+        w: 150,
+        h: 50,
+        layer: "clients",
+        desc: "Type-safe Octokit wrapper for GitHub Contents API. Reads/writes files, lists directories. Handles base64 encoding. Used for storing research output.",
+        snippet:
+          "getFile(path): Result<FileContent|null>\nlistDirectory(path): Result<DirectoryEntry[]>\ncreateFile(path, content, msg): Result<string>\nupdateFile(path, content, sha, msg)",
+      },
+      {
+        id: "tool-exec",
+        label: "Tool Executor",
+        subtitle: "src/clients/tool-executor.ts",
+        x: 140,
+        y: 360,
+        w: 150,
+        h: 50,
+        layer: "clients",
+        desc: "Provides read_research tool for Claude. Path validation (no traversal, max 200 chars), auto-prefixes ideas/, 50KB limit. Returns file content or structured errors.",
+        snippet:
+          "createToolExecutor(github):\n  ToolExecutor\n// Tools: read_research\n// Security: path validation,\n//   50KB limit, no traversal",
+      },
+
+      // Data (y~140, left)
+      {
+        id: "jobs",
+        label: "Jobs / KV Storage",
+        subtitle: "src/jobs.ts",
+        x: 140,
+        y: 140,
+        w: 150,
+        h: 50,
+        layer: "data",
+        desc: "CRUD operations for job state in Cloudflare KV. Validates webhook URLs (HTTPS only, blocks private IPs). KV metadata enables efficient filtering without full body reads.",
+        snippet:
+          "createJob(kv, request): Job\ngetJob(kv, id): Job | null\nupdateJob(kv, id, updates)\nlistJobs(kv, { cursor, limit,\n  status, mode })",
+      },
+
+      // Prompts (y~240, left)
+      {
+        id: "prompts",
+        label: "Prompt Templates",
+        subtitle: "src/prompts/index.ts",
+        x: 140,
+        y: 240,
+        w: 160,
+        h: 50,
+        layer: "prompts",
+        desc: 'Two modes: "business" (structured analysis: market, TAM/SAM/SOM, verdict) and "exploration" (divergent thinking, first principles). Builds system + user prompts with YAML frontmatter.',
+        snippet:
+          "buildSystemPrompt(mode):\n  system prompt + tool guidance\nbuildUserPrompt({ idea, mode,\n  model, jobId, context,\n  existingDirs, previousResearch })",
+      },
+
+      // Utils (y~460)
+      {
+        id: "webhook",
+        label: "Webhook Delivery",
+        subtitle: "src/utils/webhook.ts",
+        x: 420,
+        y: 460,
+        w: 160,
+        h: 50,
+        layer: "utils",
+        desc: "Sends HMAC-signed (SHA-256) webhook notifications. 3 retries with delays [1s, 5s, 30s]. Payloads include event type, status, github_url, step_durations.",
+        snippet:
+          'X-Signature: sha256=<hex>\n\nPayload: {\n  event: "idea_explored",\n  status: "completed"|"failed",\n  job_id, idea, github_url\n}',
+      },
+      {
+        id: "logger",
+        label: "Logger",
+        subtitle: "src/utils/logger.ts",
+        x: 620,
+        y: 460,
+        w: 130,
+        h: 50,
+        layer: "utils",
+        desc: "Structured JSON logging to stdout. Events: job_created, webhook_sent, job_complete, errors. Includes job_id, timestamps, and contextual data.",
+        snippet:
+          "logJobCreated(jobId, idea, mode)\nlogWebhookSent(jobId, code, attempt)\nlogJobComplete(jobId, status, ms)\nlogError(op, error, data, jobId)",
+      },
+      {
+        id: "slug",
+        label: "Slug Generator",
+        subtitle: "src/utils/slug.ts",
+        x: 260,
+        y: 460,
+        w: 140,
+        h: 50,
+        layer: "utils",
+        desc: "Generates URL-safe slugs via Claude Haiku (3-5 words). Sanitizes to lowercase alphanumeric + hyphens, max 50 chars. Falls back to direct text sanitization if LLM fails.",
+        snippet:
+          "generateSlugWithLLM(idea, apiKey):\n  Promise<string>\n// Fallback: generateSlug(text)\n// Max 50 chars, word-boundary truncate",
+      },
+
+      // CLI (y~60, right)
+      {
+        id: "cli-app",
+        label: "CLI App",
+        subtitle: "src/cli/index.ts",
+        x: 740,
+        y: 50,
+        w: 130,
+        h: 50,
+        layer: "cli",
+        desc: "Commander.js CLI with 5 commands: submit, status, init, config, auth. Entry point for terminal-based interaction.",
+        snippet:
+          'program\n  .command("submit")\n  .command("status <jobId>")\n  .command("init")\n  .command("config")\n  .command("auth")',
+      },
+      {
+        id: "cli-submit",
+        label: "Submit Command",
+        subtitle: "src/cli/commands/submit.ts",
+        x: 740,
+        y: 140,
+        w: 140,
+        h: 50,
+        layer: "cli",
+        desc: "Submit ideas via interactive prompt or piped stdin. Supports --mode, --model, --context (string or file path), --update flags. Three output modes: default, json, quiet.",
+        snippet:
+          'echo "AI grocery list" | idea submit\nidea submit --mode business\nidea submit --context ./reqs.txt',
+      },
+      {
+        id: "cli-config",
+        label: "Config & Auth",
+        subtitle: "src/cli/lib/config.ts",
+        x: 740,
+        y: 240,
+        w: 140,
+        h: 50,
+        layer: "cli",
+        desc: "Config stored at ~/.config/idea/settings.json. API tokens encrypted with AES-256-GCM using machine-specific key (hostname + username). Env vars take priority.",
+        snippet:
+          "loadConfig(): Settings\nsaveConfig(config)\ngetApiKey(): env > encrypted config\nsetApiKey(token): AES-256-GCM",
+      },
+      {
+        id: "cli-api",
+        label: "CLI API Client",
+        subtitle: "src/cli/lib/api.ts",
+        x: 740,
+        y: 340,
+        w: 140,
+        h: 50,
+        layer: "cli",
+        desc: "HTTP client for API calls. Error types: AuthError (401), ValidationError (400), NetworkError, CliApiError. Calls POST /api/explore and GET /api/status/:id.",
+        snippet:
+          "submitIdea(request):\n  POST /api/explore\ngetJobStatus(jobId):\n  GET /api/status/:id",
+      },
+
+      // Types (y~460, right)
+      {
+        id: "types",
+        label: "API Schemas",
+        subtitle: "src/types/api.ts",
+        x: 780,
+        y: 460,
+        w: 140,
+        h: 50,
+        layer: "types",
+        desc: "Zod schemas for validation. ModeSchema (business|exploration), ModelSchema (sonnet|opus), JobStatusSchema. ExploreRequest validates that update and continue_from are mutually exclusive.",
+        snippet:
+          'ModeSchema: "business"|"exploration"\nModelSchema: "sonnet"|"opus"\nExploreRequestSchema:\n  refine: !(update && continue_from)',
+      },
+
+      // External (y~500)
+      {
+        id: "ext-claude",
+        label: "Claude API",
+        subtitle: "Anthropic Messages API",
+        x: 140,
+        y: 560,
+        w: 140,
+        h: 45,
+        layer: "external",
+        desc: "External: Anthropic Messages API. Called by AnthropicClient for research generation and by slug generator for Haiku-based slug creation.",
+        snippet: "",
+      },
+      {
+        id: "ext-github",
+        label: "GitHub API",
+        subtitle: "GitHub Contents API",
+        x: 420,
+        y: 560,
+        w: 140,
+        h: 45,
+        layer: "external",
+        desc: "External: GitHub Contents API (via Octokit). Used to store research output as markdown files in ideas/{date}-{slug}/research.md plus exploration-log.json.",
+        snippet: "",
+      },
+      {
+        id: "ext-kv",
+        label: "Cloudflare KV",
+        subtitle: "Workers KV",
+        x: 700,
+        y: 560,
+        w: 140,
+        h: 45,
+        layer: "external",
+        desc: "External: Cloudflare Workers KV namespace. Stores job state with metadata for efficient listing. Jobs keyed by UUID.",
+        snippet: "",
+      },
+    ];
+
+    const connections = [
+      // API flow
+      { from: "hono-app", to: "auth", type: "data-flow", label: "all /api/*" },
+      { from: "hono-app", to: "jobs", type: "data-flow", label: "CRUD" },
+      { from: "hono-app", to: "workflow", type: "event", label: "triggers" },
+
+      // Workflow orchestration
+      {
+        from: "workflow",
+        to: "anthropic",
+        type: "tool-call",
+        label: "generate",
+      },
+      { from: "workflow", to: "github", type: "tool-call", label: "write" },
+      {
+        from: "workflow",
+        to: "jobs",
+        type: "data-flow",
+        label: "update status",
+      },
+      {
+        from: "workflow",
+        to: "prompts",
+        type: "import",
+        label: "build prompts",
+      },
+      { from: "workflow", to: "webhook", type: "event", label: "notify" },
+      {
+        from: "workflow",
+        to: "slug",
+        type: "tool-call",
+        label: "generate slug",
+      },
+      { from: "workflow", to: "logger", type: "import", label: "log" },
+
+      // Clients to external
+      {
+        from: "anthropic",
+        to: "ext-claude",
+        type: "data-flow",
+        label: "API call",
+      },
+      {
+        from: "anthropic",
+        to: "tool-exec",
+        type: "tool-call",
+        label: "read_research",
+      },
+      {
+        from: "tool-exec",
+        to: "github",
+        type: "data-flow",
+        label: "reads files",
+      },
+      {
+        from: "github",
+        to: "ext-github",
+        type: "data-flow",
+        label: "API call",
+      },
+      { from: "slug", to: "ext-claude", type: "tool-call", label: "Haiku" },
+      { from: "jobs", to: "ext-kv", type: "data-flow", label: "KV ops" },
+
+      // CLI flow
+      { from: "cli-app", to: "cli-submit", type: "data-flow", label: "route" },
+      {
+        from: "cli-app",
+        to: "cli-config",
+        type: "import",
+        label: "load config",
+      },
+      {
+        from: "cli-submit",
+        to: "cli-api",
+        type: "data-flow",
+        label: "call API",
+      },
+      { from: "cli-api", to: "hono-app", type: "data-flow", label: "HTTP" },
+      {
+        from: "cli-config",
+        to: "cli-api",
+        type: "import",
+        label: "credentials",
+      },
+
+      // Types used everywhere
+      { from: "hono-app", to: "types", type: "import", label: "schemas" },
+      { from: "jobs", to: "types", type: "import", label: "schemas" },
+      { from: "cli-api", to: "types", type: "import", label: "schemas" },
+    ];
+
+    // ─── STATE ───────────────────────────────────────────────────────
+    const state = {
+      layers: Object.fromEntries(layers.map((l) => [l.id, true])),
+      connTypes: Object.fromEntries(connTypes.map((c) => [c.id, true])),
+      comments: [],
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      activePreset: "full",
+      modalNode: null,
+    };
+
+    // ─── PRESETS ─────────────────────────────────────────────────────
+    const presets = {
+      full: () => {
+        for (const l of layers) state.layers[l.id] = true;
+      },
+      api: () => {
+        for (const l of layers) state.layers[l.id] = false;
+        ["api", "middleware", "data", "types", "utils", "external"].forEach(
+          (l) => (state.layers[l] = true)
+        );
+      },
+      workflow: () => {
+        for (const l of layers) state.layers[l.id] = false;
+        ["workflow", "clients", "prompts", "data", "utils", "external"].forEach(
+          (l) => (state.layers[l] = true)
+        );
+      },
+      cli: () => {
+        for (const l of layers) state.layers[l.id] = false;
+        ["cli", "api", "middleware", "types"].forEach(
+          (l) => (state.layers[l] = true)
+        );
+      },
+    };
+
+    // ─── RENDER ──────────────────────────────────────────────────────
+    function render() {
+      const svg = document.getElementById("svg");
+      const wrap = document.getElementById("canvas-wrap");
+      const W = wrap.clientWidth,
+        H = wrap.clientHeight;
+      svg.setAttribute(
+        "viewBox",
+        `${-state.panX / state.zoom} ${-state.panY / state.zoom} ${W / state.zoom} ${H / state.zoom}`
+      );
+
+      let html = "<defs>";
+      for (const ct of connTypes) {
+        html += `<marker id="arrow-${ct.id}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="${ct.color}" opacity="0.7"/>
+    </marker>`;
+      }
+      html += "</defs>";
+
+      // Connections
+      for (const c of connections) {
+        if (!state.connTypes[c.type]) continue;
+        const from = nodes.find((n) => n.id === c.from);
+        const to = nodes.find((n) => n.id === c.to);
+        if (!(from && to)) continue;
+        if (!(state.layers[from.layer] && state.layers[to.layer])) continue;
+        const ct = connTypes.find((t) => t.id === c.type);
+        const fx = from.x + from.w / 2,
+          fy = from.y + from.h / 2;
+        const tx = to.x + to.w / 2,
+          ty = to.y + to.h / 2;
+        const mx = (fx + tx) / 2,
+          my = (fy + ty) / 2;
+        // Simple curved path
+        const dx = tx - fx,
+          dy = ty - fy;
+        const cx1 = fx + dx * 0.3,
+          cy1 = fy;
+        const cx2 = tx - dx * 0.3,
+          cy2 = ty;
+        html += `<path d="M${fx},${fy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}"
+      fill="none" stroke="${ct.color}" stroke-width="1.5" opacity="0.5"
+      ${ct.dash ? `stroke-dasharray="${ct.dash}"` : ""}
+      marker-end="url(#arrow-${ct.id})"/>`;
+        if (c.label) {
+          html += `<text x="${mx}" y="${my - 6}" text-anchor="middle" fill="${ct.color}" font-size="9" opacity="0.7">${c.label}</text>`;
+        }
+      }
+
+      // Nodes
+      for (const n of nodes) {
+        if (!state.layers[n.layer]) continue;
+        const layer = layers.find((l) => l.id === n.layer);
+        const hasComment = state.comments.some((c) => c.target === n.id);
+        const strokeColor = hasComment ? "#3b82f6" : "#555";
+        const strokeWidth = hasComment ? 2.5 : 1;
+        html += `<g class="node" style="cursor:pointer" data-node-id="${n.id}">
+      <rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="6" ry="6"
+        fill="${layer.color}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>
+      <text x="${n.x + n.w / 2}" y="${n.y + 20}" text-anchor="middle" fill="#111" font-size="12" font-weight="600">${n.label}</text>
+      <text x="${n.x + n.w / 2}" y="${n.y + 34}" text-anchor="middle" fill="#666" font-size="9" font-family="monospace">${n.subtitle}</text>
+      ${
+        hasComment
+          ? `<circle cx="${n.x + n.w - 8}" cy="${n.y + 8}" r="5" fill="#3b82f6"/>
+        <text x="${n.x + n.w - 8}" y="${n.y + 11}" text-anchor="middle" fill="#fff" font-size="7" font-weight="bold">${state.comments.filter((c) => c.target === n.id).length}</text>`
+          : ""
+      }
+    </g>`;
+      }
+
+      svg.innerHTML = html;
+      renderComments();
+      updatePrompt();
+    }
+
+    function renderComments() {
+      const list = document.getElementById("comments-list");
+      const count = document.getElementById("comment-count");
+      count.textContent = state.comments.length;
+      if (state.comments.length === 0) {
+        list.innerHTML =
+          '<div class="no-comments">Click a node to add a comment</div>';
+        return;
+      }
+      list.innerHTML = state.comments
+        .map(
+          (c, i) => `
+    <div class="comment-item">
+      <button class="delete" onclick="deleteComment(${i})">×</button>
+      <div class="target">${c.targetLabel}</div>
+      <div class="file">${c.targetFile}</div>
+      <div class="text">${escHtml(c.text)}</div>
+    </div>
+  `
+        )
+        .join("");
+    }
+
+    function updatePrompt() {
+      const el = document.getElementById("prompt-output");
+      if (state.comments.length === 0) {
+        el.textContent =
+          "Click components to add comments and generate a prompt.";
+        return;
+      }
+      const visibleLayers = layers
+        .filter((l) => state.layers[l.id])
+        .map((l) => l.label);
+      const allVisible = visibleLayers.length === layers.length;
+      let prompt = "This is the Idea Explorer architecture";
+      if (!allVisible) prompt += `, focusing on: ${visibleLayers.join(", ")}`;
+      prompt += ".\n\nFeedback on specific components:\n";
+      for (const c of state.comments) {
+        prompt += `\n**${c.targetLabel}** (${c.targetFile}):\n${c.text}\n`;
+      }
+      el.textContent = prompt;
+    }
+
+    // ─── CONTROLS ────────────────────────────────────────────────────
+    function buildControls() {
+      const layerEl = document.getElementById("layer-toggles");
+      layerEl.innerHTML = layers
+        .map(
+          (l) => `
+    <label class="layer-toggle">
+      <input type="checkbox" ${state.layers[l.id] ? "checked" : ""} onchange="toggleLayer('${l.id}',this.checked)">
+      <span class="layer-dot" style="background:${l.dot}"></span>
+      ${l.label}
+    </label>
+  `
+        )
+        .join("");
+
+      const connEl = document.getElementById("conn-toggles");
+      connEl.innerHTML = connTypes
+        .map(
+          (c) => `
+    <label class="conn-toggle">
+      <input type="checkbox" ${state.connTypes[c.id] ? "checked" : ""} onchange="toggleConn('${c.id}',this.checked)">
+      <span class="conn-line" style="background:${c.color};${c.dash ? `background:repeating-linear-gradient(90deg,${c.color} 0,${c.color} 4px,transparent 4px,transparent 7px)` : ""}"></span>
+      ${c.label}
+    </label>
+  `
+        )
+        .join("");
+
+      // Legend
+      const legend = document.getElementById("legend");
+      legend.innerHTML = connTypes
+        .map(
+          (c) => `
+    <div class="legend-item">
+      <svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke="${c.color}" stroke-width="2" ${c.dash ? `stroke-dasharray="${c.dash}"` : ""}/></svg>
+      <span style="color:${c.color}">${c.label}</span>
+    </div>
+  `
+        )
+        .join("");
+    }
+
+    function setPreset(id) {
+      state.activePreset = id;
+      presets[id]();
+      document
+        .querySelectorAll(".preset-btn")
+        .forEach((b) => b.classList.remove("active"));
+      document
+        .querySelector(`[onclick="setPreset('${id}')"]`)
+        .classList.add("active");
+      buildControls();
+      render();
+    }
+
+    function toggleLayer(id, val) {
+      state.layers[id] = val;
+      render();
+    }
+    function toggleConn(id, val) {
+      state.connTypes[id] = val;
+      render();
+    }
+
+    // ─── ZOOM ────────────────────────────────────────────────────────
+    function zoomIn() {
+      state.zoom = Math.min(state.zoom * 1.2, 3);
+      render();
+    }
+    function zoomOut() {
+      state.zoom = Math.max(state.zoom / 1.2, 0.4);
+      render();
+    }
+    function zoomReset() {
+      state.zoom = 1;
+      state.panX = 0;
+      state.panY = 0;
+      render();
+    }
+
+    // Drag state: pan canvas or drag individual nodes
+    let dragging = false,
+      dragNode = null,
+      lastX,
+      lastY,
+      dragStartX,
+      dragStartY,
+      dragMoved = false;
+    const DRAG_THRESHOLD = 5;
+
+    document
+      .getElementById("canvas-wrap")
+      .addEventListener("mousedown", (e) => {
+        const nodeEl = e.target.closest(".node");
+        lastX = e.clientX;
+        lastY = e.clientY;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragMoved = false;
+        e.preventDefault();
+        if (nodeEl) {
+          const nodeId = nodeEl.getAttribute("data-node-id");
+          dragNode = nodes.find((n) => n.id === nodeId) || null;
+        } else {
+          dragging = true;
+          dragNode = null;
+        }
+      });
+    window.addEventListener("mousemove", (e) => {
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (dragNode) {
+        if (
+          !dragMoved &&
+          Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) >
+            DRAG_THRESHOLD
+        ) {
+          dragMoved = true;
+        }
+        if (dragMoved) {
+          dragNode.x += dx / state.zoom;
+          dragNode.y += dy / state.zoom;
+          render();
+        }
+      } else if (dragging) {
+        state.panX += dx;
+        state.panY += dy;
+        render();
+      }
+    });
+    window.addEventListener("mouseup", () => {
+      if (dragNode && !dragMoved) {
+        openModal(dragNode.id);
+      }
+      dragging = false;
+      dragNode = null;
+    });
+    document.getElementById("canvas-wrap").addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        if (e.deltaY < 0) zoomIn();
+        else zoomOut();
+      },
+      { passive: false }
+    );
+
+    // ─── MODAL ───────────────────────────────────────────────────────
+    function openModal(nodeId) {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) return;
+      state.modalNode = node;
+      document.getElementById("modal-title").textContent = node.label;
+      document.getElementById("modal-file").textContent = node.subtitle;
+      document.getElementById("modal-desc").textContent = node.desc;
+      const snippetEl = document.getElementById("modal-snippet");
+      if (node.snippet) {
+        snippetEl.textContent = node.snippet;
+        snippetEl.style.display = "";
+      } else {
+        snippetEl.style.display = "none";
+      }
+      document.getElementById("modal-input").value = "";
+      document.getElementById("modal").classList.add("open");
+      setTimeout(() => document.getElementById("modal-input").focus(), 50);
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.remove("open");
+      state.modalNode = null;
+    }
+
+    function saveComment() {
+      const text = document.getElementById("modal-input").value.trim();
+      if (!(text && state.modalNode)) return;
+      state.comments.push({
+        id: Date.now(),
+        target: state.modalNode.id,
+        targetLabel: state.modalNode.label,
+        targetFile: state.modalNode.subtitle,
+        text,
+      });
+      closeModal();
+      render();
+    }
+
+    function deleteComment(index) {
+      state.comments.splice(index, 1);
+      render();
+    }
+
+    // Close modal on Escape or outside click
+    document.getElementById("modal").addEventListener("click", (e) => {
+      if (e.target.id === "modal") closeModal();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+      if (
+        e.key === "Enter" &&
+        !e.shiftKey &&
+        document.getElementById("modal").classList.contains("open")
+      ) {
+        e.preventDefault();
+        saveComment();
+      }
+    });
+
+    // ─── COPY ────────────────────────────────────────────────────────
+    function copyPrompt() {
+      const text = document.getElementById("prompt-output").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector(".copy-btn");
+        btn.textContent = "Copied!";
+        setTimeout(() => (btn.textContent = "Copy"), 1500);
+      });
+    }
+
+    function escHtml(s) {
+      return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // ─── INIT ────────────────────────────────────────────────────────
+    buildControls();
+    render();
+    window.addEventListener("resize", render);
+    </script>
+  </body>
+</html>
