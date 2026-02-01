@@ -9,11 +9,9 @@ const {
   mockProvider,
   mockStepCountIs,
   mockTool,
-  mockWebSearch,
 } = vi.hoisted(() => {
-  const webSearch = vi.fn();
   const provider = Object.assign(vi.fn(), {
-    tools: { webSearch_20250305: webSearch },
+    tools: {},
   });
   return {
     mockCreateAnthropic: vi.fn(),
@@ -21,7 +19,6 @@ const {
     mockProvider: provider,
     mockStepCountIs: vi.fn(),
     mockTool: vi.fn(),
-    mockWebSearch: webSearch,
   };
 });
 
@@ -47,7 +44,6 @@ describe("AnthropicClient", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockWebSearch.mockReturnValue("web_search_tool");
     mockTool.mockImplementation((config) => config);
     mockStepCountIs.mockImplementation((steps) => ({ type: "steps", steps }));
     mockProvider.mockReturnValue("anthropic_model");
@@ -59,15 +55,15 @@ describe("AnthropicClient", () => {
     });
   });
 
-  it("registers web_search tool always", async () => {
+  it("registers valid model correctly", async () => {
     const client = new AnthropicClient({ apiKey: "key", model: "sonnet" });
 
     await client.generateResearch(defaultParams);
 
     expect(mockCreateAnthropic).toHaveBeenCalledWith({ apiKey: "key" });
-    expect(mockProvider).toHaveBeenCalledWith("claude-sonnet-4-5");
+    expect(mockProvider).toHaveBeenCalledWith("claude-3-5-sonnet-latest");
     const options = mockGenerateText.mock.calls[0]?.[0];
-    expect(options.tools.web_search).toBe("web_search_tool");
+    expect(options.tools.web_search).toBeUndefined();
     expect(options.tools.read_research).toBeUndefined();
   });
 
@@ -76,7 +72,7 @@ describe("AnthropicClient", () => {
 
     await client.generateResearch(defaultParams);
 
-    expect(mockProvider).toHaveBeenCalledWith("claude-opus-4-5");
+    expect(mockProvider).toHaveBeenCalledWith("claude-3-opus-latest");
   });
 
   it("registers read_research only when toolExecutor provided", async () => {

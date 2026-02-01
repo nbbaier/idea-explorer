@@ -280,24 +280,11 @@ async function writeResearchFile(
   path: string,
   content: string,
   message: string,
-  hasExisting: boolean
+  sha?: string
 ): Promise<void> {
-  if (hasExisting) {
-    const fileResult = await github.getFile(path);
-    const currentFile = throwOnError(fileResult, "Failed to get file");
-
-    if (currentFile) {
-      const updateResult = await github.updateFile(
-        path,
-        content,
-        currentFile.sha,
-        message
-      );
-      throwOnError(updateResult, "Failed to update file");
-    } else {
-      const createResult = await github.createFile(path, content, message);
-      throwOnError(createResult, "Failed to create file");
-    }
+  if (sha) {
+    const updateResult = await github.updateFile(path, content, sha, message);
+    throwOnError(updateResult, "Failed to update file");
   } else {
     const createResult = await github.createFile(path, content, message);
     throwOnError(createResult, "Failed to create file");
@@ -421,7 +408,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
-      await step.do(
+      const checkResult = await step.do(
         "check-existing",
         { retries: { limit: 3, delay: "10 seconds" }, timeout: "1 minute" },
         async () => {
@@ -433,9 +420,12 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           }
           const directories = dirResult.value;
 
-          existingResearchList = directories
+          const currentExistingResearchList = directories
             .filter((dir) => dir.type === "dir")
             .map((dir) => dir.name);
+
+          let currentPreviousResearchContent: string | undefined;
+          let currentPreviousJobIdea: string | undefined;
 
           // Load previous research if continue_from is set
           if (continue_from) {
@@ -445,9 +435,13 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
               continue_from,
               jobId
             );
-            previousResearchContent = previousResearch.content;
-            previousJobIdea = previousResearch.idea;
+            currentPreviousResearchContent = previousResearch.content;
+            currentPreviousJobIdea = previousResearch.idea;
           }
+
+          let currentExistingContent: string | undefined;
+          let currentExistingSha: string | undefined;
+          let currentExistingDirPath: string | undefined;
 
           if (update) {
             const matchingDirs = directories
@@ -469,7 +463,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             const latestMatch = matchingDirs[0]?.dir;
 
             if (latestMatch) {
-              existingDirPath = latestMatch.path;
+              currentExistingDirPath = latestMatch.path;
               const existingResearchPath = `${latestMatch.path}/research.md`;
               const fileResult = await github.getFile(existingResearchPath);
               if (fileResult.status === "error") {
@@ -479,8 +473,8 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
               }
               const existing = fileResult.value;
               if (existing) {
-                existingContent = existing.content;
-                existingSha = existing.sha;
+                currentExistingContent = existing.content;
+                currentExistingSha = existing.sha;
                 logInfo(
                   "existing_research_found",
                   { path: existingResearchPath },
@@ -492,14 +486,30 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           logInfo(
             "check_existing_complete",
             {
-              hasExisting: !!existingContent,
-              hasPreviousResearch: !!previousResearchContent,
-              existingCount: existingResearchList.length,
+              hasExisting: !!currentExistingContent,
+              hasPreviousResearch: !!currentPreviousResearchContent,
+              existingCount: currentExistingResearchList.length,
             },
             jobId
           );
+
+          return {
+            existingResearchList: currentExistingResearchList,
+            previousResearchContent: currentPreviousResearchContent,
+            previousJobIdea: currentPreviousJobIdea,
+            existingContent: currentExistingContent,
+            existingSha: currentExistingSha,
+            existingDirPath: currentExistingDirPath,
+          };
         }
       );
+
+      existingResearchList = checkResult.existingResearchList;
+      previousResearchContent = checkResult.previousResearchContent;
+      previousJobIdea = checkResult.previousJobIdea;
+      existingContent = checkResult.existingContent;
+      existingSha = checkResult.existingSha;
+      existingDirPath = checkResult.existingDirPath;
 
       // Step 3: Generate research with Claude
       await updateStepProgress(
@@ -509,7 +519,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         stepStartTime
       );
       stepStartTime = Date.now();
-      await step.do(
+      const generateResult = await step.do(
         "generate-research",
         { retries: { limit: 2, delay: "30 seconds" }, timeout: "10 minutes" },
         async () => {
@@ -546,23 +556,31 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             );
           }
 
-          researchContent = result.value.content;
-          inputTokens = result.value.inputTokens;
-          outputTokens = result.value.outputTokens;
-          steps = result.value.steps;
-          toolCalls = result.value.toolCalls;
-
           logInfo(
             "claude_complete",
             {
-              input_tokens: inputTokens,
-              output_tokens: outputTokens,
-              steps,
+              input_tokens: result.value.inputTokens,
+              output_tokens: result.value.outputTokens,
+              steps: result.value.steps,
             },
             jobId
           );
+
+          return {
+            researchContent: result.value.content,
+            inputTokens: result.value.inputTokens,
+            outputTokens: result.value.outputTokens,
+            steps: result.value.steps,
+            toolCalls: result.value.toolCalls,
+          };
         }
       );
+
+      researchContent = generateResult.researchContent;
+      inputTokens = generateResult.inputTokens;
+      outputTokens = generateResult.outputTokens;
+      steps = generateResult.steps;
+      toolCalls = generateResult.toolCalls;
 
       // Step 4: Write results to GitHub
       await updateStepProgress(
@@ -615,7 +633,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             finalResearchPath,
             finalContent,
             commitMessage,
-            hasExistingResearch
+            existingSha
           );
 
           const explorationLog: ExplorationLog = {

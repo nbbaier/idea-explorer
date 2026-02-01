@@ -353,6 +353,8 @@ export function listJobs(
       const { limit = 20, offset = 0, status, mode } = options;
       let keys: KVNamespaceListKey<JobMetadata, string>[] = [];
       let cursor: string | undefined;
+      let iterations = 0;
+      const MAX_SCAN_ITERATIONS = 10; // Max 10,000 keys
 
       // Fetch all keys (up to a reasonable safety limit if needed,
       // but loop ensures we see everything for sorting)
@@ -360,7 +362,8 @@ export function listJobs(
         const list = await kv.list<JobMetadata>({ cursor, limit: 1000 });
         keys = keys.concat(list.keys);
         cursor = list.list_complete ? undefined : list.cursor;
-      } while (cursor);
+        iterations++;
+      } while (cursor && iterations < MAX_SCAN_ITERATIONS);
 
       // Filter keys by metadata
       const filteredKeys = keys.filter((key) => {
