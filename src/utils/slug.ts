@@ -66,7 +66,7 @@ export async function generateSlugWithLLM(
     try: async () => {
       const provider = createAnthropic({ apiKey });
       const response = await generateText({
-        model: provider("claude-3-5-haiku-latest"),
+        model: provider("claude-haiku-4-5"),
         prompt: `Generate a concise, descriptive slug (3-5 words max) for this idea. Return ONLY the slug text with words separated by hyphens, no other text or explanation.
 
 Idea: ${sanitizedIdea}

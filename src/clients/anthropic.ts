@@ -41,8 +41,8 @@ export interface GenerateResearchResult {
 }
 
 const MODEL_MAP = {
-  sonnet: "claude-3-5-sonnet-latest",
-  opus: "claude-3-opus-latest",
+  sonnet: "claude-sonnet-4-5",
+  opus: "claude-opus-4-5",
 } as const;
 
 const MAX_OUTPUT_TOKENS = 16_384;
@@ -53,7 +53,9 @@ function buildTools(
   toolExecutor?: ToolExecutor,
   onToolCall?: (log: ToolCallLog) => void
 ): ToolSet {
-  const tools: ToolSet = {};
+  const tools: ToolSet = {
+    web_search: provider.tools.webSearch_20250305({ maxUses: 5 }),
+  };
 
   if (toolExecutor) {
     tools.read_research = tool({
