@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "da766928",
+    "idea": "aa46deaf",
+    "mode": "business",
+    "model": "sonnet",
+    "isUpdate": false,
+    "startedAt": "2026-02-03T21:33:57.309Z",
+    "completedAt": "2026-02-03T21:34:11.765Z",
+    "durationMs": 14456,
+    "steps": 2,
+    "tokens": {
+      "input": 6940,
+      "output": 519,
+      "total": 7459
+    },
+    "outputPath": "ideas/2026-02-03-aa46deaf/research.md"
+  }
+]
