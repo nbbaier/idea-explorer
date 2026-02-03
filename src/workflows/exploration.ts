@@ -16,7 +16,7 @@ import {
 import { getJob, type Job, updateJob } from "../jobs";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts";
 import { logError, logInfo, logJobComplete } from "../utils/logger";
-import { generateSlugWithLLM } from "../utils/slug";
+import { generateSlug } from "../utils/slug";
 import { sendWebhook } from "../utils/webhook";
 
 interface JobParams {
@@ -404,7 +404,7 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             );
           }
           logInfo("job_started", { mode, model }, jobId);
-          const generatedSlug = await generateSlugWithLLM(idea, apiKey);
+          const generatedSlug = generateSlug(idea);
           return { slug: generatedSlug, datePrefix: getDatePrefix() };
         }
       );

@@ -12,7 +12,7 @@ const SIGNATURE_PATTERN = /^sha256=[a-f0-9]{64}$/;
 describe("webhook utility", () => {
   const mockJob: Job = {
     id: "test-job",
-    idea: "Test Idea",
+    idea: "Test Idea for exploration",
     mode: "exploration",
     model: "sonnet",
     status: "completed",

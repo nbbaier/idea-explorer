@@ -281,6 +281,9 @@ function buildStatusResponse(job: Job): Record<string, unknown> {
       if (job.github_url) {
         response.github_url = job.github_url;
       }
+      if (job.step_durations) {
+        response.step_durations = job.step_durations;
+      }
       break;
     case "failed":
       if (job.error) {
@@ -436,6 +439,11 @@ app.use("/api/*", rateLimitMiddleware);
 app.get("/", async (c) => {
   const url = new URL(c.req.url);
   return await c.env.ASSETS.fetch(new URL(url.origin));
+});
+
+app.get("/demo/:jobId?", async (c) => {
+  const url = new URL(c.req.url);
+  return await c.env.ASSETS.fetch(new URL(`${url.origin}/demo.html`));
 });
 
 app.get("/api", renderDocs);

@@ -17,7 +17,7 @@ describe("Job Management", () => {
   });
 
   describe("Webhook URL validation", () => {
-    const baseRequest = { idea: "Test idea" };
+    const baseRequest = { idea: "Test idea for exploration" };
 
     it("allows public https URLs", () => {
       const result = ExploreRequestSchema.safeParse({
@@ -81,7 +81,7 @@ describe("Job Management", () => {
   describe("Step Progress Tracking", () => {
     it("should create a job without step progress fields", async () => {
       const result = await createJob(mockKV, {
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -100,7 +100,7 @@ describe("Job Management", () => {
 
     it("should update job with step progress", async () => {
       const createResult = await createJob(mockKV, {
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -131,7 +131,7 @@ describe("Job Management", () => {
 
     it("should update job with step durations", async () => {
       const createResult = await createJob(mockKV, {
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -157,7 +157,7 @@ describe("Job Management", () => {
 
     it("should preserve existing step durations when adding new ones", async () => {
       const createResult = await createJob(mockKV, {
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -198,7 +198,7 @@ describe("Job Management", () => {
 
     it("should track multiple step updates in sequence", async () => {
       const createResult = await createJob(mockKV, {
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -266,7 +266,7 @@ describe("Job Management", () => {
   describe("Continue From (Follow-up Explorations)", () => {
     it("should create a job with continue_from parameter", async () => {
       const result = await createJob(mockKV, {
-        idea: "Follow-up idea",
+        idea: "Follow-up idea for exploration",
         mode: "business",
         model: "sonnet",
         continue_from: "abc12345",
@@ -281,7 +281,7 @@ describe("Job Management", () => {
 
     it("should create a job without continue_from when not provided", async () => {
       const result = await createJob(mockKV, {
-        idea: "New idea",
+        idea: "New idea for exploration",
         mode: "business",
         model: "sonnet",
       });
@@ -295,7 +295,7 @@ describe("Job Management", () => {
 
     it("should accept continue_from in request schema", () => {
       const result = ExploreRequestSchema.safeParse({
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         continue_from: "job-id-12",
       });
       expect(result.success).toBe(true);
@@ -303,7 +303,7 @@ describe("Job Management", () => {
 
     it("should reject when both update and continue_from are set", () => {
       const result = ExploreRequestSchema.safeParse({
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         update: true,
         continue_from: "job-id-12",
       });
@@ -317,7 +317,7 @@ describe("Job Management", () => {
 
     it("should allow update without continue_from", () => {
       const result = ExploreRequestSchema.safeParse({
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         update: true,
       });
       expect(result.success).toBe(true);
@@ -325,7 +325,7 @@ describe("Job Management", () => {
 
     it("should allow continue_from without update", () => {
       const result = ExploreRequestSchema.safeParse({
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         continue_from: "job-id-12",
       });
       expect(result.success).toBe(true);
@@ -333,7 +333,7 @@ describe("Job Management", () => {
 
     it("should allow update: false with continue_from", () => {
       const result = ExploreRequestSchema.safeParse({
-        idea: "Test idea",
+        idea: "Test idea for exploration",
         update: false,
         continue_from: "job-id-12",
       });

@@ -18,7 +18,10 @@ export const JobStatusSchema = z.enum([
 //   - File write still appends to existingContent (update)
 // This creates a mismatch where Claude doesn't see what it's appending to
 export const ExploreRequestBaseSchema = z.object({
-  idea: z.string(),
+  idea: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().min(10, "Idea must be at least 10 characters")),
   mode: ModeSchema.optional(),
   model: ModelSchema.optional(),
   context: z.string().optional(),

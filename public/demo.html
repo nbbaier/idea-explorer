@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Idea Explorer Demo</title>
+    <link rel="icon" type="image/svg+xml" href="/ai-idea-stroke-rounded.svg">
+    <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+        Cantarell, sans-serif;
+      line-height: 1.5;
+      color: #1a1a1a;
+      background: #f5f4f2;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      color: #1a1a1a;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.875rem;
+    }
+
+    /* Input Section */
+    .input-section {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e5e5e5;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-row:last-child {
+      margin-bottom: 0;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      flex: 1;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid #d4d4d4;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      transition:
+        border-color 0.15s,
+        box-shadow 0.15s;
+      font-family: inherit;
+      background: white;
+      color: #1a1a1a;
+    }
+
+    input[type="text"]::placeholder,
+    input[type="password"]::placeholder {
+      color: #999;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      outline: none;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 1px #1a1a1a;
+    }
+
+    .token-input {
+      max-width: 200px;
+    }
+
+    button {
+      padding: 0.625rem 1.25rem;
+      background: #1a1a1a;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover:not(:disabled) {
+      background: #333;
+    }
+
+    button:active:not(:disabled) {
+      background: #000;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Activity Feed */
+    .activity-section {
+      background: #1a1a1a;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      display: none;
+    }
+
+    .activity-section.visible {
+      display: block;
+    }
+
+    .activity-header {
+      padding: 0.75rem 1rem;
+      background: #2a2a2a;
+      border-bottom: 1px solid #3a3a3a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .activity-title {
+      color: #999;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .activity-status {
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    .activity-status.running {
+      color: #f59e0b;
+    }
+
+    .activity-status.complete {
+      color: #22c55e;
+    }
+
+    .activity-status.error {
+      color: #ef4444;
+    }
+
+    .activity-feed {
+      font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      padding: 1rem;
+      max-height: 400px;
+      overflow-y: auto;
+      color: #e5e5e5;
+    }
+
+    .activity-line {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.125rem 0;
+    }
+
+    .activity-time {
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    .activity-message {
+      color: #999;
+    }
+
+    .activity-message.complete {
+      color: #22c55e;
+    }
+
+    .activity-message.error {
+      color: #ef4444;
+    }
+
+    .activity-message.highlight {
+      color: #e5e5e5;
+    }
+
+    /* Final Output */
+    .output-section {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e5e5e5;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      padding: 1.5rem;
+      display: none;
+    }
+
+    .output-section.visible {
+      display: block;
+    }
+
+    .output-section.success {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .output-section.error {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .output-title {
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .output-section.success .output-title {
+      color: #166534;
+    }
+
+    .output-section.error .output-title {
+      color: #991b1b;
+    }
+
+    .output-link {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      background: #166534;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    .output-link:hover {
+      background: #15803d;
+    }
+
+    .output-stats {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #bbf7d0;
+      font-size: 0.8125rem;
+      color: #166534;
+    }
+
+    .output-section.error .output-stats {
+      border-top-color: #fecaca;
+      color: #991b1b;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.25rem 0;
+    }
+
+    .stat-label {
+      color: inherit;
+      opacity: 0.8;
+    }
+
+    .error-message {
+      color: #991b1b;
+      font-size: 0.875rem;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .blink {
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Idea Explorer</h1>
+        <p class="subtitle">Watch AI explore your ideas in real-time</p>
+      </header>
+
+      <div class="input-section">
+        <form id="exploreForm">
+          <div class="form-row">
+            <input
+              type="password"
+              id="apiToken"
+              class="token-input"
+              placeholder="API Token"
+              required
+              autocomplete="off"
+            >
+            <input
+              type="text"
+              id="idea"
+              placeholder="Enter idea or job ID..."
+              required
+            >
+            <button type="submit" id="goBtn">Go</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="activity-section" id="activitySection">
+        <div class="activity-header">
+          <span class="activity-title">Activity</span>
+          <span class="activity-status" id="activityStatus">Waiting...</span>
+        </div>
+        <div class="activity-feed" id="activityFeed"></div>
+      </div>
+
+      <div class="output-section" id="outputSection">
+        <div class="output-title" id="outputTitle">Complete</div>
+        <div id="outputContent"></div>
+        <div class="output-stats" id="outputStats"></div>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+
+    const form = document.getElementById("exploreForm");
+    const goBtn = document.getElementById("goBtn");
+    const apiTokenInput = document.getElementById("apiToken");
+    const ideaInput = document.getElementById("idea");
+    const activitySection = document.getElementById("activitySection");
+    const activityStatus = document.getElementById("activityStatus");
+    const activityFeed = document.getElementById("activityFeed");
+    const outputSection = document.getElementById("outputSection");
+    const outputTitle = document.getElementById("outputTitle");
+    const outputContent = document.getElementById("outputContent");
+    const outputStats = document.getElementById("outputStats");
+
+    let startTime = null;
+    let pollInterval = null;
+    let lastStep = null;
+
+    // Restore saved token
+    const savedToken = localStorage.getItem("idea-explorer-token");
+    if (savedToken) {
+      apiTokenInput.value = savedToken;
+    }
+
+    apiTokenInput.addEventListener("change", (e) => {
+      const token = e.target.value.trim();
+      if (token) {
+        localStorage.setItem("idea-explorer-token", token);
+      } else {
+        localStorage.removeItem("idea-explorer-token");
+      }
+    });
+
+    function formatTime(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+      }
+      return `${seconds}s`;
+    }
+
+    function getElapsedTime() {
+      if (!startTime) {
+        return "0s";
+      }
+      return formatTime(Date.now() - startTime);
+    }
+
+    function addActivityLine(message, type = "") {
+      const line = document.createElement("div");
+      line.className = "activity-line";
+
+      const time = document.createElement("span");
+      time.className = "activity-time";
+      time.textContent = `[${getElapsedTime()}]`;
+
+      const msg = document.createElement("span");
+      msg.className = `activity-message ${type}`;
+      msg.textContent = message;
+
+      line.appendChild(time);
+      line.appendChild(msg);
+      activityFeed.appendChild(line);
+
+      // Auto-scroll to bottom
+      activityFeed.scrollTop = activityFeed.scrollHeight;
+    }
+
+    function mapStepToEvent(step, label) {
+      // Map workflow steps to user-friendly event messages
+      const stepMessages = {
+        initialize: "Breaking down topic into sub-questions...",
+        check_existing: "Checking for existing research...",
+        generate_research: "Generating research with Claude...",
+        write_github: "Writing results to GitHub...",
+        notify: "Finalizing...",
+      };
+      return stepMessages[step] || label || step;
+    }
+
+    function setRunning() {
+      activityStatus.textContent = "Running...";
+      activityStatus.className = "activity-status running";
+    }
+
+    function setComplete() {
+      activityStatus.textContent = "Complete";
+      activityStatus.className = "activity-status complete";
+    }
+
+    function setError() {
+      activityStatus.textContent = "Failed";
+      activityStatus.className = "activity-status error";
+    }
+
+    function showOutput(data) {
+      outputSection.classList.add("visible");
+
+      if (data.status === "completed") {
+        outputSection.classList.add("success");
+        outputSection.classList.remove("error");
+        outputTitle.textContent = "✓ Research Complete";
+
+        outputContent.innerHTML = `
+          <a href="${data.github_url}" target="_blank" class="output-link">
+            View Research on GitHub →
+          </a>
+        `;
+
+        // Show step durations if available
+        if (data.step_durations) {
+          const durations = Object.entries(data.step_durations)
+            .map(
+              ([step, ms]) =>
+                `<div class="stat-row"><span class="stat-label">${step}</span><span>${formatTime(ms)}</span></div>`
+            )
+            .join("");
+
+          const totalTime = getElapsedTime();
+          outputStats.innerHTML = `
+            <div class="stat-row"><span class="stat-label">Total time</span><span>${totalTime}</span></div>
+            ${durations}
+          `;
+        }
+      } else {
+        outputSection.classList.add("error");
+        outputSection.classList.remove("success");
+        outputTitle.textContent = "✗ Exploration Failed";
+        outputContent.innerHTML = `<p class="error-message">${data.error || "Unknown error occurred"}</p>`;
+        outputStats.innerHTML = "";
+      }
+    }
+
+    function reset() {
+      activitySection.classList.remove("visible");
+      outputSection.classList.remove("visible", "success", "error");
+      activityFeed.innerHTML = "";
+      outputContent.innerHTML = "";
+      outputStats.innerHTML = "";
+      lastStep = null;
+      startTime = null;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    async function pollStatus(jobId, token) {
+      try {
+        const response = await fetch(`/api/status/${jobId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Status check failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Check for step changes
+        if (data.current_step && data.current_step !== lastStep) {
+          const message = mapStepToEvent(
+            data.current_step,
+            data.current_step_label
+          );
+          addActivityLine(message, "highlight");
+          lastStep = data.current_step;
+        }
+
+        // Check for completion
+        if (data.status === "completed") {
+          clearInterval(pollInterval);
+          pollInterval = null;
+          addActivityLine("Complete!", "complete");
+          setComplete();
+          showOutput(data);
+          goBtn.disabled = false;
+          goBtn.textContent = "Go";
+        } else if (data.status === "failed") {
+          clearInterval(pollInterval);
+          pollInterval = null;
+          addActivityLine(`Error: ${data.error || "Unknown error"}`, "error");
+          setError();
+          showOutput(data);
+          goBtn.disabled = false;
+          goBtn.textContent = "Go";
+        }
+      } catch (error) {
+        console.error("Poll error:", error);
+        // Don't stop polling on network errors - might be temporary
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const token = apiTokenInput.value.trim();
+      const idea = ideaInput.value.trim();
+
+      if (!(token && idea)) {
+        return;
+      }
+
+      // Save token
+      localStorage.setItem("idea-explorer-token", token);
+
+      // Reset UI
+      reset();
+
+      // Show activity section
+      activitySection.classList.add("visible");
+      startTime = Date.now();
+      setRunning();
+
+      // Disable button
+      goBtn.disabled = true;
+      goBtn.innerHTML = '<span class="spinner"></span>';
+
+      // Check if input looks like a job ID (short alphanumeric, typically 8 chars)
+      const isJobId = /^[a-f0-9]{6,12}$/i.test(idea);
+
+      if (isJobId) {
+        // Watch existing job
+        addActivityLine(`Watching job: ${idea}`, "highlight");
+        pollInterval = setInterval(() => pollStatus(idea, token), 1000);
+        // Also poll immediately
+        pollStatus(idea, token);
+      } else {
+        // Create new exploration
+        if (idea.length < 10) {
+          alert("Please enter a more detailed idea (at least 10 characters)");
+          goBtn.disabled = false;
+          goBtn.textContent = "Go";
+          return;
+        }
+
+        addActivityLine("Starting exploration...", "highlight");
+
+        try {
+          const response = await fetch("/api/explore", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ idea }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Failed to start exploration");
+          }
+
+          addActivityLine(`Job created: ${data.job_id}`);
+
+          // Start polling for updates
+          pollInterval = setInterval(() => pollStatus(data.job_id, token), 1000);
+        } catch (error) {
+          addActivityLine(`Error: ${error.message}`, "error");
+          setError();
+          goBtn.disabled = false;
+          goBtn.textContent = "Go";
+        }
+      }
+    });
+    </script>
+  </body>
+</html>

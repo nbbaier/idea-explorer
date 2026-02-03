@@ -37,7 +37,7 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 describe("AnthropicClient", () => {
   const defaultParams = {
-    idea: "Test idea",
+    idea: "Test idea for exploration",
     mode: "business" as const,
     datePrefix: "2025-01-12",
     jobId: "test-job-123",

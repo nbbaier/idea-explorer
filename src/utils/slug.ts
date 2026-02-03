@@ -8,6 +8,24 @@ const TRAILING_DASHES = /-+$/;
 const CONTROL_CHARS = /[\r\n\t\f\v]/g;
 const PROMPT_SPECIAL_CHARS = /[<>`]/g;
 
+// Patterns that indicate the LLM returned an error/explanation instead of a slug
+const ERROR_PATTERNS = [
+  /^i-dont/,
+  /^i-cant/,
+  /^i-cannot/,
+  /^sorry/,
+  /^unable/,
+  /^cannot/,
+  /^i-need/,
+  /^please-provide/,
+  /^not-enough/,
+  /^insufficient/,
+  /^generic/,
+  /^untitled/,
+  /^no-title/,
+  /^placeholder/,
+];
+
 function sanitizeSlug(text: string): string {
   if (!text || typeof text !== "string") {
     return "untitled";
@@ -67,16 +85,32 @@ export async function generateSlugWithLLM(
       const provider = createAnthropic({ apiKey });
       const response = await generateText({
         model: provider("claude-haiku-4-5"),
-        prompt: `Generate a concise, descriptive slug (3-5 words max) for this idea. Return ONLY the slug text with words separated by hyphens, no other text or explanation.
+        prompt: `Convert this text into a URL slug (2-5 words separated by hyphens).
 
-Idea: ${sanitizedIdea}
+Examples:
+- "Build a CLI tool for managing Docker containers" → "docker-cli-manager"
+- "How to implement OAuth2 in Node.js" → "nodejs-oauth2-implementation"
+- "test" → "test-project"
+- "asdf" → "asdf-exploration"
 
+Output ONLY the slug. No explanations.
+
+Text: ${sanitizedIdea}
 Slug:`,
-        maxOutputTokens: 50,
+        maxOutputTokens: 30,
       });
 
-      const slug = response.text.trim().toLowerCase();
-      return sanitizeSlug(slug);
+      const slug = sanitizeSlug(response.text.trim().toLowerCase());
+
+      // Check if the LLM returned an error message instead of a slug
+      const isErrorResponse = ERROR_PATTERNS.some((pattern) =>
+        pattern.test(slug)
+      );
+      if (isErrorResponse) {
+        throw new Error("LLM returned error message instead of slug");
+      }
+
+      return slug;
     },
     catch: (error) => {
       console.error("Failed to generate slug with LLM, falling back:", error);

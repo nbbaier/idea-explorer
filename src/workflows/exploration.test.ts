@@ -42,7 +42,7 @@ vi.mock("../prompts", () => ({
   buildUserPrompt: vi.fn(),
 }));
 vi.mock("../utils/slug", () => ({
-  generateSlugWithLLM: vi.fn(() => Promise.resolve("test-slug")),
+  generateSlug: vi.fn(() => "test-slug"),
 }));
 
 describe("ExplorationWorkflow", () => {
@@ -56,7 +56,7 @@ describe("ExplorationWorkflow", () => {
 
   const mockPayload = {
     jobId: "test-job",
-    idea: "Test Idea",
+    idea: "Test Idea for exploration",
     mode: "exploration" as const,
     model: "sonnet" as const,
   };
@@ -105,7 +105,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(getJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "running",
@@ -115,7 +115,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(updateJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "running",
@@ -219,7 +219,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(getJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "running",
@@ -229,7 +229,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(updateJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "running",
@@ -265,7 +265,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(getJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "running",
@@ -275,7 +275,7 @@ describe("ExplorationWorkflow", () => {
     vi.mocked(updateJob).mockResolvedValue(
       Result.ok({
         id: "test-job",
-        idea: "Test Idea",
+        idea: "Test Idea for exploration",
         mode: "exploration",
         model: "sonnet",
         status: "failed",
@@ -324,7 +324,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -375,7 +375,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -421,7 +421,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -461,7 +461,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -518,7 +518,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -558,7 +558,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -611,7 +611,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -651,7 +651,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -708,7 +708,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -754,7 +754,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -808,7 +808,7 @@ describe("ExplorationWorkflow", () => {
         }
         return Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
@@ -856,7 +856,7 @@ describe("ExplorationWorkflow", () => {
       vi.mocked(updateJob).mockResolvedValue(
         Result.ok({
           id: "test-job",
-          idea: "Test Idea",
+          idea: "Test Idea for exploration",
           mode: "exploration",
           model: "sonnet",
           status: "running",
