@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "f7438f04",
+    "idea": "482b9e0f",
+    "mode": "business",
+    "model": "sonnet",
+    "isUpdate": false,
+    "startedAt": "2026-02-03T21:29:13.772Z",
+    "completedAt": "2026-02-03T21:29:27.090Z",
+    "durationMs": 13318,
+    "steps": 4,
+    "tokens": {
+      "input": 13895,
+      "output": 419,
+      "total": 14314
+    },
+    "outputPath": "ideas/2026-02-03-generic-content-slug/research.md"
+  }
+]
