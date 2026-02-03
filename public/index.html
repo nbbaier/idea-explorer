@@ -442,22 +442,8 @@
         const data = await response.json();
 
         if (response.ok) {
-          resultDiv.className = "result success";
-          resultDiv.innerHTML = `
-            <div class="result-title">Submitted</div>
-            <div class="result-details">
-              <p><strong>Job ID:</strong> <span class="job-id"></span></p>
-              <p><strong>Status:</strong> <span class="job-status"></span></p>
-              <p>Check status at <code class="status-url"></code></p>
-            </div>
-          `;
-          resultDiv.querySelector(".job-id").textContent = data.job_id;
-          resultDiv.querySelector(".job-status").textContent = data.status;
-          resultDiv.querySelector(".status-url").textContent =
-            `/api/status/${data.job_id}`;
-
-          form.reset();
-          apiTokenInput.value = apiToken;
+          window.location.href = `/demo/${data.job_id}`;
+          return;
         } else {
           resultDiv.className = "result error";
           resultDiv.innerHTML = `

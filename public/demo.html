@@ -632,6 +632,32 @@
         }
       }
     });
+
+    // Check for job ID in URL path (e.g., /demo/abc123)
+    const pathMatch = window.location.pathname.match(/^\/demo\/([a-f0-9]+)$/i);
+    if (pathMatch) {
+      const jobId = pathMatch[1];
+      const token = localStorage.getItem("idea-explorer-token");
+
+      if (token) {
+        // Auto-start polling for this job
+        ideaInput.value = jobId;
+        apiTokenInput.value = token;
+
+        activitySection.classList.add("visible");
+        startTime = Date.now();
+        setRunning();
+        goBtn.disabled = true;
+        goBtn.innerHTML = '<span class="spinner"></span>';
+
+        addActivityLine(`Watching job: ${jobId}`, "highlight");
+        pollInterval = setInterval(() => pollStatus(jobId, token), 1000);
+        pollStatus(jobId, token);
+      } else {
+        // No token saved, show message in idea field
+        ideaInput.value = jobId;
+      }
+    }
     </script>
   </body>
 </html>
