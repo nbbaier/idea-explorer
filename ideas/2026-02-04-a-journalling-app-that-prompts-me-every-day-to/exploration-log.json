@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "24868ffd",
+    "idea": "A journalling app that prompts me every day to make write something done, but those prompts aren't just run of the mill stuff",
+    "mode": "exploration",
+    "model": "sonnet",
+    "isUpdate": false,
+    "startedAt": "2026-02-05T00:34:52.267Z",
+    "completedAt": "2026-02-05T00:36:09.920Z",
+    "durationMs": 77653,
+    "steps": 1,
+    "tokens": {
+      "input": 3484,
+      "output": 2914,
+      "total": 6398
+    },
+    "outputPath": "ideas/2026-02-04-a-journalling-app-that-prompts-me-every-day-to/research.md"
+  }
+]
