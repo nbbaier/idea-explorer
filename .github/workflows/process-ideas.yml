@@ -1,31 +1,28 @@
 name: Process Idea Issues
-
 on:
-   issues:
-      types: [labeled]
-   schedule:
-      - cron: "0 * * * *"
-   workflow_dispatch:
-
+  issues:
+    types: [labeled]
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
 jobs:
-   process-ideas:
-      if: ${{ github.event_name != 'issues' || github.event.label.name == 'idea' }}
-      runs-on: ubuntu-latest
-      permissions:
-         issues: write
-         contents: read
-
-      steps:
-         - name: Checkout repository
-           uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-         - name: Set up bun
-           uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
-         - name: Install dependencies
-           run: bun install
-         - name: Process idea issues
-           env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              GITHUB_REPOSITORY: ${{ github.repository }}
-              IDEA_EXPLORER_API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
-              IDEA_EXPLORER_API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
-           run: bun run scripts/gh/process-ideas.ts
+  process-ideas:
+    if: ${{ github.event_name != 'issues' || github.event.label.name == 'idea' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+      - name: Install dependencies
+        run: bun install
+      - name: Process idea issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          IDEA_EXPLORER_API_URL: ${{ secrets.IDEA_EXPLORER_API_URL }}
+          IDEA_EXPLORER_API_TOKEN: ${{ secrets.IDEA_EXPLORER_API_TOKEN }}
+        run: bun run scripts/gh/process-ideas.ts
