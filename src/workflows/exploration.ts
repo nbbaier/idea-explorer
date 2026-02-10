@@ -17,6 +17,12 @@ import { getJob, type Job, updateJob } from "../jobs";
 import { buildSystemPrompt, buildUserPrompt } from "../prompts";
 import { logError, logInfo, logJobComplete } from "../utils/logger";
 import { generateSlug } from "../utils/slug";
+import {
+  appendStream,
+  completeStream,
+  errorStream,
+  initStream,
+} from "../utils/stream-buffer";
 import { sendWebhook } from "../utils/webhook";
 
 interface JobParams {
@@ -529,16 +535,47 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
             model,
           });
 
-          const result = await anthropic.generateResearch({
-            idea,
-            mode,
-            context,
-            existingContent,
-            datePrefix,
-            jobId,
-            systemPrompt,
-            userPrompt,
-          });
+          await initStream(this.env.IDEA_EXPLORER_JOBS, jobId);
+
+          const batchConfig = {
+            intervalMs: 1000,
+            size: 500,
+          } as const;
+          let buffer = "";
+          let lastFlush = Date.now();
+
+          const flushBuffer = async () => {
+            if (!buffer) {
+              return;
+            }
+            await appendStream(this.env.IDEA_EXPLORER_JOBS, jobId, buffer);
+            buffer = "";
+            lastFlush = Date.now();
+          };
+
+          const result = await anthropic.generateResearchStreaming(
+            {
+              idea,
+              mode,
+              context,
+              existingContent,
+              datePrefix,
+              jobId,
+              systemPrompt,
+              userPrompt,
+            },
+            async (chunk) => {
+              buffer = `${buffer}${chunk}`;
+              const shouldFlushBySize = buffer.length >= batchConfig.size;
+              const shouldFlushByTime =
+                Date.now() - lastFlush >= batchConfig.intervalMs;
+              if (shouldFlushBySize || shouldFlushByTime) {
+                await flushBuffer();
+              }
+            }
+          );
+
+          await flushBuffer();
 
           if (result.status === "error") {
             throw new Error(
@@ -551,6 +588,12 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           outputTokens = result.value.outputTokens;
           steps = result.value.steps;
           toolCalls = result.value.toolCalls;
+
+          await completeStream(
+            this.env.IDEA_EXPLORER_JOBS,
+            jobId,
+            researchContent
+          );
 
           logInfo(
             "claude_complete",
@@ -687,6 +730,9 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
         });
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      await errorStream(this.env.IDEA_EXPLORER_JOBS, jobId, errorMessage);
       await this.handleFailure({
         jobId,
         error,

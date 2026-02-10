@@ -16,6 +16,7 @@ import {
 } from "./jobs";
 import { requireAuth } from "./middleware/auth";
 import { logError, logJobCreated } from "./utils/logger";
+import { getStream } from "./utils/stream-buffer";
 import { sendWebhook } from "./utils/webhook";
 
 type ExploreEnv = typeof worker.Env & {
@@ -339,6 +340,22 @@ async function getWorkflowStatusHandler(c: ExploreContext): Promise<Response> {
   });
 }
 
+async function getStreamHandler(c: ExploreContext): Promise<Response> {
+  const jobId = c.req.param("jobId");
+  const stream = await getStream(c.env.IDEA_EXPLORER_JOBS, jobId);
+
+  if (!stream) {
+    return c.json({ status: "not_found", content: "", version: 0 }, 404);
+  }
+
+  return c.json({
+    status: stream.status,
+    content: stream.content,
+    version: stream.version,
+    ...(stream.error ? { error: stream.error } : {}),
+  });
+}
+
 function healthHandler(c: ExploreContext): Response {
   return c.json({ status: "ok" });
 }
@@ -457,7 +474,27 @@ app.post(
 app.get("/api/jobs", listJobsHandler);
 app.get("/api/status/:id", getJobStatusHandler);
 app.get("/api/workflow-status/:id", getWorkflowStatusHandler);
+app.get("/api/stream/:jobId", getStreamHandler);
 app.get("/api/health", healthHandler);
+app.get("/api/debug-env", requireAuth(), (c: ExploreContext) => {
+  const keys = [
+    "GH_REPO",
+    "GH_BRANCH",
+    "GH_PAT",
+    "ANTHROPIC_API_KEY",
+    "IDEA_EXPLORER_API_TOKEN",
+    "IDEA_EXPLORER_WEBHOOK_URL",
+  ] as const;
+
+  const env = Object.fromEntries(
+    keys.map((key) => {
+      const value = c.env[key as keyof ExploreEnv] as string | undefined;
+      return [key, { set: !!value, length: value?.length ?? 0 }];
+    })
+  );
+
+  return c.json({ env });
+});
 app.get("/api/test-webhook", requireAuth(), testWebhookHandler);
 
 app.all("*", notFoundHandler);
