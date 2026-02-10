@@ -1,5 +1,5 @@
 import { type AnthropicProvider, createAnthropic } from "@ai-sdk/anthropic";
-import { generateText, stepCountIs, type ToolSet, tool } from "ai";
+import { generateText, stepCountIs, streamText, type ToolSet, tool } from "ai";
 import { Result } from "better-result";
 import { z } from "zod";
 import { AnthropicApiError } from "../errors";
@@ -130,6 +130,58 @@ export class AnthropicClient {
       },
       catch: (error) =>
         new AnthropicApiError({ operation: "generateResearch", cause: error }),
+    });
+  }
+
+  generateResearchStreaming(
+    params: GenerateResearchParams,
+    onChunk: (text: string) => Promise<void>
+  ): Promise<Result<GenerateResearchResult, AnthropicApiError>> {
+    return Result.tryPromise({
+      try: async () => {
+        const toolCalls: ToolCallLog[] | undefined = this.config
+          .collectToolStats
+          ? []
+          : undefined;
+        const provider = createAnthropic({ apiKey: this.config.apiKey });
+        const tools = buildTools(provider, this.config.toolExecutor, (log) => {
+          if (toolCalls) {
+            toolCalls.push(log);
+          }
+        });
+        const result = streamText({
+          model: provider(MODEL_MAP[this.config.model]),
+          system: params.systemPrompt,
+          prompt: params.userPrompt,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          tools,
+          stopWhen: stepCountIs(MAX_STEPS),
+        });
+
+        let fullText = "";
+        for await (const chunk of result.textStream) {
+          fullText += chunk;
+          await onChunk(chunk);
+        }
+
+        const [usage, steps] = await Promise.all([
+          result.totalUsage,
+          result.steps,
+        ]);
+
+        return {
+          content: fullText,
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          steps: steps.length,
+          toolCalls,
+        };
+      },
+      catch: (error) =>
+        new AnthropicApiError({
+          operation: "generateResearchStreaming",
+          cause: error,
+        }),
     });
   }
 }

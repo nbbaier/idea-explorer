@@ -839,54 +839,65 @@
     // ─── PRESETS ─────────────────────────────────────────────────────
     const presets = {
       full: () => {
-        for (const l of layers) state.layers[l.id] = true;
+        for (const l of layers) {
+          state.layers[l.id] = true;
+        }
       },
       api: () => {
-        for (const l of layers) state.layers[l.id] = false;
-        ["api", "middleware", "data", "types", "utils", "external"].forEach(
-          (l) => (state.layers[l] = true)
-        );
+        for (const l of layers) {
+          state.layers[l.id] = false;
+        }
+        for (const l of [
+          "api",
+          "middleware",
+          "data",
+          "types",
+          "utils",
+          "external",
+        ]) {
+          state.layers[l] = true;
+        }
       },
       workflow: () => {
-        for (const l of layers) state.layers[l.id] = false;
-        ["workflow", "clients", "prompts", "data", "utils", "external"].forEach(
-          (l) => (state.layers[l] = true)
-        );
+        for (const l of layers) {
+          state.layers[l.id] = false;
+        }
+        for (const l of [
+          "workflow",
+          "clients",
+          "prompts",
+          "data",
+          "utils",
+          "external",
+        ]) {
+          state.layers[l] = true;
+        }
       },
       cli: () => {
-        for (const l of layers) state.layers[l.id] = false;
-        ["cli", "api", "middleware", "types"].forEach(
-          (l) => (state.layers[l] = true)
-        );
+        for (const l of layers) {
+          state.layers[l.id] = false;
+        }
+        for (const l of ["cli", "api", "middleware", "types"]) {
+          state.layers[l] = true;
+        }
       },
     };
 
     // ─── RENDER ──────────────────────────────────────────────────────
-    function render() {
-      const svg = document.getElementById("svg");
-      const wrap = document.getElementById("canvas-wrap");
-      const W = wrap.clientWidth,
-        H = wrap.clientHeight;
-      svg.setAttribute(
-        "viewBox",
-        `${-state.panX / state.zoom} ${-state.panY / state.zoom} ${W / state.zoom} ${H / state.zoom}`
-      );
-
-      let html = "<defs>";
-      for (const ct of connTypes) {
-        html += `<marker id="arrow-${ct.id}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="${ct.color}" opacity="0.7"/>
-    </marker>`;
-      }
-      html += "</defs>";
-
-      // Connections
+    function renderConnections() {
+      let html = "";
       for (const c of connections) {
-        if (!state.connTypes[c.type]) continue;
+        if (!state.connTypes[c.type]) {
+          continue;
+        }
         const from = nodes.find((n) => n.id === c.from);
         const to = nodes.find((n) => n.id === c.to);
-        if (!(from && to)) continue;
-        if (!(state.layers[from.layer] && state.layers[to.layer])) continue;
+        if (!(from && to)) {
+          continue;
+        }
+        if (!(state.layers[from.layer] && state.layers[to.layer])) {
+          continue;
+        }
         const ct = connTypes.find((t) => t.id === c.type);
         const fx = from.x + from.w / 2,
           fy = from.y + from.h / 2;
@@ -894,9 +905,8 @@
           ty = to.y + to.h / 2;
         const mx = (fx + tx) / 2,
           my = (fy + ty) / 2;
-        // Simple curved path
         const dx = tx - fx,
-          dy = ty - fy;
+          _dy = ty - fy;
         const cx1 = fx + dx * 0.3,
           cy1 = fy;
         const cx2 = tx - dx * 0.3,
@@ -909,10 +919,15 @@
           html += `<text x="${mx}" y="${my - 6}" text-anchor="middle" fill="${ct.color}" font-size="9" opacity="0.7">${c.label}</text>`;
         }
       }
+      return html;
+    }
 
-      // Nodes
+    function renderNodes() {
+      let html = "";
       for (const n of nodes) {
-        if (!state.layers[n.layer]) continue;
+        if (!state.layers[n.layer]) {
+          continue;
+        }
         const layer = layers.find((l) => l.id === n.layer);
         const hasComment = state.comments.some((c) => c.target === n.id);
         const strokeColor = hasComment ? "#3b82f6" : "#555";
@@ -930,6 +945,28 @@
       }
     </g>`;
       }
+      return html;
+    }
+
+    function render() {
+      const svg = document.getElementById("svg");
+      const wrap = document.getElementById("canvas-wrap");
+      const W = wrap.clientWidth,
+        H = wrap.clientHeight;
+      svg.setAttribute(
+        "viewBox",
+        `${-state.panX / state.zoom} ${-state.panY / state.zoom} ${W / state.zoom} ${H / state.zoom}`
+      );
+
+      let html = "<defs>";
+      for (const ct of connTypes) {
+        html += `<marker id="arrow-${ct.id}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="${ct.color}" opacity="0.7"/>
+    </marker>`;
+      }
+      html += "</defs>";
+      html += renderConnections();
+      html += renderNodes();
 
       svg.innerHTML = html;
       renderComments();
@@ -971,7 +1008,9 @@
         .map((l) => l.label);
       const allVisible = visibleLayers.length === layers.length;
       let prompt = "This is the Idea Explorer architecture";
-      if (!allVisible) prompt += `, focusing on: ${visibleLayers.join(", ")}`;
+      if (!allVisible) {
+        prompt += `, focusing on: ${visibleLayers.join(", ")}`;
+      }
       prompt += ".\n\nFeedback on specific components:\n";
       for (const c of state.comments) {
         prompt += `\n**${c.targetLabel}** (${c.targetFile}):\n${c.text}\n`;
@@ -1021,12 +1060,12 @@
         .join("");
     }
 
-    function setPreset(id) {
+    function _setPreset(id) {
       state.activePreset = id;
       presets[id]();
-      document
-        .querySelectorAll(".preset-btn")
-        .forEach((b) => b.classList.remove("active"));
+      for (const b of document.querySelectorAll(".preset-btn")) {
+        b.classList.remove("active");
+      }
       document
         .querySelector(`[onclick="setPreset('${id}')"]`)
         .classList.add("active");
@@ -1034,11 +1073,11 @@
       render();
     }
 
-    function toggleLayer(id, val) {
+    function _toggleLayer(id, val) {
       state.layers[id] = val;
       render();
     }
-    function toggleConn(id, val) {
+    function _toggleConn(id, val) {
       state.connTypes[id] = val;
       render();
     }
@@ -1052,7 +1091,7 @@
       state.zoom = Math.max(state.zoom / 1.2, 0.4);
       render();
     }
-    function zoomReset() {
+    function _zoomReset() {
       state.zoom = 1;
       state.panX = 0;
       state.panY = 0;
@@ -1122,8 +1161,11 @@
       "wheel",
       (e) => {
         e.preventDefault();
-        if (e.deltaY < 0) zoomIn();
-        else zoomOut();
+        if (e.deltaY < 0) {
+          zoomIn();
+        } else {
+          zoomOut();
+        }
       },
       { passive: false }
     );
@@ -1131,7 +1173,9 @@
     // ─── MODAL ───────────────────────────────────────────────────────
     function openModal(nodeId) {
       const node = nodes.find((n) => n.id === nodeId);
-      if (!node) return;
+      if (!node) {
+        return;
+      }
       state.modalNode = node;
       document.getElementById("modal-title").textContent = node.label;
       document.getElementById("modal-file").textContent = node.subtitle;
@@ -1155,7 +1199,9 @@
 
     function saveComment() {
       const text = document.getElementById("modal-input").value.trim();
-      if (!(text && state.modalNode)) return;
+      if (!(text && state.modalNode)) {
+        return;
+      }
       state.comments.push({
         id: Date.now(),
         target: state.modalNode.id,
@@ -1167,17 +1213,21 @@
       render();
     }
 
-    function deleteComment(index) {
+    function _deleteComment(index) {
       state.comments.splice(index, 1);
       render();
     }
 
     // Close modal on Escape or outside click
     document.getElementById("modal").addEventListener("click", (e) => {
-      if (e.target.id === "modal") closeModal();
+      if (e.target.id === "modal") {
+        closeModal();
+      }
     });
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModal();
+      if (e.key === "Escape") {
+        closeModal();
+      }
       if (
         e.key === "Enter" &&
         !e.shiftKey &&
@@ -1189,12 +1239,14 @@
     });
 
     // ─── COPY ────────────────────────────────────────────────────────
-    function copyPrompt() {
+    function _copyPrompt() {
       const text = document.getElementById("prompt-output").textContent;
       navigator.clipboard.writeText(text).then(() => {
         const btn = document.querySelector(".copy-btn");
         btn.textContent = "Copied!";
-        setTimeout(() => (btn.textContent = "Copy"), 1500);
+        setTimeout(() => {
+          btn.textContent = "Copy";
+        }, 1500);
       });
     }
 

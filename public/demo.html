@@ -206,6 +206,61 @@
       color: #e5e5e5;
     }
 
+    /* Streaming Output */
+    .stream-section {
+      margin-bottom: 1.5rem;
+      background: #1a1a1a;
+      border-radius: 8px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .stream-section.visible {
+      display: block;
+    }
+
+    .stream-header {
+      padding: 0.75rem 1rem;
+      background: #2a2a2a;
+      border-bottom: 1px solid #3a3a3a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stream-title {
+      color: #fff;
+      font-weight: 500;
+      font-size: 0.8125rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stream-status {
+      color: #888;
+      font-size: 0.75rem;
+    }
+
+    .stream-status.complete {
+      color: #22c55e;
+    }
+
+    .stream-status.error {
+      color: #ef4444;
+    }
+
+    .stream-content {
+      padding: 1rem;
+      color: #e0e0e0;
+      font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     /* Final Output */
     .output-section {
       background: white;
@@ -356,6 +411,14 @@
         <div class="activity-feed" id="activityFeed"></div>
       </div>
 
+      <div class="stream-section" id="streamSection">
+        <div class="stream-header">
+          <span class="stream-title">Research Output</span>
+          <span class="stream-status" id="streamStatus">Streaming...</span>
+        </div>
+        <div class="stream-content" id="streamContent"></div>
+      </div>
+
       <div class="output-section" id="outputSection">
         <div class="output-title" id="outputTitle">Complete</div>
         <div id="outputContent"></div>
@@ -377,10 +440,17 @@
     const outputTitle = document.getElementById("outputTitle");
     const outputContent = document.getElementById("outputContent");
     const outputStats = document.getElementById("outputStats");
+    const streamSection = document.getElementById("streamSection");
+    const streamStatus = document.getElementById("streamStatus");
+    const streamContent = document.getElementById("streamContent");
+
+    const JOB_ID_REGEX = /^[a-f0-9]{6,12}$/i;
 
     let startTime = null;
     let pollInterval = null;
+    let streamPollInterval = null;
     let lastStep = null;
+    let streamVersion = 0;
 
     // Restore saved token
     const savedToken = localStorage.getItem("idea-explorer-token");
@@ -501,15 +571,65 @@
 
     function reset() {
       activitySection.classList.remove("visible");
+      streamSection.classList.remove("visible");
       outputSection.classList.remove("visible", "success", "error");
       activityFeed.innerHTML = "";
       outputContent.innerHTML = "";
       outputStats.innerHTML = "";
+      streamContent.textContent = "";
+      streamStatus.textContent = "Streaming...";
+      streamStatus.classList.remove("complete", "error");
       lastStep = null;
       startTime = null;
+      streamVersion = 0;
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
+      }
+      if (streamPollInterval) {
+        clearInterval(streamPollInterval);
+        streamPollInterval = null;
+      }
+    }
+
+    async function pollStream(jobId, token) {
+      try {
+        const response = await fetch(
+          `/api/stream/${jobId}?since=${streamVersion}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === "not_found") {
+          return;
+        }
+
+        if (data.version > streamVersion) {
+          streamContent.textContent = data.content;
+          streamVersion = data.version;
+          streamContent.scrollTop = streamContent.scrollHeight;
+        }
+
+        if (data.status === "complete") {
+          streamStatus.textContent = "Complete";
+          streamStatus.classList.add("complete");
+          clearInterval(streamPollInterval);
+          streamPollInterval = null;
+        } else if (data.status === "error") {
+          streamStatus.textContent = "Error";
+          streamStatus.classList.add("error");
+          clearInterval(streamPollInterval);
+          streamPollInterval = null;
+        }
+      } catch (error) {
+        console.error("Stream poll error:", error);
       }
     }
 
@@ -585,18 +705,25 @@
       goBtn.innerHTML = '<span class="spinner"></span>';
 
       // Check if input looks like a job ID (short alphanumeric, typically 8 chars)
-      const isJobId = /^[a-f0-9]{6,12}$/i.test(idea);
+      const isJobId = JOB_ID_REGEX.test(idea);
 
       if (isJobId) {
         // Watch existing job
         addActivityLine(`Watching job: ${idea}`, "highlight");
         pollInterval = setInterval(() => pollStatus(idea, token), 1000);
+        streamSection.classList.add("visible");
+        streamPollInterval = setInterval(() => pollStream(idea, token), 500);
         // Also poll immediately
         pollStatus(idea, token);
+        pollStream(idea, token);
       } else {
         // Create new exploration
         if (idea.length < 10) {
-          alert("Please enter a more detailed idea (at least 10 characters)");
+          addActivityLine(
+            "Please enter a more detailed idea (at least 10 characters)",
+            "error"
+          );
+          setError();
           goBtn.disabled = false;
           goBtn.textContent = "Go";
           return;
@@ -623,7 +750,16 @@
           addActivityLine(`Job created: ${data.job_id}`);
 
           // Start polling for updates
-          pollInterval = setInterval(() => pollStatus(data.job_id, token), 1000);
+          pollInterval = setInterval(
+            () => pollStatus(data.job_id, token),
+            1000
+          );
+          streamSection.classList.add("visible");
+          streamPollInterval = setInterval(
+            () => pollStream(data.job_id, token),
+            500
+          );
+          pollStream(data.job_id, token);
         } catch (error) {
           addActivityLine(`Error: ${error.message}`, "error");
           setError();
@@ -645,6 +781,7 @@
         apiTokenInput.value = token;
 
         activitySection.classList.add("visible");
+        streamSection.classList.add("visible");
         startTime = Date.now();
         setRunning();
         goBtn.disabled = true;
@@ -652,7 +789,9 @@
 
         addActivityLine(`Watching job: ${jobId}`, "highlight");
         pollInterval = setInterval(() => pollStatus(jobId, token), 1000);
+        streamPollInterval = setInterval(() => pollStream(jobId, token), 500);
         pollStatus(jobId, token);
+        pollStream(jobId, token);
       } else {
         // No token saved, show message in idea field
         ideaInput.value = jobId;

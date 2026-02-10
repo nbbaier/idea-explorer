@@ -69,8 +69,7 @@
 
     input[type="text"],
     input[type="password"],
-    textarea,
-    select {
+    textarea {
       width: 100%;
       padding: 0.625rem 0.75rem;
       border: 1px solid #d4d4d4;
@@ -92,8 +91,7 @@
 
     input[type="text"]:focus,
     input[type="password"]:focus,
-    textarea:focus,
-    select:focus {
+    textarea:focus {
       outline: none;
       border-color: #1a1a1a;
       box-shadow: 0 0 0 1px #1a1a1a;
@@ -104,10 +102,41 @@
       min-height: 80px;
     }
 
-    .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
+    .toggle-group {
+      display: flex;
+      border: 1px solid #d4d4d4;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .toggle-option {
+      flex: 1;
+      padding: 0.625rem 0.75rem;
+      background: white;
+      color: #666;
+      border: none;
+      border-radius: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition:
+        background 0.15s,
+        color 0.15s;
+      margin-top: 0;
+      width: auto;
+    }
+
+    .toggle-option:first-child {
+      border-right: 1px solid #d4d4d4;
+    }
+
+    .toggle-option:hover:not(.active) {
+      background: #f5f4f2;
+    }
+
+    .toggle-option.active {
+      background: #1a1a1a;
+      color: white;
     }
 
     .checkbox-group {
@@ -263,22 +292,19 @@
           ></textarea>
         </div>
 
-        <div class="form-group row">
-          <div>
-            <label for="mode">Mode</label>
-            <select id="mode" name="mode">
-              <option value="">Default</option>
-              <option value="business">Business</option>
-              <option value="exploration">Exploration</option>
-            </select>
-          </div>
-          <div>
-            <label for="model">Model</label>
-            <select id="model" name="model">
-              <option value="">Sonnet</option>
-              <option value="sonnet">Sonnet</option>
-              <option value="opus">Opus</option>
-            </select>
+        <div class="form-group">
+          <label>Model</label>
+          <div class="toggle-group" id="modelToggle">
+            <button
+              type="button"
+              class="toggle-option active"
+              data-value="sonnet"
+            >
+              Sonnet
+            </button>
+            <button type="button" class="toggle-option" data-value="opus">
+              Opus
+            </button>
           </div>
         </div>
 
@@ -349,14 +375,21 @@
       }
     });
 
+    const modelToggle = document.getElementById("modelToggle");
+    for (const btn of modelToggle.querySelectorAll(".toggle-option")) {
+      btn.addEventListener("click", () => {
+        modelToggle.querySelector(".active").classList.remove("active");
+        btn.classList.add("active");
+      });
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const formData = new FormData(form);
       const apiToken = formData.get("apiToken");
       const idea = formData.get("idea");
-      const mode = formData.get("mode");
-      const model = formData.get("model");
+      const model = modelToggle.querySelector(".active").dataset.value;
       const context = formData.get("context");
       const update = formData.get("update") === "on";
       const collectToolStats = formData.get("collectToolStats") === "on";
@@ -365,13 +398,7 @@
         localStorage.setItem("idea-explorer-token", apiToken);
       }
 
-      const requestBody = { idea };
-      if (mode) {
-        requestBody.mode = mode;
-      }
-      if (model) {
-        requestBody.model = model;
-      }
+      const requestBody = { idea, mode: "exploration", model };
       if (context) {
         requestBody.context = context;
       }
@@ -444,17 +471,16 @@
         if (response.ok) {
           window.location.href = `/demo/${data.job_id}`;
           return;
-        } else {
-          resultDiv.className = "result error";
-          resultDiv.innerHTML = `
+        }
+        resultDiv.className = "result error";
+        resultDiv.innerHTML = `
             <div class="result-title">Error</div>
             <div class="result-details">
               <span class="error-message"></span>
             </div>
           `;
-          resultDiv.querySelector(".error-message").textContent =
-            data.error || "An unexpected error occurred";
-        }
+        resultDiv.querySelector(".error-message").textContent =
+          data.error || "An unexpected error occurred";
       } catch (_error) {
         resultDiv.className = "result error";
         resultDiv.innerHTML = `
