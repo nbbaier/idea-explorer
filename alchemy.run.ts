@@ -54,30 +54,24 @@ export const worker = await Worker("api", {
   },
 });
 
-console.log(`Worker URL: ${worker.url}`);
-console.log(`Worker name: ${worker.name}`);
-console.log(`App stage: ${app.stage}`);
-
 await WranglerJson({ worker });
 
 if (process.env.PULL_REQUEST) {
-  const previewUrl = worker.url;
-
   await GitHubComment("pr-preview-comment", {
     owner: process.env.GITHUB_REPOSITORY_OWNER || "nbbaier",
     repository: process.env.GITHUB_REPOSITORY_NAME || "idea-explorer",
     issueNumber: Number(process.env.PULL_REQUEST),
-    body: `
-## 🚀 Preview Deployed
+    body: `## 🚀 Preview Deployed
 
 Your preview is ready!
 
-**Preview URL:** ${previewUrl}
+**Preview URL:** ${worker.url}
 
 This preview was built from commit ${process.env.GITHUB_SHA}
 
 ---
-<sub>🤖 This comment will be updated automatically when you push new commits to this PR.</sub>`,
+
+*🤖 This comment will be updated automatically when you push new commits to this PR.*`,
   });
 }
 
