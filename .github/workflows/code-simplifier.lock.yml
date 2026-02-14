@@ -26,8 +26,7 @@
 # Source: github/gh-aw/.github/workflows/code-simplifier.md@94662b1dee8ce96c876ba9f33b3ab8be32de82a4
 #
 # Resolved workflow manifest:
-#   Imports:
-#     - github/gh-aw/.github/workflows/shared/reporting.md@94662b1dee8ce96c876ba9f33b3ab8be32de82a4
+#   Imports: none
 #
 # frontmatter-hash: 9c7732389c7e18669201d998d315b49b4e9244e47a6883369661dfa6eb83d86f
 
@@ -556,9 +555,6 @@ jobs:
           GH_AW_PROMPT_EOF
           cat << 'GH_AW_PROMPT_EOF' >> "$GH_AW_PROMPT"
           </system>
-          GH_AW_PROMPT_EOF
-          cat << 'GH_AW_PROMPT_EOF' >> "$GH_AW_PROMPT"
-          {{#runtime-import .github/aw/imports/github/gh-aw/94662b1dee8ce96c876ba9f33b3ab8be32de82a4/.github_workflows_shared_reporting.md}}
           GH_AW_PROMPT_EOF
           cat << 'GH_AW_PROMPT_EOF' >> "$GH_AW_PROMPT"
           {{#runtime-import .github/workflows/code-simplifier.md}}
