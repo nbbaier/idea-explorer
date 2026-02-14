@@ -12,6 +12,7 @@ import { CloudflareStateStore } from "alchemy/state";
 const app = await alchemy("idea-explorer", {
   stateStore: (scope) => new CloudflareStateStore(scope),
   password: process.env.ALCHEMY_PASSWORD,
+  adopt: true,
 });
 
 const jobsKv = await KVNamespace("jobs", {
