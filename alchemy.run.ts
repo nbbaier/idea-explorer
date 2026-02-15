@@ -54,13 +54,17 @@ export const worker = await Worker("api", {
   },
 });
 
-console.log(`Worker URL: ${worker.url}`);
-console.log(`Worker name: ${worker.name}`);
-console.log(`App stage: ${app.stage}`);
-
 await WranglerJson({ worker });
 
-if (process.env.PULL_REQUEST) {
+await createPullRequestComment();
+
+await app.finalize();
+
+async function createPullRequestComment(): Promise<void> {
+  if (!process.env.PULL_REQUEST) {
+    return;
+  }
+
   const previewUrl = worker.url;
 
   await GitHubComment("pr-preview-comment", {
@@ -80,5 +84,3 @@ This preview was built from commit ${process.env.GITHUB_SHA}
 <sub>🤖 This comment will be updated automatically when you push new commits to this PR.</sub>`,
   });
 }
-
-await app.finalize();
