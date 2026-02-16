@@ -392,7 +392,9 @@ document.addEventListener('keydown', (e) => {
 
   if (state === 'waiting' && mapped) {
     resetGame();
-    nextDir = mapped;
+    if (OPPOSITE[mapped] !== 'RIGHT') {
+      nextDir = mapped;
+    }
     state = 'playing';
     e.preventDefault();
     return;
