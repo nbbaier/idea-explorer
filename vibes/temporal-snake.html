@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Temporal Snake</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 0.3rem;
+    color: #7fdbca;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 0.8rem;
+  }
+
+  canvas {
+    border: 2px solid #1a1a3a;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+
+  .hud {
+    display: flex;
+    gap: 2rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .hud span { color: #555; }
+  .hud .val { color: #7fdbca; }
+
+  .overlay {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    pointer-events: none;
+  }
+
+  .overlay.hidden { display: none; }
+
+  .overlay h2 {
+    font-size: 1.2rem;
+    color: #ff6b6b;
+    letter-spacing: 0.1em;
+  }
+
+  .overlay p {
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  .overlay .final-score {
+    font-size: 1rem;
+    color: #7fdbca;
+  }
+
+  .controls {
+    margin-top: 0.8rem;
+    font-size: 0.7rem;
+    color: #333;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .ghost-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.4rem;
+    font-size: 0.7rem;
+  }
+
+  .ghost-legend .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<h1>Temporal Snake</h1>
+<p class="subtitle">dodge your past selves</p>
+<div style="position: relative; display: inline-block;">
+  <canvas id="game"></canvas>
+  <div id="startOverlay" class="overlay">
+    <p>press any arrow key or WASD to start</p>
+  </div>
+  <div id="deathOverlay" class="overlay hidden">
+    <h2>TEMPORAL PARADOX</h2>
+    <p class="final-score" id="finalScore"></p>
+    <p>press space or enter to rewind time</p>
+  </div>
+</div>
+<div class="hud">
+  <div><span>score </span><span class="val" id="score">0</span></div>
+  <div><span>echoes </span><span class="val" id="echoes">0</span></div>
+  <div><span>hi </span><span class="val" id="hiscore">0</span></div>
+</div>
+<div class="ghost-legend">
+  <div><span class="swatch" style="background:#7fdbca;"></span>you</div>
+  <div><span class="swatch" style="background:#3a2060;"></span>echo (safe)</div>
+  <div><span class="swatch" style="background:#ff4444;"></span>echo (solid)</div>
+</div>
+<div class="controls">
+  arrow keys / WASD to move<br>
+  every time you eat, a ghost echo of your path replays<br>
+  echoes solidify after a delay and become deadly obstacles
+</div>
+
+<script>
+const COLS = 28;
+const ROWS = 28;
+const CELL = 16;
+const ECHO_DELAY_TICKS = 30;
+const ECHO_SOLIDIFY_TICKS = 60;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = COLS * CELL;
+canvas.height = ROWS * CELL;
+
+const startOverlay = document.getElementById('startOverlay');
+const deathOverlay = document.getElementById('deathOverlay');
+const finalScoreEl = document.getElementById('finalScore');
+const scoreEl = document.getElementById('score');
+const echoesEl = document.getElementById('echoes');
+const hiscoreEl = document.getElementById('hiscore');
+
+// Center overlays
+for (const ov of [startOverlay, deathOverlay]) {
+  ov.style.width = canvas.width + 'px';
+  ov.style.height = canvas.height + 'px';
+}
+
+let hiScore = Number(localStorage.getItem('temporal-snake-hi') || 0);
+hiscoreEl.textContent = hiScore;
+
+const DIR = { UP: [0,-1], DOWN: [0,1], LEFT: [-1,0], RIGHT: [1,0] };
+const OPPOSITE = { UP:'DOWN', DOWN:'UP', LEFT:'RIGHT', RIGHT:'LEFT' };
+
+let state = 'waiting';
+let snake, dir, nextDir, food, score, tick;
+let echoes, recording;
+
+const resetGame = () => {
+  const mid = Math.floor(COLS / 2);
+  snake = [
+    { x: mid, y: Math.floor(ROWS / 2) },
+    { x: mid - 1, y: Math.floor(ROWS / 2) },
+    { x: mid - 2, y: Math.floor(ROWS / 2) },
+  ];
+  dir = 'RIGHT';
+  nextDir = 'RIGHT';
+  food = null;
+  score = 0;
+  tick = 0;
+  echoes = [];
+  recording = [snake.map(s => ({ ...s }))];
+  scoreEl.textContent = 0;
+  echoesEl.textContent = 0;
+  placeFood();
+  startOverlay.classList.add('hidden');
+  deathOverlay.classList.add('hidden');
+};
+
+const placeFood = () => {
+  const occupied = new Set();
+  for (const s of snake) occupied.add(`${s.x},${s.y}`);
+  for (const echo of echoes) {
+    if (tick < echo.startTick) continue;
+    const frameIdx = Math.min(echo.currentFrame, echo.frames.length - 1);
+    const frame = echo.frames[frameIdx];
+    if (frame) {
+      for (const seg of frame) occupied.add(`${seg.x},${seg.y}`);
+    }
+  }
+
+  const free = [];
+  for (let x = 0; x < COLS; x++) {
+    for (let y = 0; y < ROWS; y++) {
+      if (!occupied.has(`${x},${y}`)) free.push({ x, y });
+    }
+  }
+  if (free.length === 0) {
+    food = null;
+    return;
+  }
+  food = free[Math.floor(Math.random() * free.length)];
+};
+
+const spawnEcho = () => {
+  echoes.push({
+    frames: recording.map(frame => frame.map(seg => ({ ...seg }))),
+    currentFrame: 0,
+    startTick: tick + ECHO_DELAY_TICKS,
+    solid: false,
+    solidifyTick: tick + ECHO_DELAY_TICKS + ECHO_SOLIDIFY_TICKS,
+  });
+  echoesEl.textContent = echoes.length;
+  recording = [snake.map(s => ({ ...s }))];
+};
+
+const isCollision = (x, y) => {
+  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return true;
+  for (let i = 1; i < snake.length; i++) {
+    if (snake[i].x === x && snake[i].y === y) return true;
+  }
+  for (const echo of echoes) {
+    if (!echo.solid) continue;
+    const frameIdx = Math.min(echo.currentFrame, echo.frames.length - 1);
+    const frame = echo.frames[frameIdx];
+    if (frame) {
+      for (const seg of frame) {
+        if (seg.x === x && seg.y === y) return true;
+      }
+    }
+  }
+  return false;
+};
+
+const update = () => {
+  if (state !== 'playing') return;
+
+  dir = nextDir;
+  const [dx, dy] = DIR[dir];
+  const head = snake[0];
+  const nx = head.x + dx;
+  const ny = head.y + dy;
+
+  if (isCollision(nx, ny)) {
+    state = 'dead';
+    if (score > hiScore) {
+      hiScore = score;
+      localStorage.setItem('temporal-snake-hi', hiScore);
+      hiscoreEl.textContent = hiScore;
+    }
+    finalScoreEl.textContent = `score: ${score}`;
+    deathOverlay.classList.remove('hidden');
+    return;
+  }
+
+  snake.unshift({ x: nx, y: ny });
+
+  let ate = false;
+  if (food && nx === food.x && ny === food.y) {
+    score++;
+    scoreEl.textContent = score;
+    ate = true;
+    spawnEcho();
+    placeFood();
+  } else {
+    snake.pop();
+  }
+
+  recording.push(snake.map(s => ({ ...s })));
+
+  for (const echo of echoes) {
+    if (tick >= echo.startTick) {
+      echo.currentFrame++;
+    }
+    if (tick >= echo.solidifyTick) {
+      echo.solid = true;
+    }
+  }
+
+  tick++;
+};
+
+const drawCell = (x, y, color, inset = 0) => {
+  ctx.fillStyle = color;
+  ctx.fillRect(x * CELL + inset, y * CELL + inset, CELL - inset * 2, CELL - inset * 2);
+};
+
+const draw = () => {
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines (subtle)
+  ctx.strokeStyle = '#111122';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath();
+    ctx.moveTo(x * CELL, 0);
+    ctx.lineTo(x * CELL, canvas.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath();
+    ctx.moveTo(0, y * CELL);
+    ctx.lineTo(canvas.width, y * CELL);
+    ctx.stroke();
+  }
+
+  // Draw echoes
+  for (const echo of echoes) {
+    if (tick < echo.startTick) continue;
+    const frameIdx = Math.min(echo.currentFrame, echo.frames.length - 1);
+    const frame = echo.frames[frameIdx];
+    if (!frame) continue;
+
+    for (const seg of frame) {
+      if (echo.solid) {
+        const pulse = 0.5 + 0.5 * Math.sin(tick * 0.15);
+        const r = Math.floor(180 + 75 * pulse);
+        drawCell(seg.x, seg.y, `rgba(${r}, 40, 60, 0.7)`, 1);
+      } else {
+        drawCell(seg.x, seg.y, 'rgba(80, 40, 120, 0.35)', 2);
+      }
+    }
+  }
+
+  // Draw food
+  if (food) {
+    const glow = 0.6 + 0.4 * Math.sin(Date.now() * 0.005);
+    ctx.fillStyle = `rgba(255, 220, 100, ${glow})`;
+    ctx.beginPath();
+    ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw snake
+  for (let i = snake.length - 1; i >= 0; i--) {
+    const s = snake[i];
+    const t = i / snake.length;
+    const r = Math.floor(60 + 67 * t);
+    const g = Math.floor(219 - 80 * t);
+    const b = Math.floor(202 - 60 * t);
+    drawCell(s.x, s.y, `rgb(${r},${g},${b})`, i === 0 ? 0 : 1);
+  }
+
+  // Draw snake head eyes
+  if (snake.length > 0) {
+    const h = snake[0];
+    const [dx, dy] = DIR[dir];
+    ctx.fillStyle = '#0a0a1a';
+    const cx = h.x * CELL + CELL / 2;
+    const cy = h.y * CELL + CELL / 2;
+    const eyeOff = 3;
+    const eyeR = 2;
+    if (dx !== 0) {
+      ctx.beginPath();
+      ctx.arc(cx + dx * 3, cy - eyeOff, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + dx * 3, cy + eyeOff, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx - eyeOff, cy + dy * 3, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + eyeOff, cy + dy * 3, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+};
+
+// Input
+const KEY_MAP = {
+  ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
+  w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT',
+  W: 'UP', S: 'DOWN', A: 'LEFT', D: 'RIGHT',
+};
+
+document.addEventListener('keydown', (e) => {
+  const mapped = KEY_MAP[e.key];
+
+  if (state === 'waiting' && mapped) {
+    resetGame();
+    if (OPPOSITE[mapped] !== 'RIGHT') {
+      nextDir = mapped;
+    }
+    state = 'playing';
+    e.preventDefault();
+    return;
+  }
+
+  if (state === 'dead' && (e.key === ' ' || e.key === 'Enter')) {
+    resetGame();
+    state = 'waiting';
+    startOverlay.classList.remove('hidden');
+    e.preventDefault();
+    return;
+  }
+
+  if (state === 'playing' && mapped) {
+    if (OPPOSITE[mapped] !== dir) {
+      nextDir = mapped;
+    }
+    e.preventDefault();
+  }
+});
+
+// Touch controls
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvas.addEventListener('touchstart', (e) => {
+  if (state === 'waiting') {
+    resetGame();
+    state = 'playing';
+  } else if (state === 'dead') {
+    resetGame();
+    state = 'waiting';
+    startOverlay.classList.remove('hidden');
+  }
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  if (state !== 'playing') return;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  if (Math.max(absDx, absDy) < 20) return;
+
+  let mapped;
+  if (absDx > absDy) {
+    mapped = dx > 0 ? 'RIGHT' : 'LEFT';
+  } else {
+    mapped = dy > 0 ? 'DOWN' : 'UP';
+  }
+  if (OPPOSITE[mapped] !== dir) {
+    nextDir = mapped;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+// Game loop
+const TICK_MS = 120;
+let lastTick = 0;
+
+const loop = (timestamp) => {
+  if (timestamp - lastTick >= TICK_MS) {
+    update();
+    lastTick = timestamp;
+  }
+  draw();
+  requestAnimationFrame(loop);
+};
+
+resetGame();
+state = 'waiting';
+startOverlay.classList.remove('hidden');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
