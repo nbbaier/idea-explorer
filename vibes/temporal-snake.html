@@ -192,10 +192,11 @@ const placeFood = () => {
   const occupied = new Set();
   for (const s of snake) occupied.add(`${s.x},${s.y}`);
   for (const echo of echoes) {
-    for (const frame of echo.frames) {
-      if (echo.solid) {
-        for (const seg of frame) occupied.add(`${seg.x},${seg.y}`);
-      }
+    if (tick < echo.startTick) continue;
+    const frameIdx = Math.min(echo.currentFrame, echo.frames.length - 1);
+    const frame = echo.frames[frameIdx];
+    if (frame) {
+      for (const seg of frame) occupied.add(`${seg.x},${seg.y}`);
     }
   }
 
