@@ -1,0 +1,19 @@
+[
+  {
+    "jobId": "694f2759",
+    "idea": "Fun little app idea:\n\nOpportunist. \n\nEach night it makes its best guess as to what you'd like and opens a PR on all your projects. Closes them if you don't merge the next day. Notices which things you merge to self-improve.",
+    "mode": "exploration",
+    "model": "opus",
+    "isUpdate": false,
+    "startedAt": "2026-02-21T23:26:30.576Z",
+    "completedAt": "2026-02-21T23:27:39.123Z",
+    "durationMs": 68547,
+    "steps": 1,
+    "tokens": {
+      "input": 31615,
+      "output": 2747,
+      "total": 34362
+    },
+    "outputPath": "ideas/2026-02-21-fun-little-app-idea-opportunist-each-night-it/research.md"
+  }
+]
