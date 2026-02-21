@@ -225,6 +225,11 @@
       font-size: 0.8rem;
     }
 
+    .result-details a {
+      color: inherit;
+      text-underline-offset: 2px;
+    }
+
     .api-link {
       margin-top: 1.5rem;
       padding-top: 1.25rem;
@@ -469,7 +474,24 @@
         const data = await response.json();
 
         if (response.ok) {
-          window.location.href = `/demo/${data.job_id}`;
+          resultDiv.className = "result success";
+          resultDiv.innerHTML = `
+            <div class="result-title">Submitted</div>
+            <div class="result-details">
+              <p><strong>Job ID:</strong> <span class="job-id"></span></p>
+              <p><strong>Status:</strong> <span class="job-status"></span></p>
+              <p>Track progress at <a class="demo-link" href=""></a></p>
+            </div>
+          `;
+          resultDiv.querySelector(".job-id").textContent = data.job_id;
+          resultDiv.querySelector(".job-status").textContent = data.status;
+          const demoUrl = `/demo/${data.job_id}`;
+          const demoLink = resultDiv.querySelector(".demo-link");
+          demoLink.href = demoUrl;
+          demoLink.textContent = demoUrl;
+
+          form.reset();
+          apiTokenInput.value = apiToken;
           return;
         }
         resultDiv.className = "result error";
