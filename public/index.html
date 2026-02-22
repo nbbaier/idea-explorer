@@ -419,7 +419,8 @@
       resultDiv.className = "result";
 
       // Demo mode: simulate responses for UI testing
-      if (apiToken === "demo" || apiToken === "demo-error") {
+      const isDemoMode = apiToken === "demo" || apiToken === "demo-error";
+      if (isDemoMode) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         if (apiToken === "demo-error") {
@@ -503,7 +504,7 @@
           `;
         resultDiv.querySelector(".error-message").textContent =
           data.error || "An unexpected error occurred";
-      } catch (_error) {
+      } catch {
         resultDiv.className = "result error";
         resultDiv.innerHTML = `
           <div class="result-title">Network Error</div>
