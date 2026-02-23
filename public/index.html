@@ -381,9 +381,11 @@
     });
 
     const modelToggle = document.getElementById("modelToggle");
-    for (const btn of modelToggle.querySelectorAll(".toggle-option")) {
+    const toggleButtons = modelToggle.querySelectorAll(".toggle-option");
+    for (const btn of toggleButtons) {
       btn.addEventListener("click", () => {
-        modelToggle.querySelector(".active").classList.remove("active");
+        const activeBtn = modelToggle.querySelector(".active");
+        activeBtn.classList.remove("active");
         btn.classList.add("active");
       });
     }
@@ -474,6 +476,7 @@
         const data = await response.json();
 
         if (response.ok) {
+          const demoUrl = `/demo/${data.job_id}`;
           resultDiv.className = "result success";
           resultDiv.innerHTML = `
             <div class="result-title">Submitted</div>
@@ -485,7 +488,6 @@
           `;
           resultDiv.querySelector(".job-id").textContent = data.job_id;
           resultDiv.querySelector(".job-status").textContent = data.status;
-          const demoUrl = `/demo/${data.job_id}`;
           const demoLink = resultDiv.querySelector(".demo-link");
           demoLink.href = demoUrl;
           demoLink.textContent = demoUrl;
@@ -494,6 +496,8 @@
           apiTokenInput.value = apiToken;
           return;
         }
+
+        const errorMessage = data.error || "An unexpected error occurred";
         resultDiv.className = "result error";
         resultDiv.innerHTML = `
             <div class="result-title">Error</div>
@@ -501,9 +505,8 @@
               <span class="error-message"></span>
             </div>
           `;
-        resultDiv.querySelector(".error-message").textContent =
-          data.error || "An unexpected error occurred";
-      } catch (_error) {
+        resultDiv.querySelector(".error-message").textContent = errorMessage;
+      } catch (error) {
         resultDiv.className = "result error";
         resultDiv.innerHTML = `
           <div class="result-title">Network Error</div>
