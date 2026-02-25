@@ -13,21 +13,6 @@ export interface OutputOptions {
   verbose: boolean;
 }
 
-function formatStatusBadge(status: string): string {
-  switch (status) {
-    case "pending":
-      return "pending";
-    case "running":
-      return "running";
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    default:
-      return status;
-  }
-}
-
 export function outputSubmitSuccess(
   jobId: string,
   options: OutputOptions
@@ -67,7 +52,7 @@ export function outputJobStatus(
   }
 
   const lines: string[] = [
-    `Status: ${formatStatusBadge(status.status)}`,
+    `Status: ${status.status}`,
     `Idea: ${status.idea}`,
     `Mode: ${status.mode}`,
   ];

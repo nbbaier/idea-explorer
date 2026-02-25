@@ -2,12 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { Command } from "commander";
 import { type ExploreRequest, ModelSchema, ModeSchema } from "@/types/api";
 import { ApiClient, AuthError } from "../lib/api.js";
-import {
-  getApiKey,
-  getApiUrl,
-  getDefaultMode,
-  getDefaultModel,
-} from "../lib/config.js";
+import { getApiKey, getApiUrl, loadConfig } from "../lib/config.js";
 import {
   type OutputMode,
   outputError,
@@ -111,11 +106,8 @@ async function submitAction(options: SubmitOptions): Promise<void> {
     const validatedMode = validateMode(options.mode);
     const validatedModel = validateModel(options.model);
 
-    const defaultMode = getDefaultMode() as
-      | "business"
-      | "exploration"
-      | undefined;
-    const defaultModel = getDefaultModel() as "sonnet" | "opus" | undefined;
+    const { default_mode: defaultMode, default_model: defaultModel } =
+      loadConfig();
 
     let idea: string | undefined;
     let mode = validatedMode;

@@ -26,7 +26,7 @@ const ERROR_PATTERNS = [
   /^placeholder/,
 ];
 
-function sanitizeSlug(text: string): string {
+export function generateSlug(text: string): string {
   if (!text || typeof text !== "string") {
     return "untitled";
   }
@@ -71,10 +71,6 @@ function sanitizeIdeaForPrompt(idea: string): string {
   return trimmed.slice(0, MAX_PROMPT_IDEA_LENGTH);
 }
 
-export function generateSlug(text: string): string {
-  return sanitizeSlug(text);
-}
-
 export async function generateSlugWithLLM(
   idea: string,
   apiKey: string
@@ -100,7 +96,7 @@ Slug:`,
         maxOutputTokens: 30,
       });
 
-      const slug = sanitizeSlug(response.text.trim().toLowerCase());
+      const slug = generateSlug(response.text.trim().toLowerCase());
 
       // Check if the LLM returned an error message instead of a slug
       const isErrorResponse = ERROR_PATTERNS.some((pattern) =>
@@ -120,5 +116,5 @@ Slug:`,
     },
   });
 
-  return result.unwrapOr(sanitizeSlug(idea));
+  return result.unwrapOr(generateSlug(idea));
 }

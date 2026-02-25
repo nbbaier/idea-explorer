@@ -120,11 +120,3 @@ export function setApiKey(token: string): void {
   config.api_token_encrypted = encrypt(token);
   saveConfig(config);
 }
-
-export function getDefaultMode(): string | undefined {
-  return loadConfig().default_mode;
-}
-
-export function getDefaultModel(): string | undefined {
-  return loadConfig().default_model;
-}
