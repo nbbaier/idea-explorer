@@ -8,7 +8,6 @@ const TRAILING_DASHES = /-+$/;
 const CONTROL_CHARS = /[\r\n\t\f\v]/g;
 const PROMPT_SPECIAL_CHARS = /[<>`]/g;
 
-// Patterns that indicate the LLM returned an error/explanation instead of a slug
 const ERROR_PATTERNS = [
   /^i-dont/,
   /^i-cant/,
@@ -98,11 +97,7 @@ Slug:`,
 
       const slug = generateSlug(response.text.trim().toLowerCase());
 
-      // Check if the LLM returned an error message instead of a slug
-      const isErrorResponse = ERROR_PATTERNS.some((pattern) =>
-        pattern.test(slug)
-      );
-      if (isErrorResponse) {
+      if (ERROR_PATTERNS.some((pattern) => pattern.test(slug))) {
         throw new Error("LLM returned error message instead of slug");
       }
 
