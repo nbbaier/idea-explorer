@@ -418,4 +418,180 @@ describe("GET /api/jobs", () => {
     expect(data.limit).toBe(20); // default on invalid
     expect(data.offset).toBe(0); // default on invalid
   });
+
+  it("should filter jobs by idea query", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        idea: "AI-powered design assistant",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 1000,
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        idea: "Local-first journaling app",
+        mode: "exploration",
+        model: "opus",
+        status: "completed",
+        created_at: 2000,
+      }),
+    };
+
+    const env = createMockEnv(jobs);
+    const req = new Request("http://localhost/api/jobs?q=journal", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(1);
+    expect(data.jobs.length).toBe(1);
+    expect((data.jobs[0] as { id: string }).id).toBe("job2");
+  });
+
+  it("should filter jobs by creation timestamp window", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        idea: "Old idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 1000,
+      }),
+      job2: JSON.stringify({
+        id: "job2",
+        idea: "Middle idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 5000,
+      }),
+      job3: JSON.stringify({
+        id: "job3",
+        idea: "New idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 9000,
+      }),
+    };
+
+    const env = createMockEnv(jobs);
+    const req = new Request(
+      "http://localhost/api/jobs?created_after=3000&created_before=8000",
+      {
+        headers: { Authorization: "Bearer test-token" },
+      }
+    );
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(1);
+    expect((data.jobs[0] as { id: string }).id).toBe("job2");
+  });
+
+  it("should exclude stream keys from jobs list", async () => {
+    const jobs = {
+      job1: JSON.stringify({
+        id: "job1",
+        idea: "A valid idea",
+        mode: "business",
+        model: "sonnet",
+        status: "completed",
+        created_at: 1000,
+      }),
+      "stream:job1": JSON.stringify({
+        content: "partial output",
+        status: "streaming",
+        version: 2,
+      }),
+    };
+
+    const env = createMockEnv(jobs);
+    const req = new Request("http://localhost/api/jobs", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+    const data = (await res.json()) as JobsResponse;
+
+    expect(res.status).toBe(200);
+    expect(data.total).toBe(1);
+    expect(data.jobs.length).toBe(1);
+    expect((data.jobs[0] as { id: string }).id).toBe("job1");
+  });
+});
+
+describe("GET /api/stream/:jobId", () => {
+  const createMockKV = (streams: Record<string, unknown>) => {
+    return {
+      // biome-ignore lint/suspicious/useAwait: mock interface requires async
+      get: async (key: string, type?: string) => {
+        const value = streams[key];
+        if (!value) {
+          return null;
+        }
+        if (type === "json") {
+          return value;
+        }
+        return JSON.stringify(value);
+      },
+      list: async () => ({ keys: [], list_complete: true }),
+    } as unknown as KVNamespace;
+  };
+
+  const createMockEnv = (streams: Record<string, unknown>) => ({
+    IDEA_EXPLORER_API_TOKEN: "test-token",
+    IDEA_EXPLORER_JOBS: createMockKV(streams),
+  });
+
+  it("returns an etag for stream responses", async () => {
+    const env = createMockEnv({
+      "stream:job1": {
+        content: "hello",
+        status: "streaming",
+        version: 3,
+        updatedAt: Date.now(),
+      },
+    });
+
+    const req = new Request("http://localhost/api/stream/job1", {
+      headers: { Authorization: "Bearer test-token" },
+    });
+
+    const res = await app.fetch(req, env);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("ETag")).toBe('W/"job1:3"');
+    expect(res.headers.get("Cache-Control")).toBe("no-cache");
+  });
+
+  it("returns 304 when the stream etag matches", async () => {
+    const env = createMockEnv({
+      "stream:job1": {
+        content: "hello",
+        status: "streaming",
+        version: 7,
+        updatedAt: Date.now(),
+      },
+    });
+
+    const req = new Request("http://localhost/api/stream/job1", {
+      headers: {
+        Authorization: "Bearer test-token",
+        "If-None-Match": 'W/"job1:7"',
+      },
+    });
+
+    const res = await app.fetch(req, env);
+
+    expect(res.status).toBe(304);
+  });
 });

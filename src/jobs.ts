@@ -337,11 +337,36 @@ export interface ListJobsOptions {
   offset?: number;
   status?: Job["status"];
   mode?: Job["mode"];
+  ideaQuery?: string;
+  createdAfter?: number;
+  createdBefore?: number;
 }
 
 export interface ListJobsResult {
   jobs: Job[];
   total: number;
+}
+
+const STREAM_KEY_PREFIX = "stream:";
+
+function matchesDateRange(
+  createdAt: number,
+  createdAfter?: number,
+  createdBefore?: number
+): boolean {
+  if (createdAfter !== undefined && createdAt < createdAfter) {
+    return false;
+  }
+  if (createdBefore !== undefined && createdAt > createdBefore) {
+    return false;
+  }
+  return true;
+}
+
+async function loadJobByKey(kv: KVNamespace, key: string): Promise<Job | null> {
+  const data = await kv.get(key, "json");
+  const parsed = JobSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
 }
 
 export function listJobs(
@@ -350,7 +375,16 @@ export function listJobs(
 ): Promise<Result<ListJobsResult, StorageError>> {
   return Result.tryPromise({
     try: async () => {
-      const { limit = 20, offset = 0, status, mode } = options;
+      const {
+        limit = 20,
+        offset = 0,
+        status,
+        mode,
+        ideaQuery,
+        createdAfter,
+        createdBefore,
+      } = options;
+      const normalizedQuery = ideaQuery?.trim().toLowerCase();
       let keys: KVNamespaceListKey<JobMetadata, string>[] = [];
       let cursor: string | undefined;
 
@@ -363,48 +397,78 @@ export function listJobs(
       } while (cursor);
 
       // Filter keys by metadata
-      const filteredKeys = keys.filter((key) => {
-        if (!key.metadata) {
-          return !(status || mode); // Only include if no filters are active
+      const candidateKeys = keys.filter((key) => {
+        if (key.name.startsWith(STREAM_KEY_PREFIX)) {
+          return false;
         }
+
+        if (!key.metadata) {
+          return !(status || mode || createdAfter || createdBefore);
+        }
+
         if (status && key.metadata.status !== status) {
           return false;
         }
         if (mode && key.metadata.mode !== mode) {
           return false;
         }
+        if (
+          !matchesDateRange(
+            key.metadata.created_at,
+            createdAfter,
+            createdBefore
+          )
+        ) {
+          return false;
+        }
         return true;
       });
 
-      const total = filteredKeys.length;
+      if (normalizedQuery) {
+        const jobs = (
+          await Promise.all(
+            candidateKeys.map((key) => loadJobByKey(kv, key.name))
+          )
+        )
+          .filter((job): job is Job => job !== null)
+          .filter((job) => job.idea.toLowerCase().includes(normalizedQuery))
+          .filter((job) =>
+            matchesDateRange(job.created_at, createdAfter, createdBefore)
+          )
+          .sort((a, b) => b.created_at - a.created_at);
+
+        return {
+          jobs: jobs.slice(offset, offset + limit),
+          total: jobs.length,
+        };
+      }
+
+      const total = candidateKeys.length;
 
       // Sort by created_at desc
-      filteredKeys.sort((a, b) => {
+      candidateKeys.sort((a, b) => {
         const timeA = a.metadata?.created_at ?? 0;
         const timeB = b.metadata?.created_at ?? 0;
         return timeB - timeA;
       });
 
       // Paginate keys
-      const pagedKeys = filteredKeys.slice(offset, offset + limit);
+      const pagedKeys = candidateKeys.slice(offset, offset + limit);
 
       // Fetch bodies for the page
-      const results = await Promise.allSettled(
-        pagedKeys.map(async (key) => {
-          const data = await kv.get(key.name, "json");
-          return data as Job | null;
-        })
-      );
+      const jobs = (
+        await Promise.all(pagedKeys.map((key) => loadJobByKey(kv, key.name)))
+      ).filter((job): job is Job => job !== null);
 
-      const jobs = results
-        .filter(
-          (result): result is PromiseFulfilledResult<Job | null> =>
-            result.status === "fulfilled"
+      const filteredJobs = jobs
+        .filter((job) => (status ? job.status === status : true))
+        .filter((job) => (mode ? job.mode === mode : true))
+        .filter((job) =>
+          matchesDateRange(job.created_at, createdAfter, createdBefore)
         )
-        .map((result) => result.value)
-        .filter((job): job is Job => job !== null);
+        .sort((a, b) => b.created_at - a.created_at);
 
-      return { jobs, total };
+      return { jobs: filteredJobs, total };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });

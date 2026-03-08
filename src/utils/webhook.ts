@@ -100,10 +100,13 @@ function buildFailurePayload(job: Job): WebhookFailurePayload {
 
 const RETRY_DELAYS_MS = [1000, 5000, 30_000]; // 1s, 5s, 30s
 const MAX_ATTEMPTS = 3;
+const WEBHOOK_TIMEOUT_MS = 15_000;
+const MAX_RETRY_AFTER_MS = 60_000;
 
 interface WebhookResponse {
   ok: boolean;
   status: number;
+  retryAfterMs?: number;
 }
 
 export interface WebhookResult {
@@ -114,6 +117,47 @@ export interface WebhookResult {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) {
+    return undefined;
+  }
+
+  const delayMs = retryAt - Date.now();
+  if (delayMs <= 0) {
+    return undefined;
+  }
+  return Math.min(delayMs, MAX_RETRY_AFTER_MS);
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error("Webhook request timed out"));
+  }, WEBHOOK_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function sendWebhook(
@@ -147,7 +191,7 @@ export async function sendWebhook(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await fetch(webhookUrl, {
+      const response = await fetchWithTimeout(webhookUrl, {
         method: "POST",
         headers,
         body,
@@ -157,6 +201,7 @@ export async function sendWebhook(
       lastResponse = {
         ok: response.ok && !isRedirect,
         status: response.status,
+        retryAfterMs: parseRetryAfterMs(response.headers.get("Retry-After")),
       };
     } catch (error) {
       logError(`webhook_attempt_${attempt}`, error, undefined, job.id);
@@ -174,7 +219,9 @@ export async function sendWebhook(
     }
 
     if (attempt < MAX_ATTEMPTS) {
-      await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 0);
+      await sleep(
+        lastResponse.retryAfterMs ?? RETRY_DELAYS_MS[attempt - 1] ?? 0
+      );
     }
   }
 

@@ -92,6 +92,21 @@ function parsePaginationParams(
   return { limit, offset };
 }
 
+function parseTimestampParam(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function buildStreamEtag(jobId: string, version: number): string {
+  return `W/"${jobId}:${version}"`;
+}
+
 async function securityHeadersMiddleware(
   c: ExploreContext,
   next: Next
@@ -190,6 +205,9 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     c.req.query("limit"),
     c.req.query("offset")
   );
+  const createdAfter = parseTimestampParam(c.req.query("created_after"));
+  const createdBefore = parseTimestampParam(c.req.query("created_before"));
+  const ideaQuery = c.req.query("q")?.trim();
 
   const statusValidation = validateEnumFilter(
     c.req.query("status"),
@@ -221,6 +239,9 @@ async function listJobsHandler(c: ExploreContext): Promise<Response> {
     offset,
     status,
     mode,
+    ideaQuery,
+    createdAfter,
+    createdBefore,
   });
 
   if (jobsResult.status === "error") {
@@ -342,6 +363,15 @@ async function getStreamHandler(c: ExploreContext): Promise<Response> {
 
   if (!stream) {
     return c.json({ status: "not_found", content: "", version: 0 }, 404);
+  }
+
+  const etag = buildStreamEtag(jobId, stream.version);
+  const ifNoneMatch = c.req.header("If-None-Match");
+  c.header("Cache-Control", "no-cache");
+  c.header("ETag", etag);
+
+  if (ifNoneMatch === etag) {
+    return c.newResponse(null, 304);
   }
 
   return c.json({

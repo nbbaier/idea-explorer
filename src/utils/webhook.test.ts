@@ -9,6 +9,14 @@ vi.mock("./logger", () => ({ logError: vi.fn(), logWebhookSent: vi.fn() }));
 
 const SIGNATURE_PATTERN = /^sha256=[a-f0-9]{64}$/;
 
+function makeResponse(status: number, headers?: HeadersInit): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+  } as Response;
+}
+
 describe("webhook utility", () => {
   const mockJob: Job = {
     id: "test-job",
@@ -46,10 +54,7 @@ describe("webhook utility", () => {
   });
 
   it("should send a successful webhook", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-    } as Response);
+    fetchMock.mockResolvedValue(makeResponse(200));
 
     const result = sendWebhook(mockJob, githubRepo, branch);
     const finalResult = await result;
@@ -66,6 +71,7 @@ describe("webhook utility", () => {
         headers: expect.objectContaining({
           "Content-Type": "application/json",
         }),
+        signal: expect.any(AbortSignal),
       })
     );
 
@@ -81,10 +87,7 @@ describe("webhook utility", () => {
   });
 
   it("should include HMAC signature when callback_secret is provided", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-    } as Response);
+    fetchMock.mockResolvedValue(makeResponse(200));
 
     const jobWithSecret = {
       ...mockJob,
@@ -104,10 +107,7 @@ describe("webhook utility", () => {
   });
 
   it("should send a failure webhook", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-    } as Response);
+    fetchMock.mockResolvedValue(makeResponse(200));
 
     const failedJob: Job = {
       ...mockJob,
@@ -133,8 +133,8 @@ describe("webhook utility", () => {
 
   it("should retry on failure", async () => {
     fetchMock
-      .mockResolvedValueOnce({ ok: false, status: 500 } as Response)
-      .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
+      .mockResolvedValueOnce(makeResponse(500))
+      .mockResolvedValueOnce(makeResponse(200));
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
     await flushTimers();
@@ -150,10 +150,7 @@ describe("webhook utility", () => {
   });
 
   it("should return error after max retries", async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 500,
-    } as Response);
+    fetchMock.mockResolvedValue(makeResponse(500));
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
     await flushTimers();
@@ -168,10 +165,7 @@ describe("webhook utility", () => {
   });
 
   it("should log when webhook cannot be delivered", async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 503,
-    } as Response);
+    fetchMock.mockResolvedValue(makeResponse(503));
 
     const promise = sendWebhook(mockJob, githubRepo, branch);
     await flushTimers();
@@ -203,6 +197,27 @@ describe("webhook utility", () => {
       throw new Error("Expected error result");
     }
     expect(result.error.name).toBe("WebhookDeliveryError");
+  });
+
+  it("should respect Retry-After header before retrying", async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeResponse(429, { "Retry-After": "3" }))
+      .mockResolvedValueOnce(makeResponse(200));
+
+    const promise = sendWebhook(mockJob, githubRepo, branch);
+
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await promise;
+
+    if (!Result.isOk(result)) {
+      throw new Error("Expected ok result");
+    }
+    expect(result.value.success).toBe(true);
+    expect(result.value.attempts).toBe(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("should return success true immediately if no webhook_url", async () => {
