@@ -47,10 +47,10 @@ export function githubApi(
 }
 
 export interface Issue {
-  number: number;
-  title: string;
   body: string | null;
   labels: Label[];
+  number: number;
+  title: string;
 }
 
 export interface Comment {

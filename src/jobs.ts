@@ -229,8 +229,8 @@ export type JobError = StorageError | JsonParseError | JobNotFoundError;
 
 export interface JobMetadata {
   created_at: number;
-  status: Job["status"];
   mode: Job["mode"];
+  status: Job["status"];
 }
 
 function buildMetadata(job: Job): JobMetadata {
@@ -301,45 +301,42 @@ export function updateJob(
   updates: Partial<Omit<Job, "id" | "created_at">>,
   existingJob?: Job
 ): Promise<Result<Job, JobError>> {
-  return Result.gen(
-    // biome-ignore lint/suspicious/useAwait: async generator needed for Result.await with Promises
-    async function* () {
-      let job = existingJob;
-      if (!job) {
-        const jobResult = yield* Result.await(getJob(kv, id));
-        if (!jobResult) {
-          return Result.err(new JobNotFoundError({ jobId: id }));
-        }
-        job = jobResult;
+  return Result.gen(async function* () {
+    let job = existingJob;
+    if (!job) {
+      const jobResult = yield* Result.await(getJob(kv, id));
+      if (!jobResult) {
+        return Result.err(new JobNotFoundError({ jobId: id }));
       }
-
-      const updated = { ...job, ...updates };
-
-      yield* Result.await(
-        Result.tryPromise({
-          try: async () => {
-            await kv.put(id, JSON.stringify(updated), {
-              metadata: buildMetadata(updated),
-            });
-          },
-          catch: (error) =>
-            new StorageError({ operation: "put", key: id, cause: error }),
-        })
-      );
-
-      return Result.ok(updated);
+      job = jobResult;
     }
-  );
+
+    const updated = { ...job, ...updates };
+
+    yield* Result.await(
+      Result.tryPromise({
+        try: async () => {
+          await kv.put(id, JSON.stringify(updated), {
+            metadata: buildMetadata(updated),
+          });
+        },
+        catch: (error) =>
+          new StorageError({ operation: "put", key: id, cause: error }),
+      })
+    );
+
+    return Result.ok(updated);
+  });
 }
 
 export interface ListJobsOptions {
-  limit?: number;
-  offset?: number;
-  status?: Job["status"];
-  mode?: Job["mode"];
-  ideaQuery?: string;
   createdAfter?: number;
   createdBefore?: number;
+  ideaQuery?: string;
+  limit?: number;
+  mode?: Job["mode"];
+  offset?: number;
+  status?: Job["status"];
 }
 
 export interface ListJobsResult {

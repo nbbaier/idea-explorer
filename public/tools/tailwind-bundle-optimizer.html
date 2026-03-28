@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tailwind Bundle Optimizer Assistant</title>
+    <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --panel-soft: #eef2ff;
+      --text: #12202f;
+      --muted: #4b5e76;
+      --border: #cdd8e8;
+      --accent: #1262ff;
+      --accent-strong: #0f4fd3;
+      --warning-bg: #fff3e7;
+      --warning-border: #f4cfa5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: clamp(1rem, 2.2vw, 2rem);
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at 10% 10%, #e7eeff 0%, #f4f6fb 55%);
+    }
+
+    .app {
+      display: grid;
+      gap: 1rem;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .header {
+      padding: 1.1rem 1.2rem;
+      color: #f8fbff;
+      background: linear-gradient(122deg, #102852, #0e4db8 70%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2vw, 1.65rem);
+    }
+
+    .subtitle {
+      margin: 0.35rem 0 0;
+      font-size: 0.95rem;
+      color: rgba(248, 251, 255, 0.86);
+    }
+
+    .panel {
+      padding: 1rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-weight: 700;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 240px;
+      padding: 0.8rem;
+      font-family: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    textarea:focus {
+      outline: 2px solid color-mix(in oklab, var(--accent) 30%, white);
+      border-color: var(--accent);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.65rem;
+    }
+
+    button {
+      padding: 0.55rem 0.8rem;
+      font: inherit;
+      font-weight: 700;
+      color: white;
+      cursor: pointer;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+    }
+
+    button:hover {
+      background: var(--accent-strong);
+    }
+
+    .ghost {
+      color: #163255;
+      background: #e8eef9;
+    }
+
+    .ghost:hover {
+      background: #dce7f8;
+    }
+
+    .hint {
+      margin: 0.6rem 0 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .stat {
+      padding: 0.65rem;
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .stat-label {
+      margin: 0;
+      font-size: 0.78rem;
+      color: #355170;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      margin: 0.2rem 0 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .outputs {
+      display: grid;
+      gap: 0.8rem;
+      margin-top: 0.9rem;
+    }
+
+    .output-block {
+      padding: 0.7rem;
+      background: #fcfdff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .block-head {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .block-title {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .alert {
+      padding: 0.7rem;
+      margin-top: 0.9rem;
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 12px;
+    }
+
+    .alert p {
+      margin: 0;
+      font-weight: 700;
+    }
+
+    .alert ul {
+      padding-left: 1rem;
+      margin: 0.45rem 0 0;
+    }
+
+    .table-shell {
+      margin-top: 0.9rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 0.5rem 0.55rem;
+      font-size: 0.86rem;
+      text-align: left;
+      border-bottom: 1px solid #e3eaf5;
+    }
+
+    th {
+      background: #eaf0fb;
+    }
+
+    .status {
+      min-height: 1.2rem;
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #1a4f9f;
+    }
+
+    @media (min-width: 900px) {
+      .outputs {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1>Tailwind Bundle Optimizer Assistant</h1>
+        <p class="subtitle">
+          Built from idea <code>2026-01-24 ... tailwind utility</code>. Paste
+          HTML, extract utilities, and generate a practical safelist starter.
+        </p>
+      </header>
+
+      <section class="panel">
+        <label class="label" for="htmlInput">HTML / template input</label>
+        <textarea
+          id="htmlInput"
+          placeholder="Paste HTML, Astro templates, JSX snippets, or mixed template files here."
+        ></textarea>
+        <div class="controls">
+          <button id="analyzeButton" type="button">Analyze Utilities</button>
+          <button class="ghost" id="sampleButton" type="button">
+            Load Sample
+          </button>
+          <button class="ghost" id="clearButton" type="button">Clear</button>
+        </div>
+        <p class="hint">
+          Tip: dynamic class strings are detected and converted into regex
+          safelist suggestions when possible.
+        </p>
+      </section>
+
+      <section class="panel" id="resultsPanel" hidden>
+        <div class="stats">
+          <article class="stat">
+            <p class="stat-label">Class Tokens</p>
+            <p class="stat-value" id="tokenCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Unique Utilities</p>
+            <p class="stat-value" id="utilityCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Variant Prefixes</p>
+            <p class="stat-value" id="variantCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Dynamic Tokens</p>
+            <p class="stat-value" id="dynamicCount">0</p>
+          </article>
+        </div>
+
+        <div class="outputs">
+          <article class="output-block">
+            <div class="block-head">
+              <h2 class="block-title">Utility Manifest</h2>
+              <button class="ghost" id="copyManifestButton" type="button">
+                Copy
+              </button>
+            </div>
+            <textarea id="manifestOutput" readonly></textarea>
+          </article>
+
+          <article class="output-block">
+            <div class="block-head">
+              <h2 class="block-title">Starter `tailwind.config`</h2>
+              <button class="ghost" id="copyConfigButton" type="button">
+                Copy
+              </button>
+            </div>
+            <textarea id="configOutput" readonly></textarea>
+          </article>
+        </div>
+
+        <section class="alert" id="dynamicAlert" hidden>
+          <p>Dynamic classes detected</p>
+          <ul id="dynamicList"></ul>
+        </section>
+
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Top Utility</th>
+                <th>Uses</th>
+              </tr>
+            </thead>
+            <tbody id="utilityRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script>
+    "use strict";
+
+    const SAMPLE_INPUT = `<main class="min-h-screen bg-slate-50 text-slate-900">
+  <section class="mx-auto max-w-3xl space-y-6 p-6 md:p-10">
+    <h1 class="text-3xl font-bold tracking-tight">Launch Notes</h1>
+    <p class="text-slate-600">Team update for this sprint.</p>
+
+    <button class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-500">
+      Ship now
+    </button>
+
+    <article className="grid gap-4 md:grid-cols-2">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">Static card</div>
+      <div className="rounded-xl p-4 text-\${tone}-700 bg-\${tone}-100">Dynamic theme card</div>
+    </article>
+  </section>
+</main>`;
+
+    const CLASS_ATTRIBUTE_REGEX =
+      /(class|className)\s*=\s*(["'`])([\s\S]*?)\2/g;
+    const DYNAMIC_EXPRESSION_REGEX = /\$\{[^}]+\}|{{[^}]+}}|<%=?[\s\S]+?%>/;
+    const DYNAMIC_SEGMENT_GLOBAL_REGEX =
+      /\$\{[^}]+\}|{{[^}]+}}|<%=?[\s\S]+?%>/g;
+    const REGEX_ESCAPE_CHARACTERS_REGEX = /[.*+?^${}()|[\]\\]/g;
+    const CLASS_TOKEN_SPLIT_REGEX = /\s+/;
+    const FORWARD_SLASH_REGEX = /\//g;
+    const MAX_UTILITIES_IN_CONFIG = 140;
+    const DYNAMIC_PLACEHOLDER = "__DYNAMIC_SEGMENT__";
+    const DYNAMIC_PLACEHOLDER_REGEX = new RegExp(DYNAMIC_PLACEHOLDER, "g");
+
+    const htmlInput = document.querySelector("#htmlInput");
+    const resultsPanel = document.querySelector("#resultsPanel");
+    const tokenCount = document.querySelector("#tokenCount");
+    const utilityCount = document.querySelector("#utilityCount");
+    const variantCount = document.querySelector("#variantCount");
+    const dynamicCount = document.querySelector("#dynamicCount");
+    const manifestOutput = document.querySelector("#manifestOutput");
+    const configOutput = document.querySelector("#configOutput");
+    const dynamicAlert = document.querySelector("#dynamicAlert");
+    const dynamicList = document.querySelector("#dynamicList");
+    const utilityRows = document.querySelector("#utilityRows");
+    const status = document.querySelector("#status");
+
+    const sampleButton = document.querySelector("#sampleButton");
+    const analyzeButton = document.querySelector("#analyzeButton");
+    const clearButton = document.querySelector("#clearButton");
+    const copyManifestButton = document.querySelector("#copyManifestButton");
+    const copyConfigButton = document.querySelector("#copyConfigButton");
+
+    const announce = (message) => {
+      status.textContent = message;
+    };
+
+    const copyText = async (text, successMessage) => {
+      if (!text.trim()) {
+        announce("Nothing to copy yet.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        announce(successMessage);
+      } catch {
+        const buffer = document.createElement("textarea");
+        buffer.value = text;
+        document.body.append(buffer);
+        buffer.select();
+        document.execCommand("copy");
+        buffer.remove();
+        announce(successMessage);
+      }
+    };
+
+    const splitUtilityToken = (utilityToken) => {
+      const parts = [];
+      let bracketDepth = 0;
+      let current = "";
+
+      for (const character of utilityToken) {
+        if (character === "[") {
+          bracketDepth += 1;
+        }
+
+        if (character === "]" && bracketDepth > 0) {
+          bracketDepth -= 1;
+        }
+
+        if (character === ":" && bracketDepth === 0) {
+          parts.push(current);
+          current = "";
+          continue;
+        }
+
+        current += character;
+      }
+
+      parts.push(current);
+      return parts.filter(Boolean);
+    };
+
+    const isDynamicToken = (token) => {
+      return (
+        token.includes("${") ||
+        token.includes("{{") ||
+        token.includes("<%") ||
+        token.includes("%>")
+      );
+    };
+
+    const tokenTemplateToRegex = (token) => {
+      const literalOnly = token.replace(DYNAMIC_SEGMENT_GLOBAL_REGEX, "");
+
+      if (literalOnly.length < 3) {
+        return null;
+      }
+
+      const normalized = token.replace(
+        DYNAMIC_SEGMENT_GLOBAL_REGEX,
+        DYNAMIC_PLACEHOLDER
+      );
+
+      const escaped = normalized.replace(REGEX_ESCAPE_CHARACTERS_REGEX, "\\$&");
+      const wildcarded = escaped.replace(
+        DYNAMIC_PLACEHOLDER_REGEX,
+        "([\\w-\\[\\]/.]+)"
+      );
+      return `^${wildcarded}$`.replace(FORWARD_SLASH_REGEX, "\\/");
+    };
+
+    const formatConfig = (utilities, dynamicPatterns) => {
+      const listedUtilities = utilities.slice(0, MAX_UTILITIES_IN_CONFIG);
+      const literalLines = listedUtilities
+        .map((utility) => `    "${utility}",`)
+        .join("\n");
+      const patternLines = dynamicPatterns
+        .map((pattern) => `    { pattern: /${pattern}/ },`)
+        .join("\n");
+      const overflowLine =
+        utilities.length > listedUtilities.length
+          ? `    // ${utilities.length - listedUtilities.length} additional utilities omitted for readability`
+          : "";
+
+      return `export default {
+  content: ["./**/*.{html,js,ts,tsx,astro}"],
+  safelist: [
+${literalLines}${literalLines && (patternLines || overflowLine) ? "\n" : ""}${patternLines}${patternLines && overflowLine ? "\n" : ""}${overflowLine}
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};`;
+    };
+
+    const analyzeSource = (source) => {
+      const utilityFrequency = new Map();
+      const variantFrequency = new Map();
+      const dynamicTokens = new Set();
+      const allClassTokens = [];
+
+      for (const match of source.matchAll(CLASS_ATTRIBUTE_REGEX)) {
+        const rawValue = match[3];
+        const tokens = rawValue
+          .split(CLASS_TOKEN_SPLIT_REGEX)
+          .map((token) => token.trim())
+          .filter(Boolean);
+
+        for (const token of tokens) {
+          if (DYNAMIC_EXPRESSION_REGEX.test(token) || isDynamicToken(token)) {
+            dynamicTokens.add(token);
+            allClassTokens.push(token);
+            continue;
+          }
+
+          allClassTokens.push(token);
+          utilityFrequency.set(token, (utilityFrequency.get(token) ?? 0) + 1);
+
+          const parts = splitUtilityToken(token);
+          if (parts.length > 1) {
+            const variantChain = parts.slice(0, -1).join(":");
+            variantFrequency.set(
+              variantChain,
+              (variantFrequency.get(variantChain) ?? 0) + 1
+            );
+          }
+        }
+      }
+
+      const dynamicPatterns = [...dynamicTokens]
+        .map((token) => tokenTemplateToRegex(token))
+        .filter((pattern) => pattern !== null)
+        .filter((pattern, index, values) => values.indexOf(pattern) === index)
+        .slice(0, 20);
+
+      const sortedUtilities = [...utilityFrequency.entries()].sort(
+        (a, b) => b[1] - a[1]
+      );
+
+      return {
+        tokenTotal: allClassTokens.length,
+        utilityTotal: utilityFrequency.size,
+        variantTotal: variantFrequency.size,
+        dynamicTotal: dynamicTokens.size,
+        utilities: [...utilityFrequency.keys()].sort(),
+        dynamicTokens: [...dynamicTokens],
+        dynamicPatterns,
+        topUtilities: sortedUtilities.slice(0, 25),
+      };
+    };
+
+    const renderTopUtilities = (rows) => {
+      utilityRows.innerHTML = "";
+
+      if (rows.length === 0) {
+        utilityRows.innerHTML =
+          '<tr><td colspan="2">No static classes detected yet.</td></tr>';
+        return;
+      }
+
+      for (const [utility, count] of rows) {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td><code>${utility}</code></td><td>${count}</td>`;
+        utilityRows.append(row);
+      }
+    };
+
+    const renderDynamicWarnings = (dynamicTokens) => {
+      dynamicList.innerHTML = "";
+
+      if (dynamicTokens.length === 0) {
+        dynamicAlert.hidden = true;
+        return;
+      }
+
+      dynamicAlert.hidden = false;
+      for (const token of dynamicTokens.slice(0, 12)) {
+        const item = document.createElement("li");
+        item.textContent = token;
+        dynamicList.append(item);
+      }
+    };
+
+    const runAnalysis = () => {
+      const source = htmlInput.value.trim();
+
+      if (!source) {
+        resultsPanel.hidden = true;
+        announce("Paste HTML first, then run the analyzer.");
+        return;
+      }
+
+      const analysis = analyzeSource(source);
+      tokenCount.textContent = analysis.tokenTotal.toString();
+      utilityCount.textContent = analysis.utilityTotal.toString();
+      variantCount.textContent = analysis.variantTotal.toString();
+      dynamicCount.textContent = analysis.dynamicTotal.toString();
+
+      manifestOutput.value = analysis.utilities.join("\n");
+      configOutput.value = formatConfig(
+        analysis.utilities,
+        analysis.dynamicPatterns
+      );
+      renderTopUtilities(analysis.topUtilities);
+      renderDynamicWarnings(analysis.dynamicTokens);
+
+      resultsPanel.hidden = false;
+      announce(
+        `Found ${analysis.utilityTotal} unique static utilities from ${analysis.tokenTotal} class tokens.`
+      );
+    };
+
+    analyzeButton.addEventListener("click", runAnalysis);
+
+    sampleButton.addEventListener("click", () => {
+      htmlInput.value = SAMPLE_INPUT;
+      runAnalysis();
+      announce("Sample input loaded.");
+    });
+
+    clearButton.addEventListener("click", () => {
+      htmlInput.value = "";
+      manifestOutput.value = "";
+      configOutput.value = "";
+      utilityRows.innerHTML = "";
+      dynamicList.innerHTML = "";
+      dynamicAlert.hidden = true;
+      resultsPanel.hidden = true;
+      announce("Cleared.");
+    });
+
+    copyManifestButton.addEventListener("click", () => {
+      copyText(manifestOutput.value, "Utility manifest copied.");
+    });
+
+    copyConfigButton.addEventListener("click", () => {
+      copyText(configOutput.value, "Starter config copied.");
+    });
+    </script>
+  </body>
+</html>

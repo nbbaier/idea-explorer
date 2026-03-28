@@ -105,14 +105,14 @@ const MAX_RETRY_AFTER_MS = 60_000;
 
 interface WebhookResponse {
   ok: boolean;
-  status: number;
   retryAfterMs?: number;
+  status: number;
 }
 
 export interface WebhookResult {
-  success: boolean;
-  statusCode?: number;
   attempts: number;
+  statusCode?: number;
+  success: boolean;
 }
 
 function sleep(ms: number): Promise<void> {

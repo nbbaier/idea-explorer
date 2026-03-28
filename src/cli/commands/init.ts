@@ -28,7 +28,7 @@ async function initAction(): Promise<void> {
     placeholder: DEFAULT_API_URL,
     initialValue: existingConfig.api_url ?? DEFAULT_API_URL,
     validate: (value) => {
-      if (!value.trim()) {
+      if (!value?.trim()) {
         return "API URL is required";
       }
       try {

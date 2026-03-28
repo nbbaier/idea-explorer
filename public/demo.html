@@ -8,19 +8,19 @@
     <style>
     * {
       box-sizing: border-box;
-      margin: 0;
       padding: 0;
+      margin: 0;
     }
 
     body {
+      min-height: 100vh;
+      padding: 2rem 1rem;
       font-family:
         -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
         Cantarell, sans-serif;
       line-height: 1.5;
       color: #1a1a1a;
       background: #f5f4f2;
-      min-height: 100vh;
-      padding: 2rem 1rem;
     }
 
     .container {
@@ -29,30 +29,30 @@
     }
 
     header {
-      text-align: center;
       margin-bottom: 2rem;
+      text-align: center;
     }
 
     h1 {
-      color: #1a1a1a;
+      margin-bottom: 0.25rem;
       font-size: 1.5rem;
       font-weight: 600;
-      margin-bottom: 0.25rem;
+      color: #1a1a1a;
     }
 
     .subtitle {
-      color: #666;
       font-size: 0.875rem;
+      color: #666;
     }
 
     /* Input Section */
     .input-section {
-      background: white;
-      border-radius: 8px;
-      border: 1px solid #e5e5e5;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
       padding: 1.5rem;
       margin-bottom: 1.5rem;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
     .form-row {
@@ -69,15 +69,15 @@
     input[type="password"] {
       flex: 1;
       padding: 0.625rem 0.75rem;
+      font-family: inherit;
+      font-size: 0.875rem;
+      color: #1a1a1a;
+      background: white;
       border: 1px solid #d4d4d4;
       border-radius: 6px;
-      font-size: 0.875rem;
       transition:
         border-color 0.15s,
         box-shadow 0.15s;
-      font-family: inherit;
-      background: white;
-      color: #1a1a1a;
     }
 
     input[type="text"]::placeholder,
@@ -98,15 +98,15 @@
 
     button {
       padding: 0.625rem 1.25rem;
-      background: #1a1a1a;
-      color: white;
-      border: none;
-      border-radius: 6px;
       font-size: 0.875rem;
       font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s;
+      color: white;
       white-space: nowrap;
+      cursor: pointer;
+      background: #1a1a1a;
+      border: none;
+      border-radius: 6px;
+      transition: background 0.15s;
     }
 
     button:hover:not(:disabled) {
@@ -118,17 +118,17 @@
     }
 
     button:disabled {
-      opacity: 0.5;
       cursor: not-allowed;
+      opacity: 0.5;
     }
 
     /* Activity Feed */
     .activity-section {
+      display: none;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
       background: #1a1a1a;
       border-radius: 8px;
-      overflow: hidden;
-      margin-bottom: 1.5rem;
-      display: none;
     }
 
     .activity-section.visible {
@@ -136,18 +136,18 @@
     }
 
     .activity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       padding: 0.75rem 1rem;
       background: #2a2a2a;
       border-bottom: 1px solid #3a3a3a;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
     .activity-title {
-      color: #999;
       font-size: 0.75rem;
       font-weight: 500;
+      color: #999;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -170,12 +170,12 @@
     }
 
     .activity-feed {
+      max-height: 400px;
+      padding: 1rem;
+      overflow-y: auto;
       font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
       font-size: 0.8125rem;
       line-height: 1.6;
-      padding: 1rem;
-      max-height: 400px;
-      overflow-y: auto;
       color: #e5e5e5;
     }
 
@@ -186,8 +186,8 @@
     }
 
     .activity-time {
-      color: #666;
       flex-shrink: 0;
+      color: #666;
     }
 
     .activity-message {
@@ -208,11 +208,11 @@
 
     /* Streaming Output */
     .stream-section {
+      display: none;
       margin-bottom: 1.5rem;
+      overflow: hidden;
       background: #1a1a1a;
       border-radius: 8px;
-      overflow: hidden;
-      display: none;
     }
 
     .stream-section.visible {
@@ -220,25 +220,25 @@
     }
 
     .stream-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       padding: 0.75rem 1rem;
       background: #2a2a2a;
       border-bottom: 1px solid #3a3a3a;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
     .stream-title {
-      color: #fff;
-      font-weight: 500;
       font-size: 0.8125rem;
+      font-weight: 500;
+      color: #fff;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
     .stream-status {
-      color: #888;
       font-size: 0.75rem;
+      color: #888;
     }
 
     .stream-status.complete {
@@ -250,25 +250,25 @@
     }
 
     .stream-content {
+      max-height: 400px;
       padding: 1rem;
-      color: #e0e0e0;
+      overflow-y: auto;
       font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
       font-size: 0.8125rem;
       line-height: 1.6;
-      max-height: 400px;
-      overflow-y: auto;
-      white-space: pre-wrap;
+      color: #e0e0e0;
       word-break: break-word;
+      white-space: pre-wrap;
     }
 
     /* Final Output */
     .output-section {
-      background: white;
-      border-radius: 8px;
-      border: 1px solid #e5e5e5;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-      padding: 1.5rem;
       display: none;
+      padding: 1.5rem;
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
     .output-section.visible {
@@ -276,21 +276,21 @@
     }
 
     .output-section.success {
-      border-color: #bbf7d0;
       background: #f0fdf4;
+      border-color: #bbf7d0;
     }
 
     .output-section.error {
-      border-color: #fecaca;
       background: #fef2f2;
+      border-color: #fecaca;
     }
 
     .output-title {
-      font-weight: 600;
-      margin-bottom: 0.75rem;
       display: flex;
-      align-items: center;
       gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
     }
 
     .output-section.success .output-title {
@@ -304,12 +304,12 @@
     .output-link {
       display: inline-block;
       padding: 0.5rem 1rem;
-      background: #166534;
-      color: white;
-      text-decoration: none;
-      border-radius: 6px;
       font-size: 0.875rem;
       font-weight: 500;
+      color: white;
+      text-decoration: none;
+      background: #166534;
+      border-radius: 6px;
       transition: background 0.15s;
     }
 
@@ -318,16 +318,16 @@
     }
 
     .output-stats {
-      margin-top: 1rem;
       padding-top: 1rem;
-      border-top: 1px solid #bbf7d0;
+      margin-top: 1rem;
       font-size: 0.8125rem;
       color: #166534;
+      border-top: 1px solid #bbf7d0;
     }
 
     .output-section.error .output-stats {
-      border-top-color: #fecaca;
       color: #991b1b;
+      border-top-color: #fecaca;
     }
 
     .stat-row {
@@ -342,8 +342,8 @@
     }
 
     .error-message {
-      color: #991b1b;
       font-size: 0.875rem;
+      color: #991b1b;
     }
 
     /* Loading spinner */
@@ -352,8 +352,8 @@
       width: 12px;
       height: 12px;
       border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
       border-top-color: white;
+      border-radius: 50%;
       animation: spin 0.6s linear infinite;
     }
 

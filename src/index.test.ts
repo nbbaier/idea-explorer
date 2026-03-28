@@ -32,9 +32,9 @@ const { default: app } = await import("./index");
 
 interface JobsResponse {
   jobs: unknown[];
-  total: number;
   limit: number;
   offset: number;
+  total: number;
 }
 
 interface ErrorResponse {

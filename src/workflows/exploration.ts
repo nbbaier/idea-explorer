@@ -26,48 +26,48 @@ import {
 import { sendWebhook } from "../utils/webhook";
 
 interface JobParams {
-  jobId: string;
-  idea: string;
-  mode: "business" | "exploration";
-  model: "sonnet" | "opus";
-  context?: string;
-  update?: boolean;
-  continue_from?: string;
-  webhook_url?: string;
   callback_secret?: string;
   collect_tool_stats?: boolean;
+  context?: string;
+  continue_from?: string;
+  idea: string;
+  jobId: string;
+  mode: "business" | "exploration";
+  model: "sonnet" | "opus";
+  update?: boolean;
+  webhook_url?: string;
 }
 
 interface CompleteJobParams {
-  kv: KVNamespace;
-  jobId: string;
-  status: "completed" | "failed";
-  githubUrl?: string;
+  branch: string;
   error?: string;
   githubRepo: string;
-  branch: string;
+  githubUrl?: string;
+  jobId: string;
   jobStartTime: number;
+  kv: KVNamespace;
+  status: "completed" | "failed";
 }
 
 interface ExplorationLog {
-  jobId: string;
+  completedAt: string;
+  context?: string;
+  continueFrom?: string;
+  durationMs: number;
   idea: string;
+  isUpdate: boolean;
+  jobId: string;
   mode: "business" | "exploration";
   model: "sonnet" | "opus";
-  context?: string;
-  isUpdate: boolean;
-  continueFrom?: string;
+  outputPath: string;
   startedAt: string;
-  completedAt: string;
-  durationMs: number;
   steps?: number;
-  toolCalls?: ToolCallLog[];
   tokens: {
     input: number;
     output: number;
     total: number;
   };
-  outputPath: string;
+  toolCalls?: ToolCallLog[];
 }
 
 type ExplorationEnv = Env & {

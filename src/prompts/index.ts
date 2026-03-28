@@ -1,16 +1,16 @@
 import type { Mode, Model } from "@/types/api";
 
 export interface BuildUserPromptParams {
-  idea: string;
   context?: string;
+  datePrefix: string;
   existingContent?: string;
   existingResearchList?: string[];
-  previousResearchContent?: string;
-  previousJobIdea?: string;
-  datePrefix: string;
+  idea: string;
   jobId: string;
   mode: Mode;
   model: Model;
+  previousJobIdea?: string;
+  previousResearchContent?: string;
 }
 
 export const PROMPTS = {
@@ -216,13 +216,13 @@ export function buildUserPrompt(params: BuildUserPromptParams): string {
 }
 
 interface FrontmatterParams {
+  datePrefix: string;
   idea: string;
+  isFollowUp: boolean;
+  isUpdate: boolean;
+  jobId: string;
   mode: Mode;
   model: Model;
-  datePrefix: string;
-  jobId: string;
-  isUpdate: boolean;
-  isFollowUp: boolean;
 }
 
 function buildFrontmatter(params: FrontmatterParams): string {

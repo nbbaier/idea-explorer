@@ -31,8 +31,8 @@ type EnumValidationResult =
   | { valid: false; error: string };
 
 interface EnumSchema {
-  safeParse: (v: string) => { success: boolean };
   options: readonly string[];
+  safeParse: (v: string) => { success: boolean };
 }
 
 const DEFAULT_LIMIT = 20;
@@ -319,7 +319,7 @@ function buildStatusResponse(job: Job): Record<string, unknown> {
 }
 
 async function getJobStatusHandler(c: ExploreContext): Promise<Response> {
-  const jobId = c.req.param("id");
+  const jobId = c.req.param("id") ?? "";
   const jobResult = await getJob(c.env.IDEA_EXPLORER_JOBS, jobId);
 
   if (jobResult.status === "error") {
@@ -336,7 +336,7 @@ async function getJobStatusHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function getWorkflowStatusHandler(c: ExploreContext): Promise<Response> {
-  const jobId = c.req.param("id");
+  const jobId = c.req.param("id") ?? "";
   const instanceResult = await Result.tryPromise({
     try: async () => {
       const instance = await c.env.EXPLORATION_WORKFLOW.get(jobId);
@@ -358,7 +358,7 @@ async function getWorkflowStatusHandler(c: ExploreContext): Promise<Response> {
 }
 
 async function getStreamHandler(c: ExploreContext): Promise<Response> {
-  const jobId = c.req.param("jobId");
+  const jobId = c.req.param("jobId") ?? "";
   const stream = await getStream(c.env.IDEA_EXPLORER_JOBS, jobId);
 
   if (!stream) {

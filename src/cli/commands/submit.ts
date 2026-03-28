@@ -11,13 +11,13 @@ import {
 import { runSubmitWizard } from "../prompts/submit.js";
 
 interface SubmitOptions {
-  mode?: string;
-  model?: string;
   context?: string;
-  update?: boolean;
   debug?: boolean;
   json?: boolean;
+  mode?: string;
+  model?: string;
   quiet?: boolean;
+  update?: boolean;
   verbose?: boolean;
 }
 

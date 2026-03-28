@@ -7,29 +7,29 @@ import type { ToolExecutor } from "./tool-executor";
 
 export interface AnthropicConfig {
   apiKey: string;
+  collectToolStats?: boolean;
   model: "sonnet" | "opus";
   toolExecutor?: ToolExecutor;
-  collectToolStats?: boolean;
 }
 
 export interface GenerateResearchParams {
-  idea: string;
-  mode: "business" | "exploration";
   context?: string;
-  existingContent?: string;
   datePrefix: string;
+  existingContent?: string;
+  idea: string;
   jobId: string;
+  mode: "business" | "exploration";
   systemPrompt: string;
   userPrompt: string;
 }
 
 export interface ToolCallLog {
-  name: "read_research";
-  path: string;
-  durationMs: number;
-  ok: boolean;
   bytes?: number;
+  durationMs: number;
   errorType?: string;
+  name: "read_research";
+  ok: boolean;
+  path: string;
 }
 
 export interface GenerateResearchResult {

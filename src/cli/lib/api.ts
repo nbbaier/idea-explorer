@@ -45,8 +45,8 @@ export class ValidationError extends Error {
 }
 
 interface ApiClientOptions {
-  baseUrl: string;
   apiKey: string;
+  baseUrl: string;
 }
 
 export class ApiClient {

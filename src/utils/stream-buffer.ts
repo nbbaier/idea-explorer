@@ -2,10 +2,10 @@ export type StreamStatus = "streaming" | "complete" | "error";
 
 export interface StreamBuffer {
   content: string;
-  status: StreamStatus;
-  version: number;
-  updatedAt: number;
   error?: string;
+  status: StreamStatus;
+  updatedAt: number;
+  version: number;
 }
 
 const STREAM_TTL_SECONDS = 60 * 60;

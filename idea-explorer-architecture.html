@@ -6,9 +6,9 @@
     <title>Idea Explorer — Architecture Playground</title>
     <style>
     * {
-      margin: 0;
-      padding: 0;
       box-sizing: border-box;
+      padding: 0;
+      margin: 0;
     }
     :root {
       --bg: #111;
@@ -26,63 +26,63 @@
       --amber: #f59e0b;
     }
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
+      display: flex;
       height: 100vh;
       overflow: hidden;
-      display: flex;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
     }
     .sidebar {
-      width: 300px;
-      min-width: 300px;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
+      width: 300px;
+      min-width: 300px;
       overflow: hidden;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
     }
     .sidebar h2 {
       padding: 16px;
       font-size: 14px;
-      border-bottom: 1px solid var(--border);
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
     }
     .sidebar-section {
       padding: 12px 16px;
       border-bottom: 1px solid var(--border);
     }
     .sidebar-section h3 {
+      margin-bottom: 8px;
       font-size: 12px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 8px;
     }
     .preset-btn {
       display: block;
       width: 100%;
       padding: 6px 10px;
       margin-bottom: 4px;
+      font-size: 13px;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 4px;
-      color: var(--text);
-      font-size: 13px;
-      cursor: pointer;
-      text-align: left;
     }
     .preset-btn:hover,
     .preset-btn.active {
-      border-color: var(--accent);
       color: var(--accent);
+      border-color: var(--accent);
     }
     .layer-toggle {
       display: flex;
-      align-items: center;
       gap: 8px;
+      align-items: center;
       margin-bottom: 6px;
       font-size: 13px;
       cursor: pointer;
@@ -91,15 +91,15 @@
       accent-color: var(--accent);
     }
     .layer-dot {
+      display: inline-block;
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      display: inline-block;
     }
     .conn-toggle {
       display: flex;
-      align-items: center;
       gap: 8px;
+      align-items: center;
       margin-bottom: 6px;
       font-size: 13px;
       cursor: pointer;
@@ -108,34 +108,34 @@
       accent-color: var(--accent);
     }
     .conn-line {
+      display: inline-block;
       width: 20px;
       height: 2px;
-      display: inline-block;
     }
     .comments-list {
       flex: 1;
-      overflow-y: auto;
       padding: 8px 16px;
+      overflow-y: auto;
     }
     .comment-item {
+      position: relative;
+      padding: 10px;
+      margin-bottom: 8px;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 8px;
-      position: relative;
     }
     .comment-item .target {
-      font-size: 11px;
-      color: var(--accent);
-      font-weight: 600;
       margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
     }
     .comment-item .file {
+      margin-bottom: 6px;
+      font-family: monospace;
       font-size: 10px;
       color: var(--muted);
-      font-family: monospace;
-      margin-bottom: 6px;
     }
     .comment-item .text {
       font-size: 12px;
@@ -145,30 +145,30 @@
       position: absolute;
       top: 6px;
       right: 8px;
-      background: none;
-      border: none;
+      font-size: 14px;
       color: var(--muted);
       cursor: pointer;
-      font-size: 14px;
+      background: none;
+      border: none;
     }
     .comment-item .delete:hover {
       color: var(--red);
     }
     .no-comments {
-      color: var(--muted);
+      padding: 8px 0;
       font-size: 12px;
       font-style: italic;
-      padding: 8px 0;
+      color: var(--muted);
     }
     .main {
-      flex: 1;
       display: flex;
+      flex: 1;
       flex-direction: column;
       overflow: hidden;
     }
     .canvas-wrap {
-      flex: 1;
       position: relative;
+      flex: 1;
       overflow: hidden;
     }
     svg {
@@ -183,32 +183,32 @@
       gap: 4px;
     }
     .zoom-btn {
-      width: 32px;
-      height: 32px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--text);
-      font-size: 16px;
-      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 32px;
+      height: 32px;
+      font-size: 16px;
+      color: var(--text);
+      cursor: pointer;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
     }
     .zoom-btn:hover {
       border-color: var(--accent);
     }
     .prompt-area {
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      padding: 12px 16px;
       max-height: 200px;
+      padding: 12px 16px;
       overflow-y: auto;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
     }
     .prompt-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
       margin-bottom: 8px;
     }
     .prompt-header h3 {
@@ -219,12 +219,12 @@
     }
     .copy-btn {
       padding: 4px 12px;
+      font-size: 12px;
+      color: #fff;
+      cursor: pointer;
       background: var(--accent);
       border: none;
       border-radius: 4px;
-      color: #fff;
-      font-size: 12px;
-      cursor: pointer;
     }
     .copy-btn:hover {
       opacity: 0.85;
@@ -238,70 +238,70 @@
     }
     /* Modal */
     .modal-overlay {
-      display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.6);
       z-index: 100;
+      display: none;
       align-items: center;
       justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
     }
     .modal-overlay.open {
       display: flex;
     }
     .modal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
       width: 500px;
       max-width: 90vw;
       padding: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
     }
     .modal h3 {
       margin-bottom: 4px;
       font-size: 16px;
     }
     .modal .modal-file {
+      margin-bottom: 8px;
+      font-family: monospace;
       font-size: 12px;
       color: var(--muted);
-      font-family: monospace;
-      margin-bottom: 8px;
     }
     .modal .modal-desc {
-      font-size: 13px;
-      color: var(--text);
-      line-height: 1.5;
-      margin-bottom: 12px;
-      background: var(--surface2);
-      padding: 10px;
-      border-radius: 4px;
       max-height: 150px;
+      padding: 10px;
+      margin-bottom: 12px;
       overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--surface2);
+      border-radius: 4px;
     }
     .modal .modal-snippet {
-      font-size: 11px;
-      color: var(--muted);
-      font-family: monospace;
-      background: #0d0d0d;
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 12px;
       max-height: 120px;
+      padding: 10px;
+      margin-bottom: 12px;
       overflow-y: auto;
-      white-space: pre;
+      font-family: monospace;
+      font-size: 11px;
       line-height: 1.4;
+      color: var(--muted);
+      white-space: pre;
+      background: #0d0d0d;
+      border-radius: 4px;
     }
     .modal textarea {
       width: 100%;
       height: 80px;
+      padding: 8px;
+      font-family: system-ui;
+      font-size: 13px;
+      color: var(--text);
+      resize: vertical;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 4px;
-      color: var(--text);
-      padding: 8px;
-      font-size: 13px;
-      font-family: system-ui;
-      resize: vertical;
     }
     .modal textarea:focus {
       outline: none;
@@ -310,39 +310,39 @@
     .modal-actions {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
       justify-content: flex-end;
+      margin-top: 12px;
     }
     .modal-actions button {
       padding: 6px 16px;
-      border-radius: 4px;
-      border: none;
       font-size: 13px;
       cursor: pointer;
+      border: none;
+      border-radius: 4px;
     }
     .btn-save {
-      background: var(--accent);
       color: #fff;
+      background: var(--accent);
     }
     .btn-cancel {
-      background: var(--surface2);
       color: var(--text);
+      background: var(--surface2);
       border: 1px solid var(--border) !important;
     }
     .legend {
       position: absolute;
       bottom: 12px;
       left: 12px;
+      padding: 10px 14px;
+      font-size: 11px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 10px 14px;
-      font-size: 11px;
     }
     .legend-item {
       display: flex;
-      align-items: center;
       gap: 6px;
+      align-items: center;
       margin-bottom: 3px;
     }
     .legend-item:last-child {
@@ -356,16 +356,26 @@
 
       <div class="sidebar-section">
         <h3>Views</h3>
-        <button class="preset-btn active" onclick="setPreset('full')">
+        <button
+          type="button"
+          class="preset-btn active"
+          onclick="setPreset('full')"
+        >
           Full System
         </button>
-        <button class="preset-btn" onclick="setPreset('api')">
+        <button type="button" class="preset-btn" onclick="setPreset('api')">
           API & Middleware
         </button>
-        <button class="preset-btn" onclick="setPreset('workflow')">
+        <button
+          type="button"
+          class="preset-btn"
+          onclick="setPreset('workflow')"
+        >
           Exploration Workflow
         </button>
-        <button class="preset-btn" onclick="setPreset('cli')">CLI</button>
+        <button type="button" class="preset-btn" onclick="setPreset('cli')">
+          CLI
+        </button>
       </div>
 
       <div class="sidebar-section">
@@ -391,11 +401,21 @@
 
     <div class="main">
       <div class="canvas-wrap" id="canvas-wrap">
-        <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg
+          id="svg"
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label="Architecture diagram"
+        ></svg>
         <div class="zoom-controls">
-          <button class="zoom-btn" onclick="zoomIn()">+</button>
-          <button class="zoom-btn" onclick="zoomOut()">−</button>
-          <button class="zoom-btn" onclick="zoomReset()" style="font-size:12px">
+          <button type="button" class="zoom-btn" onclick="zoomIn()">+</button>
+          <button type="button" class="zoom-btn" onclick="zoomOut()">−</button>
+          <button
+            type="button"
+            class="zoom-btn"
+            onclick="zoomReset()"
+            style="font-size:12px"
+          >
             ⟲
           </button>
         </div>
@@ -404,7 +424,9 @@
       <div class="prompt-area">
         <div class="prompt-header">
           <h3>Prompt Output</h3>
-          <button class="copy-btn" onclick="copyPrompt()">Copy</button>
+          <button type="button" class="copy-btn" onclick="copyPrompt()">
+            Copy
+          </button>
         </div>
         <div class="prompt-text" id="prompt-output">
           Click components to add comments and generate a prompt.
@@ -423,8 +445,12 @@
           placeholder="Ask a question or suggest an edit for this component..."
         ></textarea>
         <div class="modal-actions">
-          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-          <button class="btn-save" onclick="saveComment()">Add Comment</button>
+          <button type="button" class="btn-cancel" onclick="closeModal()">
+            Cancel
+          </button>
+          <button type="button" class="btn-save" onclick="saveComment()">
+            Add Comment
+          </button>
         </div>
       </div>
     </div>
@@ -986,7 +1012,7 @@
         .map(
           (c, i) => `
     <div class="comment-item">
-      <button class="delete" onclick="deleteComment(${i})">×</button>
+      <button type="button" class="delete" onclick="deleteComment(${i})">×</button>
       <div class="target">${c.targetLabel}</div>
       <div class="file">${c.targetFile}</div>
       <div class="text">${escHtml(c.text)}</div>

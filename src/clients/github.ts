@@ -8,15 +8,15 @@ import {
 } from "../errors";
 
 export interface GitHubConfig {
+  branch: string;
   pat: string;
   repo: string;
-  branch: string;
 }
 
 export interface FileContent {
   content: string;
-  sha: string;
   path: string;
+  sha: string;
   size?: number;
   type?: "file";
 }
@@ -29,17 +29,17 @@ export interface NonFileContent {
 export interface DirectoryEntry {
   name: string;
   path: string;
-  type: "file" | "dir";
   sha: string;
+  type: "file" | "dir";
 }
 
 interface FileResponse {
   content?: string;
-  sha: string;
-  path: string;
   encoding?: string;
-  type: string;
+  path: string;
+  sha: string;
   size?: number;
+  type: string;
 }
 
 type OctokitInstance = InstanceType<typeof Octokit>;

@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Archaeology Lab</title>
+    <style>
+    :root {
+      --bg: #f8f4ee;
+      --panel: #fffdf9;
+      --text: #26201c;
+      --muted: #665346;
+      --border: #dfd3c6;
+      --accent: #9f4f2f;
+      --accent-deep: #803a1f;
+      --chip: #f0e2d2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: clamp(1rem, 2.2vw, 2rem);
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 85% 5%, #f8dfbe 0%, transparent 40%),
+        radial-gradient(circle at 15% 100%, #f5dbc4 0%, transparent 45%),
+        var(--bg);
+    }
+
+    .app {
+      display: grid;
+      gap: 1rem;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: 1rem 1.2rem;
+      color: #fff8f3;
+      background: linear-gradient(115deg, #3b271a, #7f472f 74%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.25rem, 2vw, 1.7rem);
+    }
+
+    .hero p {
+      margin: 0.4rem 0 0;
+      font-size: 0.96rem;
+      color: rgba(255, 248, 243, 0.9);
+    }
+
+    .panel {
+      padding: 1rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-weight: 700;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      padding: 0.8rem;
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 0.97rem;
+      line-height: 1.55;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    textarea:focus,
+    input:focus,
+    select:focus {
+      outline: 2px solid color-mix(in oklab, var(--accent) 25%, white);
+      border-color: var(--accent);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+      margin-top: 0.7rem;
+    }
+
+    .control {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    input,
+    select {
+      padding: 0.33rem 0.45rem;
+      font: inherit;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    input {
+      width: 4rem;
+    }
+
+    button {
+      padding: 0.52rem 0.78rem;
+      font: inherit;
+      font-weight: 700;
+      color: white;
+      cursor: pointer;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+    }
+
+    button:hover {
+      background: var(--accent-deep);
+    }
+
+    .ghost {
+      color: #4a3428;
+      background: #efe5da;
+    }
+
+    .ghost:hover {
+      background: #e5d7c8;
+    }
+
+    .hint {
+      margin: 0.65rem 0 0;
+      font-size: 0.89rem;
+      color: var(--muted);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .stat {
+      padding: 0.6rem;
+      background: #fff9f2;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .stat-label {
+      margin: 0;
+      font-size: 0.78rem;
+      color: #755b4b;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      margin: 0.18rem 0 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .themes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      gap: 0.3rem;
+      align-items: center;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.83rem;
+      color: #4e3527;
+      background: var(--chip);
+      border: 1px solid #d9c3ac;
+      border-radius: 999px;
+    }
+
+    .prompt-header {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1rem;
+    }
+
+    .prompt-header h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .prompt-list {
+      display: grid;
+      gap: 0.55rem;
+      padding-left: 1.1rem;
+      margin: 0.6rem 0 0;
+    }
+
+    .prompt-list li {
+      padding: 0.65rem 0.7rem;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .prompt-row {
+      display: flex;
+      gap: 0.65rem;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .prompt-text {
+      margin: 0;
+      line-height: 1.45;
+    }
+
+    .prompt-copy {
+      flex-shrink: 0;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.77rem;
+    }
+
+    .status {
+      min-height: 1.2rem;
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #7a2f17;
+    }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <h1>Prompt Archaeology Lab</h1>
+        <p>
+          Built from idea <code>2026-02-04 ... journalling app prompts</code>.
+          Analyze old entries and generate specific, weird, non-generic prompts.
+        </p>
+      </header>
+
+      <section class="panel">
+        <label class="label" for="journalInput">Journal history input</label>
+        <textarea
+          id="journalInput"
+          placeholder="Paste entries separated by blank lines. Optional date format at the start of each entry: YYYY-MM-DD: ..."
+        ></textarea>
+
+        <div class="controls">
+          <label class="control" for="promptCount">
+            Prompt count
+            <input id="promptCount" type="number" min="1" max="12" value="5">
+          </label>
+          <label class="control" for="toneSelect">
+            Tone
+            <select id="toneSelect">
+              <option value="balanced">Balanced</option>
+              <option value="playful">Playful</option>
+              <option value="deep">Deep</option>
+            </select>
+          </label>
+          <button id="generateButton" type="button">Generate Prompts</button>
+          <button class="ghost" id="sampleButton" type="button">
+            Load Sample
+          </button>
+          <button class="ghost" id="clearButton" type="button">Clear</button>
+        </div>
+
+        <p class="hint">
+          The generator runs fully in-browser and keeps your journal text local.
+        </p>
+      </section>
+
+      <section class="panel" id="resultsPanel" hidden>
+        <div class="stats">
+          <article class="stat">
+            <p class="stat-label">Entries Parsed</p>
+            <p class="stat-value" id="entryCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Theme Candidates</p>
+            <p class="stat-value" id="themeCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Emotional Signal</p>
+            <p class="stat-value" id="sentimentValue">Neutral</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Date Span</p>
+            <p class="stat-value" id="dateSpanValue">N/A</p>
+          </article>
+        </div>
+
+        <div class="themes" id="themeChips"></div>
+
+        <div class="prompt-header">
+          <h2>Generated Prompt Set</h2>
+          <button class="ghost" id="copyAllButton" type="button">
+            Copy All
+          </button>
+        </div>
+        <ol class="prompt-list" id="promptList"></ol>
+      </section>
+
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script>
+    "use strict";
+
+    const STORAGE_KEY = "prompt-archaeology-input";
+    const SAMPLE_ENTRIES = `2025-10-03: I kept saying yes to meetings I did not need. I feel tired by 3pm and then stay up late to reclaim time.
+
+2025-11-11: Tried to restart running. The first ten minutes were awful, but then it felt like my brain finally unclenched.
+
+2025-12-08: I miss making things with my hands. Everything is tabs and notifications. I keep bookmarking woodworking videos but never start.
+
+2026-01-14: Felt weirdly hopeful after cleaning my desk. Maybe clarity is physical before it is emotional.
+
+2026-02-01: I keep circling around "focus" and "energy." I talk about both but I still protect everyone else's priorities before mine.`;
+    const ENTRY_LINE_SPLIT_REGEX = /\n+/;
+    const ENTRY_BLOCK_SPLIT_REGEX = /\n\s*\n+/;
+    const INLINE_DATE_REGEX = /^(\d{4}[-/]\d{2}[-/]\d{2})\s*[:\-–]\s*(.*)$/;
+    const STANDALONE_DATE_REGEX = /^(\d{4}[-/]\d{2}[-/]\d{2})$/;
+    const FORWARD_SLASH_REGEX = /\//g;
+    const TOKEN_REGEX = /[a-z][a-z'-]{2,}/g;
+    const TRIM_EDGE_APOSTROPHES_REGEX = /^'+|'+$/g;
+    const SENTENCE_SPLIT_REGEX = /[.!?]/;
+    const MODULUS = 2_147_483_647;
+    const MULTIPLIER = 48_271;
+
+    const STOP_WORDS = new Set([
+      "about",
+      "after",
+      "again",
+      "almost",
+      "also",
+      "always",
+      "around",
+      "because",
+      "been",
+      "before",
+      "being",
+      "between",
+      "could",
+      "didnt",
+      "does",
+      "dont",
+      "each",
+      "feel",
+      "felt",
+      "from",
+      "have",
+      "just",
+      "keep",
+      "kept",
+      "like",
+      "maybe",
+      "more",
+      "much",
+      "need",
+      "really",
+      "that",
+      "them",
+      "then",
+      "there",
+      "they",
+      "this",
+      "with",
+      "would",
+      "your",
+      "youre",
+      "into",
+      "when",
+      "what",
+      "where",
+      "while",
+      "over",
+      "very",
+      "were",
+      "until",
+      "still",
+      "will",
+      "went",
+      "want",
+      "time",
+      "today",
+      "than",
+    ]);
+
+    const POSITIVE_WORDS = new Set([
+      "good",
+      "great",
+      "better",
+      "hopeful",
+      "calm",
+      "clear",
+      "joy",
+      "grateful",
+      "light",
+      "peace",
+      "progress",
+      "proud",
+      "energized",
+      "excited",
+      "relief",
+    ]);
+
+    const NEGATIVE_WORDS = new Set([
+      "tired",
+      "anxious",
+      "stress",
+      "stressed",
+      "overwhelmed",
+      "afraid",
+      "angry",
+      "frustrated",
+      "burnout",
+      "drained",
+      "stuck",
+      "worry",
+      "worse",
+      "lonely",
+      "regret",
+    ]);
+
+    const input = document.querySelector("#journalInput");
+    const promptCountInput = document.querySelector("#promptCount");
+    const toneSelect = document.querySelector("#toneSelect");
+    const generateButton = document.querySelector("#generateButton");
+    const sampleButton = document.querySelector("#sampleButton");
+    const clearButton = document.querySelector("#clearButton");
+    const copyAllButton = document.querySelector("#copyAllButton");
+    const resultsPanel = document.querySelector("#resultsPanel");
+    const entryCount = document.querySelector("#entryCount");
+    const themeCount = document.querySelector("#themeCount");
+    const sentimentValue = document.querySelector("#sentimentValue");
+    const dateSpanValue = document.querySelector("#dateSpanValue");
+    const themeChips = document.querySelector("#themeChips");
+    const promptList = document.querySelector("#promptList");
+    const status = document.querySelector("#status");
+
+    let latestPromptSet = [];
+
+    const announce = (message) => {
+      status.textContent = message;
+    };
+
+    const copyText = async (text, successMessage) => {
+      if (!text.trim()) {
+        announce("Nothing to copy yet.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        announce(successMessage);
+      } catch {
+        const buffer = document.createElement("textarea");
+        buffer.value = text;
+        document.body.append(buffer);
+        buffer.select();
+        document.execCommand("copy");
+        buffer.remove();
+        announce(successMessage);
+      }
+    };
+
+    const parseOptionalDate = (entryText) => {
+      const lines = entryText
+        .split(ENTRY_LINE_SPLIT_REGEX)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const firstLine = lines[0] ?? "";
+
+      const inlineDate = firstLine.match(INLINE_DATE_REGEX);
+      if (inlineDate) {
+        return {
+          date: new Date(inlineDate[1].replace(FORWARD_SLASH_REGEX, "-")),
+          content: inlineDate[2] || lines.slice(1).join(" "),
+        };
+      }
+
+      const standaloneDate = firstLine.match(STANDALONE_DATE_REGEX);
+      if (standaloneDate) {
+        return {
+          date: new Date(standaloneDate[1].replace(FORWARD_SLASH_REGEX, "-")),
+          content: lines.slice(1).join(" "),
+        };
+      }
+
+      return {
+        date: null,
+        content: lines.join(" "),
+      };
+    };
+
+    const tokenize = (text) => {
+      const words = text.toLowerCase().match(TOKEN_REGEX) ?? [];
+      return words
+        .map((word) => word.replace(TRIM_EDGE_APOSTROPHES_REGEX, ""))
+        .filter((word) => !STOP_WORDS.has(word) && word.length > 2);
+    };
+
+    const parseEntries = (rawInput) => {
+      return rawInput
+        .split(ENTRY_BLOCK_SPLIT_REGEX)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const { date, content } = parseOptionalDate(entry);
+          return {
+            text: content,
+            date: Number.isNaN(date?.getTime()) ? null : date,
+          };
+        })
+        .filter((entry) => entry.text.length > 0);
+    };
+
+    const formatDate = (date) => date.toISOString().slice(0, 10);
+
+    const analyzeEntries = (entries) => {
+      const frequency = new Map();
+      let positive = 0;
+      let negative = 0;
+
+      for (const entry of entries) {
+        const tokens = tokenize(entry.text);
+        for (const token of tokens) {
+          frequency.set(token, (frequency.get(token) ?? 0) + 1);
+          if (POSITIVE_WORDS.has(token)) {
+            positive += 1;
+          }
+          if (NEGATIVE_WORDS.has(token)) {
+            negative += 1;
+          }
+        }
+      }
+
+      const topThemes = [...frequency.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+      const datedEntries = entries
+        .filter((entry) => entry.date !== null)
+        .sort((a, b) => a.date - b.date);
+
+      let span = "Undated";
+      const newestEntry = datedEntries.at(-1);
+      if (datedEntries.length > 0 && newestEntry) {
+        span = `${formatDate(datedEntries[0].date)} → ${formatDate(newestEntry.date)}`;
+      }
+
+      let sentiment = "Balanced";
+      if (positive - negative >= 2) {
+        sentiment = "Mostly positive";
+      } else if (negative - positive >= 2) {
+        sentiment = "Heavy / strained";
+      }
+
+      return {
+        topThemes,
+        span,
+        sentiment,
+      };
+    };
+
+    const createSeed = (text) => {
+      let hash = 1;
+      for (const character of text) {
+        hash = (hash * 31 + character.charCodeAt(0)) % MODULUS;
+      }
+      return hash;
+    };
+
+    const createRng = (inputSeed) => {
+      let seed = inputSeed % MODULUS;
+      if (seed <= 0) {
+        seed += MODULUS - 1;
+      }
+
+      return () => {
+        seed = (seed * MULTIPLIER) % MODULUS;
+        return seed / MODULUS;
+      };
+    };
+
+    const shuffle = (items, rng) => {
+      const clone = [...items];
+      for (let index = clone.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(rng() * (index + 1));
+        [clone[index], clone[swapIndex]] = [clone[swapIndex], clone[index]];
+      }
+      return clone;
+    };
+
+    const pick = (items, rng) => {
+      if (items.length === 0) {
+        return "";
+      }
+      return items[Math.floor(rng() * items.length)];
+    };
+
+    const snippetFromEntry = (entry) => {
+      const sentence = entry.text.split(SENTENCE_SPLIT_REGEX)[0] ?? entry.text;
+      return sentence.trim().slice(0, 120);
+    };
+
+    const buildPromptContext = (entries, topThemes, sentiment) => {
+      const [mainTheme, secondTheme, thirdTheme] = topThemes.map(
+        ([word]) => word
+      );
+      const snippets = entries
+        .map((entry) => snippetFromEntry(entry))
+        .filter(Boolean);
+      const mainThemeCount = topThemes[0]?.[1] ?? 0;
+      const secondThemeCount = topThemes[1]?.[1] ?? 0;
+
+      return {
+        mainTheme: mainTheme ?? "change",
+        secondTheme: secondTheme ?? "energy",
+        thirdTheme: thirdTheme ?? "focus",
+        mainThemeCount,
+        secondThemeCount,
+        snippets,
+        sentiment,
+      };
+    };
+
+    const templateSets = {
+      balanced: [
+        (ctx) =>
+          `You used "${ctx.mainTheme}" ${ctx.mainThemeCount} times. Write a dialogue between the part of you pursuing it and the part of you protecting yourself from it.`,
+        (ctx, rng) =>
+          `Prompt archaeology: revisit this line from an older entry — "${pick(ctx.snippets, rng)}". What would that version of you not predict about this week?`,
+        (ctx) =>
+          `Constraint mode: describe your relationship with ${ctx.secondTheme} using only weather metaphors.`,
+        (ctx) =>
+          `Counterfactual lens: if you had made the opposite choice in a moment related to ${ctx.mainTheme}, what would today look like?`,
+        (ctx) =>
+          `Borrowed perspective: write from the viewpoint of your 80-year-old self commenting on your current ${ctx.thirdTheme}.`,
+        (ctx) =>
+          `Microcosm zoom: describe 45 seconds from today when ${ctx.mainTheme} quietly appeared.`,
+        (ctx) =>
+          `Sensory time travel: what did ${ctx.secondTheme} feel like in your body the first time it mattered to you?`,
+        (ctx) =>
+          `Impossible question: if your ${ctx.mainTheme} had a color and a sound, what warning would it be giving?`,
+        (ctx) =>
+          `Philosophical coin flip: interpret your current ${ctx.thirdTheme} through stoic acceptance, then through radical possibility.`,
+        (ctx, rng) =>
+          `Rewrite this remembered fragment — "${pick(ctx.snippets, rng)}" — as if it were advice to a close friend facing your same pattern.`,
+        (ctx) =>
+          `Oracle prompt: your recent emotional signal is "${ctx.sentiment}". What are you pretending this signal is about, and what is it actually about?`,
+        (ctx) =>
+          `Write a short scene where your ambition and your rest have to negotiate terms around ${ctx.mainTheme}.`,
+      ],
+      playful: [
+        (ctx) =>
+          `Your ${ctx.mainTheme} has filed a formal complaint. Write your response memo in three short paragraphs.`,
+        (ctx, rng) =>
+          `Take this line — "${pick(ctx.snippets, rng)}" — and rewrite it as a dramatic nature documentary voiceover.`,
+        (ctx) =>
+          `Constraint game: explain ${ctx.secondTheme} without using abstract nouns or productivity words.`,
+        (ctx) =>
+          `Borrowed perspective: journal as your coffee mug observing your relationship with ${ctx.mainTheme}.`,
+        (ctx) =>
+          `Counterfactual comedy: if your biggest problem with ${ctx.thirdTheme} was secretly your superpower, how would today play out?`,
+        () =>
+          "Impossible prompt: your mood is now a tiny weather system. Forecast your next three decisions.",
+        () =>
+          "Micro-zoom challenge: narrate the exact moment your focus wandered today like a detective report.",
+        (ctx) =>
+          `Write a fake inspirational quote about ${ctx.mainTheme}, then explain why it accidentally contains truth.`,
+        (ctx) =>
+          `Two voices enter: "Chaos You" and "Planner You" argue about ${ctx.secondTheme}. Let each speak exactly five lines.`,
+        (ctx) =>
+          `Sensory map: what texture, smell, and soundtrack best describe your current ${ctx.mainTheme}?`,
+        (ctx) =>
+          `Oracle-but-silly: if the moon texted you about ${ctx.thirdTheme}, what message would it send tonight?`,
+        (ctx, rng) =>
+          `Remix this fragment — "${pick(ctx.snippets, rng)}" — into a tiny myth where you're both hero and unreliable narrator.`,
+      ],
+      deep: [
+        (ctx) =>
+          `You return to "${ctx.mainTheme}" often (${ctx.mainThemeCount} mentions). What unasked question sits beneath that repetition?`,
+        (ctx, rng) =>
+          `Read this old line slowly: "${pick(ctx.snippets, rng)}". What grief or desire is encoded between the words?`,
+        (ctx) =>
+          `Write from the perspective of the future self who finally made peace with ${ctx.secondTheme}. What did they stop bargaining with?`,
+        (ctx) =>
+          `Counterfactual depth: imagine the life-path where you chose fear over ${ctx.thirdTheme}. What would feel missing now?`,
+        () =>
+          "Dialogue practice: let your ambition and exhaustion speak to each other until they reach one honest compromise.",
+        () =>
+          `Constraint for honesty: describe your current internal conflict without using the words "should," "busy," or "fine."`,
+        (ctx) =>
+          `Sensory excavation: what bodily memory appears when you think about ${ctx.mainTheme}, and what does it ask you to notice?`,
+        () =>
+          "Impossible question: if your most persistent frustration was trying to protect you, what danger would it name?",
+        () =>
+          "Write the entry your younger self needed to read when this pattern first began.",
+        () =>
+          "Microcosm zoom: capture one overlooked minute from today that reveals your deepest priority.",
+        (ctx, rng) =>
+          `Transform this fragment — "${pick(ctx.snippets, rng)}" — into a letter of accountability to yourself.`,
+        (ctx) =>
+          `The emotional signal reads "${ctx.sentiment}". What truth becomes available if you stop resisting that state for one page?`,
+      ],
+    };
+
+    const generatePrompts = (entries, count, tone) => {
+      const analysis = analyzeEntries(entries);
+      const context = buildPromptContext(
+        entries,
+        analysis.topThemes,
+        analysis.sentiment
+      );
+      const daySeed = new Date().toISOString().slice(0, 10);
+      const seed = createSeed(`${input.value}|${tone}|${daySeed}|${count}`);
+      const rng = createRng(seed);
+
+      const templates = templateSets[tone] ?? templateSets.balanced;
+      const shuffledTemplates = shuffle(templates, rng);
+      const prompts = [];
+      const requiredCount = Math.min(Math.max(count, 1), 12);
+
+      while (prompts.length < requiredCount) {
+        const index = prompts.length % shuffledTemplates.length;
+        const generated = shuffledTemplates[index](context, rng).trim();
+        if (prompts.includes(generated)) {
+          prompts.push(
+            `${generated} (use a fresh real-world example from this week)`
+          );
+        } else {
+          prompts.push(generated);
+        }
+      }
+
+      return {
+        analysis,
+        prompts,
+      };
+    };
+
+    const renderThemeChips = (themes) => {
+      themeChips.innerHTML = "";
+      for (const [theme, count] of themes) {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${theme} · ${count}`;
+        themeChips.append(chip);
+      }
+    };
+
+    const renderPrompts = (prompts) => {
+      promptList.innerHTML = "";
+
+      prompts.forEach((prompt, index) => {
+        const listItem = document.createElement("li");
+        const row = document.createElement("div");
+        row.className = "prompt-row";
+
+        const paragraph = document.createElement("p");
+        paragraph.className = "prompt-text";
+        paragraph.textContent = prompt;
+
+        const copyButton = document.createElement("button");
+        copyButton.type = "button";
+        copyButton.className = "prompt-copy ghost";
+        copyButton.textContent = "Copy";
+        copyButton.addEventListener("click", () => {
+          copyText(prompt, `Prompt ${index + 1} copied.`);
+        });
+
+        row.append(paragraph, copyButton);
+        listItem.append(row);
+        promptList.append(listItem);
+      });
+    };
+
+    const runGeneration = () => {
+      const raw = input.value.trim();
+      if (!raw) {
+        resultsPanel.hidden = true;
+        announce("Paste journal history first.");
+        return;
+      }
+
+      const entries = parseEntries(raw);
+      if (entries.length < 2) {
+        resultsPanel.hidden = true;
+        announce("Add at least two entries separated by blank lines.");
+        return;
+      }
+
+      const requestedCount = Number.parseInt(promptCountInput.value, 10);
+      const safeCount = Number.isNaN(requestedCount) ? 5 : requestedCount;
+      const tone = toneSelect.value;
+
+      const { analysis, prompts } = generatePrompts(entries, safeCount, tone);
+      latestPromptSet = prompts;
+
+      entryCount.textContent = entries.length.toString();
+      themeCount.textContent = analysis.topThemes.length.toString();
+      sentimentValue.textContent = analysis.sentiment;
+      dateSpanValue.textContent = analysis.span;
+      renderThemeChips(analysis.topThemes);
+      renderPrompts(prompts);
+
+      resultsPanel.hidden = false;
+      announce(
+        `Generated ${prompts.length} prompts from ${entries.length} entries.`
+      );
+    };
+
+    copyAllButton.addEventListener("click", () => {
+      copyText(
+        latestPromptSet
+          .map((prompt, index) => `${index + 1}. ${prompt}`)
+          .join("\n\n"),
+        "All prompts copied."
+      );
+    });
+
+    generateButton.addEventListener("click", runGeneration);
+
+    sampleButton.addEventListener("click", () => {
+      input.value = SAMPLE_ENTRIES;
+      runGeneration();
+      announce("Sample entries loaded.");
+    });
+
+    clearButton.addEventListener("click", () => {
+      input.value = "";
+      promptList.innerHTML = "";
+      themeChips.innerHTML = "";
+      latestPromptSet = [];
+      resultsPanel.hidden = true;
+      localStorage.removeItem(STORAGE_KEY);
+      announce("Cleared.");
+    });
+
+    input.addEventListener("input", () => {
+      localStorage.setItem(STORAGE_KEY, input.value);
+    });
+
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      input.value = stored;
+      announce("Restored previous journal input from this browser.");
+    }
+    </script>
+  </body>
+</html>

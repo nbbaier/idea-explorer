@@ -50,9 +50,9 @@ function extractJobId(comments: Comment[]): string | null {
 }
 
 interface StatusResponse {
-  status: string;
-  github_url?: string;
   error?: string;
+  github_url?: string;
+  status: string;
 }
 
 async function checkJobStatus(jobId: string): Promise<StatusResponse | null> {

@@ -2,18 +2,18 @@ import { cancel, confirm, intro, isCancel, select, text } from "@clack/prompts";
 import type { Mode, Model } from "@/types/api";
 
 export interface SubmitPromptResult {
+  context?: string;
   idea: string;
   mode?: Mode;
   model?: Model;
-  context?: string;
 }
 
 export interface SubmitPromptOptions {
+  defaultMode?: Mode;
+  defaultModel?: Model;
   skipIdea?: boolean;
   skipMode?: boolean;
   skipModel?: boolean;
-  defaultMode?: Mode;
-  defaultModel?: Model;
 }
 
 function handleCancel(): null {
@@ -26,7 +26,7 @@ async function promptForIdea(): Promise<string | null> {
     message: "What's your idea?",
     placeholder: "Describe your idea...",
     validate: (value) => {
-      if (!value.trim()) {
+      if (!value?.trim()) {
         return "Idea is required";
       }
     },
