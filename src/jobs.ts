@@ -457,15 +457,7 @@ export function listJobs(
         await Promise.all(pagedKeys.map((key) => loadJobByKey(kv, key.name)))
       ).filter((job): job is Job => job !== null);
 
-      const filteredJobs = jobs
-        .filter((job) => (status ? job.status === status : true))
-        .filter((job) => (mode ? job.mode === mode : true))
-        .filter((job) =>
-          matchesDateRange(job.created_at, createdAfter, createdBefore)
-        )
-        .sort((a, b) => b.created_at - a.created_at);
-
-      return { jobs: filteredJobs, total };
+      return { jobs, total };
     },
     catch: (error) => new StorageError({ operation: "list", cause: error }),
   });

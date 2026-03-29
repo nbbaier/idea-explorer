@@ -649,9 +649,10 @@ export class ExplorationWorkflow extends WorkflowEntrypoint<
           // (previousResearchContent is shown to Claude for context only)
           // When update=true, this appends to existingContent
           // Validation prevents both from being set simultaneously
-          const finalContent = existingContent
-            ? `${existingContent}\n\n${researchContent}`
-            : researchContent;
+          let finalContent = researchContent;
+          if (existingContent) {
+            finalContent = `${existingContent}\n\n${researchContent}`;
+          }
 
           await writeResearchFile(
             github,

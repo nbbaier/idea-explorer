@@ -86,7 +86,7 @@ function validateModel(
 
 async function submitAction(options: SubmitOptions): Promise<void> {
   const outputMode = getOutputMode(options);
-  const verbose = options.verbose ?? options.debug ?? false;
+  const verbose = options.verbose || options.debug;
 
   try {
     const apiKey = getApiKey();
