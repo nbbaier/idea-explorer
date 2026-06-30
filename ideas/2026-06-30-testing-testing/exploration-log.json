@@ -1,0 +1,20 @@
+[
+  {
+    "jobId": "6a85bb34",
+    "idea": "testing testing",
+    "mode": "exploration",
+    "model": "sonnet",
+    "context": "you don't have to actually do research for this one",
+    "isUpdate": false,
+    "startedAt": "2026-06-30T04:47:15.288Z",
+    "completedAt": "2026-06-30T04:48:13.451Z",
+    "durationMs": 58163,
+    "steps": 1,
+    "tokens": {
+      "input": 3490,
+      "output": 2110,
+      "total": 5600
+    },
+    "outputPath": "ideas/2026-06-30-testing-testing/research.md"
+  }
+]
