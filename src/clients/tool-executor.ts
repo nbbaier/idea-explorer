@@ -1,4 +1,4 @@
-import type { FileContent, GitHubClient, NonFileContent } from "./github";
+import type { GitHubClient } from "./github";
 
 type ReadResearchResult =
   | { ok: true; content: string; bytes: number }
@@ -64,7 +64,7 @@ export function createToolExecutor(github: GitHubClient): ToolExecutor {
         );
       }
 
-      if (isNonFileContent(file)) {
+      if (file.type !== "file") {
         return failReadResearch(
           "api_error",
           `Path is not a file: ${normalizedPath}`
@@ -134,12 +134,6 @@ function validatePath(rawPath: string): PathValidationResult {
   }
 
   return { ok: true, path: trimmed };
-}
-
-function isNonFileContent(
-  file: FileContent | NonFileContent
-): file is NonFileContent {
-  return file.type !== "file";
 }
 
 function hasControlCharacters(value: string): boolean {
