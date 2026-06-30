@@ -34,7 +34,7 @@ export const worker = await Worker("api", {
   adopt: true,
   assets: {
     html_handling: "auto-trailing-slash",
-    not_found_handling: "single-page-application",
+    not_found_handling: "none",
   },
   domains: app.stage === "prod" ? ["ideas.nicobaier.com"] : [],
   bindings: {

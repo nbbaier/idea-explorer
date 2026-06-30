@@ -1,5 +1,5 @@
 {
-  "name": "idea-explorer-prod",
+  "name": "idea-explorer-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-01-24",
   "compatibility_flags": ["nodejs_compat"],
@@ -10,8 +10,8 @@
   "kv_namespaces": [
     {
       "binding": "IDEA_EXPLORER_JOBS",
-      "id": "430e2c6963524af08bf20cface1a2e5d",
-      "preview_id": "430e2c6963524af08bf20cface1a2e5d"
+      "id": "jobs",
+      "preview_id": "jobs"
     }
   ],
   "workflows": [
@@ -19,7 +19,7 @@
       "name": "exploration-workflow",
       "binding": "EXPLORATION_WORKFLOW",
       "class_name": "ExplorationWorkflow",
-      "script_name": "idea-explorer-prod"
+      "script_name": "idea-explorer-dev"
     }
   ]
 }
